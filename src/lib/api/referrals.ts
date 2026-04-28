@@ -138,11 +138,17 @@ export interface CreateReferralInput {
   message: string;
 }
 
+/** Normalises request_type values to match SQL check constraint (underscores). */
+function normaliseRequestType(raw: string): string {
+  return raw.toLowerCase().replace(/\s+/g, "_");
+}
+
 export async function createReferralRequest(data: CreateReferralInput) {
+  const normalised = { ...data, request_type: normaliseRequestType(data.request_type) };
   if (isSupabaseConfigured && supabase) {
-    return supabase.from("referral_requests").insert(data).select().single();
+    return supabase.from("referral_requests").insert(normalised).select().single();
   }
-  return { data: { id: `mock-${Date.now()}`, ...data }, error: null };
+  return { data: { id: `mock-${Date.now()}`, ...normalised }, error: null };
 }
 
 // ---------------------------------------------------------------------------

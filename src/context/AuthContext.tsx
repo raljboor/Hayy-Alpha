@@ -79,8 +79,8 @@ function buildMockProfile(): UserProfile {
     linkedin_url: null,
     resume_url: null,
     video_intro_url: null,
-    role_type: "candidate",
-    created_at: new Date().toISOString(),
+    role_type: "job_seeker",
+  created_at: new Date().toISOString(),
   };
 }
 

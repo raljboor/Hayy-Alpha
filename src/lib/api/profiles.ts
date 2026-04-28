@@ -41,7 +41,7 @@ export async function getProfile(userId: string): Promise<UserProfile | null> {
     linkedin_url: null,
     resume_url: null,
     video_intro_url: null,
-    role_type: "candidate",
+    role_type: "job_seeker",
     created_at: new Date().toISOString(),
   };
 }

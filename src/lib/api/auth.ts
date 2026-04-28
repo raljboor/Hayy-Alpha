@@ -11,6 +11,7 @@
 import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
 import { signIn as mockSignIn, signOut as mockSignOut, isAuthed } from "@/lib/auth";
 import { users } from "@/data/mockData";
+import { friendlyError } from "@/lib/api/errors";
 import type { UserProfile } from "@/types/models";
 import type { Session } from "@supabase/supabase-js";
 
@@ -39,7 +40,7 @@ export async function signUpUser({
   fullName,
 }: AuthCredentials): Promise<AuthResult> {
   if (isSupabaseConfigured && supabase) {
-    return supabase.auth.signUp({
+    const result = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -47,6 +48,10 @@ export async function signUpUser({
         data: { full_name: fullName ?? "" },
       },
     });
+    if (result.error) {
+      return { ...result, error: { message: friendlyError(result.error) } };
+    }
+    return result;
   }
   mockSignIn();
   return { data: { user: { email } }, error: null };
@@ -61,7 +66,11 @@ export async function loginUser({
   password,
 }: AuthCredentials): Promise<AuthResult> {
   if (isSupabaseConfigured && supabase) {
-    return supabase.auth.signInWithPassword({ email, password });
+    const result = await supabase.auth.signInWithPassword({ email, password });
+    if (result.error) {
+      return { ...result, error: { message: friendlyError(result.error) } };
+    }
+    return result;
   }
   mockSignIn();
   return { data: { user: { email } }, error: null };

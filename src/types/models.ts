@@ -6,7 +6,7 @@
  * (see `src/data/mockData.ts`) that loosely matches these shapes.
  */
 
-export type RoleType = "candidate" | "host" | "recruiter";
+export type RoleType = "job_seeker" | "referral_host" | "recruiter" | "admin";
 
 export interface UserProfile {
   id: string;

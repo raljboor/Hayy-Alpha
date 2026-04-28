@@ -267,11 +267,11 @@ const NewRequestDialog = ({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="coffee chat">Coffee chat</SelectItem>
+              <SelectItem value="coffee_chat">Coffee chat</SelectItem>
               <SelectItem value="referral">Referral</SelectItem>
-              <SelectItem value="resume feedback">Resume feedback</SelectItem>
-              <SelectItem value="interview prep">Interview prep</SelectItem>
-              <SelectItem value="company insight">Company insight</SelectItem>
+              <SelectItem value="resume_feedback">Resume feedback</SelectItem>
+              <SelectItem value="interview_prep">Interview prep</SelectItem>
+              <SelectItem value="company_insight">Company insight</SelectItem>
             </SelectContent>
           </Select>
         </div>

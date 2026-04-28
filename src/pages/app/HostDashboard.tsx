@@ -281,6 +281,7 @@ const HostDashboard = () => {
     toast.success(`Marked complete with ${getUser(r.candidateId)?.name.split(" ")[0]}`);
   };
 
+  // referral_host and admin can access the host dashboard without a prompt
   const isHost = !profile || profile.role_type === "referral_host" || profile.role_type === "admin";
 
   return (

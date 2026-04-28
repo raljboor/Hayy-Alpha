@@ -212,15 +212,26 @@ create policy "referral_messages: sender can mark read"
 
 alter table public.notifications enable row level security;
 
-drop policy if exists "notifications: user can read own"    on public.notifications;
-drop policy if exists "notifications: user can update own"  on public.notifications;
-drop policy if exists "notifications: user can delete own"  on public.notifications;
+drop policy if exists "notifications: user can read own"      on public.notifications;
+drop policy if exists "notifications: user can update own"    on public.notifications;
+drop policy if exists "notifications: user can delete own"    on public.notifications;
+drop policy if exists "notifications: authenticated can send" on public.notifications;
 
 create policy "notifications: user can read own"
   on public.notifications
   for select
   to authenticated
   using (user_id = auth.uid());
+
+-- Any authenticated user can INSERT a notification for any recipient.
+-- This allows the message-send and status-update flows to notify the other party.
+-- If you want stricter control, move notification creation to a Postgres function
+-- (security definer) or a Supabase Edge Function in a later phase.
+create policy "notifications: authenticated can send"
+  on public.notifications
+  for insert
+  to authenticated
+  with check (true);
 
 -- Allows marking notifications as read (read_at update).
 create policy "notifications: user can update own"

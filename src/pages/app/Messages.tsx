@@ -7,15 +7,16 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { UserAvatar } from "@/components/hayy/UserAvatar";
 import { UnreadDot } from "@/components/hayy/InboxPrimitives";
-import { threads as allThreads } from "@/data/mockData";
+import type { ReferralThread } from "@/data/mockData";
 import { getReferralThreads } from "@/lib/api/referrals";
 import { useAsync } from "@/lib/useAsync";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 const Messages = () => {
+  // Mock fallback lives inside getReferralThreads() in the API layer.
   const { data, loading } = useAsync(() => getReferralThreads(), []);
-  const threads = data ?? allThreads;
+  const threads = data ?? [];
   const [selectedId, setSelectedId] = useState<string>(threads[0]?.id ?? "");
   const [query, setQuery] = useState("");
   const [reply, setReply] = useState("");
@@ -162,7 +163,7 @@ const Messages = () => {
   );
 };
 
-const InboxRowContent = ({ t }: { t: (typeof allThreads)[number] }) => (
+const InboxRowContent = ({ t }: { t: ReferralThread }) => (
   <>
     <UserAvatar user={t.person} size="md" />
     <div className="min-w-0 flex-1">

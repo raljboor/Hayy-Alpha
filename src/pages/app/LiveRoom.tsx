@@ -15,7 +15,10 @@ import {
   Crown,
   X,
 } from "lucide-react";
-import { getRoom, getUser, users } from "@/lib/mockData";
+import { getUser, users } from "@/lib/mockData";
+import { getRoomById } from "@/lib/api/rooms";
+import { useAsync } from "@/lib/useAsync";
+import { Skeleton } from "@/components/ui/skeleton";
 import { UserAvatar } from "@/components/hayy/UserAvatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,7 +69,7 @@ type Tile = {
 const LiveRoom = () => {
   const { id = "" } = useParams();
   const navigate = useNavigate();
-  const room = getRoom(id);
+  const { data: room, loading } = useAsync(() => getRoomById(id), [id]);
 
   const [muted, setMuted] = useState(true);
   const [video, setVideo] = useState(false);
@@ -93,7 +96,21 @@ const LiveRoom = () => {
   const raisedHands = [users[4], users[5]];
   const audienceCount = (room?.attendees ?? 100) - tiles.filter((t) => t.isSpeaker).length;
 
-  if (!room) return null;
+  if (loading) {
+    return (
+      <div className="fixed inset-0 z-50 bg-background flex items-center justify-center">
+        <Skeleton className="h-12 w-64" />
+      </div>
+    );
+  }
+
+  if (!room) {
+    return (
+      <div className="fixed inset-0 z-50 bg-background flex items-center justify-center">
+        <p className="text-muted-foreground">Room not found.</p>
+      </div>
+    );
+  }
 
   const submitReferral = (e: React.FormEvent) => {
     e.preventDefault();

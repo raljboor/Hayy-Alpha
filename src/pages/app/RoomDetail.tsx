@@ -1,4 +1,5 @@
-import { Link, useParams } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   Calendar,
   Users,
@@ -10,10 +11,13 @@ import {
   Coffee,
   Handshake,
   ShieldCheck,
+  Loader2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { getUser, users } from "@/data/mockData";
-import { getRoomById } from "@/lib/api/rooms";
+import { getRoomById, joinRoom, waitlistRoom, getRoomParticipantStatus } from "@/lib/api/rooms";
 import { useAsync } from "@/lib/useAsync";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/hayy/ErrorState";
 import { StatusBadge } from "@/components/hayy/StatusBadge";
@@ -29,6 +33,7 @@ const fmtDateTime = (iso: string) =>
     minute: "2-digit",
   });
 
+// Static content — will be superseded when room_agenda and room_rules tables ship
 const agenda = [
   { time: "0:00", title: "Welcome + room rules", desc: "Quick intro to how Hayy rooms work and how to get the most out of today." },
   { time: "0:05", title: "Host introductions", desc: "Hear from operators, recruiters, and analysts inside Canadian corporates." },
@@ -61,7 +66,49 @@ const rules = [
 
 const RoomDetail = () => {
   const { id = "" } = useParams();
+  const navigate = useNavigate();
+  const { userId } = useCurrentUser();
+
   const { data: room, loading, error, refetch } = useAsync(() => getRoomById(id), [id]);
+  const { data: participantStatus, refetch: refetchStatus } = useAsync(
+    () => (userId ? getRoomParticipantStatus(id, userId) : Promise.resolve(null)),
+    [id, userId],
+  );
+
+  const [joining, setJoining] = useState(false);
+  const [waitlisting, setWaitlisting] = useState(false);
+
+  const handleJoin = async () => {
+    if (!userId) { toast.error("Please sign in to join."); return; }
+    setJoining(true);
+    try {
+      const { error: err } = await joinRoom(id, userId);
+      if (err) throw err;
+      await refetchStatus();
+      toast.success("You're registered!", { description: "Head into the live room when it starts." });
+      // Navigate directly into the live room
+      navigate(`/app/rooms/${id}/live`);
+    } catch {
+      toast.error("Couldn't join the room — please try again.");
+    } finally {
+      setJoining(false);
+    }
+  };
+
+  const handleWaitlist = async () => {
+    if (!userId) { toast.error("Please sign in to join the waitlist."); return; }
+    setWaitlisting(true);
+    try {
+      const { error: err } = await waitlistRoom(id, userId);
+      if (err) throw err;
+      await refetchStatus();
+      toast.success("Added to waitlist!", { description: "We'll let you know if a spot opens up." });
+    } catch {
+      toast.error("Couldn't join the waitlist — please try again.");
+    } finally {
+      setWaitlisting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -85,6 +132,10 @@ const RoomDetail = () => {
       </div>
     );
   }
+
+  const isRegistered = participantStatus === "registered";
+  const isWaitlisted = participantStatus === "waitlisted";
+  const isWaitlistRoom = room.access === "waitlist";
 
   return (
     <div className="space-y-10">
@@ -114,13 +165,52 @@ const RoomDetail = () => {
         </div>
 
         <div className="mt-8 flex flex-wrap gap-3">
-          <Button asChild size="lg" variant="soft" className="bg-card text-foreground hover:bg-cream">
-            <Link to={`/app/rooms/${room.id}/live`}>Join room</Link>
-          </Button>
+          {isRegistered ? (
+            <Button
+              size="lg"
+              variant="soft"
+              className="bg-card text-foreground hover:bg-cream"
+              onClick={() => navigate(`/app/rooms/${room.id}/live`)}
+            >
+              Enter room
+            </Button>
+          ) : isWaitlisted ? (
+            <Button size="lg" variant="soft" className="bg-card text-foreground hover:bg-cream" disabled>
+              On waitlist
+            </Button>
+          ) : isWaitlistRoom ? (
+            <Button
+              size="lg"
+              variant="soft"
+              className="bg-card text-foreground hover:bg-cream"
+              onClick={handleWaitlist}
+              disabled={waitlisting}
+            >
+              {waitlisting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {waitlisting ? "Joining waitlist…" : "Join waitlist"}
+            </Button>
+          ) : (
+            <Button
+              size="lg"
+              variant="soft"
+              className="bg-card text-foreground hover:bg-cream"
+              onClick={handleJoin}
+              disabled={joining}
+            >
+              {joining ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {joining ? "Joining…" : "Join room"}
+            </Button>
+          )}
           <Button size="lg" variant="ghost" className="text-clay-foreground hover:bg-card/15 hover:text-clay-foreground">
             <Bookmark className="h-4 w-4" />Save room
           </Button>
         </div>
+
+        {(isRegistered || isWaitlisted) && (
+          <p className="mt-3 text-sm opacity-80">
+            {isRegistered ? "✓ You're registered for this room." : "You're on the waitlist — we'll notify you if a spot opens."}
+          </p>
+        )}
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
@@ -130,16 +220,10 @@ const RoomDetail = () => {
             <h2 className="font-display text-2xl text-foreground">About this room</h2>
             <div className="mt-4 space-y-3 text-foreground/80 leading-relaxed">
               <p>
-                This is a founding Hayy room built for anyone trying to break into corporate roles in Canada — whether you're
-                an international student, a newcomer, or an early-career professional pivoting into a bigger company.
-              </p>
-              <p>
-                You'll hear directly from people inside Canadian corporates about how referrals actually flow internally,
-                what hiring managers look for, and how to stand out before you ever apply. By the end you'll know how to
-                turn a 20-minute conversation into a real referral.
+                {room.description ||
+                  "This is a founding Hayy room built for anyone trying to break into corporate roles in Canada — whether you're an international student, a newcomer, or an early-career professional pivoting into a bigger company."}
               </p>
             </div>
-
             <ul className="mt-6 grid sm:grid-cols-2 gap-3">
               {[
                 "How warm referrals move through ATS systems",
@@ -155,7 +239,7 @@ const RoomDetail = () => {
             </ul>
           </section>
 
-          {/* Agenda */}
+          {/* Agenda — TODO: load from DB when room_agenda table exists */}
           <section className="rounded-3xl bg-card border border-border p-6 md:p-8">
             <h2 className="font-display text-2xl text-foreground">Agenda</h2>
             <ol className="mt-6 relative border-l border-border ml-3 space-y-6">
@@ -172,7 +256,7 @@ const RoomDetail = () => {
             </ol>
           </section>
 
-          {/* Hosts */}
+          {/* Hosts — TODO: load from room_participants where role = host */}
           <section className="rounded-3xl bg-card border border-border p-6 md:p-8">
             <h2 className="font-display text-2xl text-foreground">Hosts</h2>
             <p className="mt-1 text-sm text-muted-foreground">Real people inside corporate Canada — here to help.</p>
@@ -210,6 +294,7 @@ const RoomDetail = () => {
             </ul>
           </section>
 
+          {/* Rules — TODO: load from DB when room_rules table exists */}
           <section className="rounded-3xl bg-card border border-border p-6">
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-clay" />
@@ -228,9 +313,13 @@ const RoomDetail = () => {
           <section className="rounded-3xl bg-cream border border-border p-6">
             <p className="text-xs font-medium uppercase tracking-wider text-clay">Topics</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              {room.tags.map((t) => (
-                <span key={t} className="rounded-full border border-border bg-card px-3 py-1 text-xs">{t}</span>
-              ))}
+              {room.tags.length > 0 ? (
+                room.tags.map((t) => (
+                  <span key={t} className="rounded-full border border-border bg-card px-3 py-1 text-xs">{t}</span>
+                ))
+              ) : (
+                <span className="text-xs text-muted-foreground">No tags yet</span>
+              )}
             </div>
           </section>
         </aside>

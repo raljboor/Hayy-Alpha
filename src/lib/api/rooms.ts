@@ -142,11 +142,31 @@ export async function leaveRoom(roomId: string, userId: string) {
 // Create (host / recruiter)
 // ---------------------------------------------------------------------------
 
+/**
+ * Normalises a UI-shaped (camelCase) room object into the DB column names
+ * (snake_case) that Supabase expects, accepting either naming convention.
+ */
+function toDbInsert(roomData: Partial<MockRoom> & { hostId?: string; startsAt?: string }): Record<string, unknown> {
+  return {
+    title: roomData.title,
+    description: roomData.description ?? "",
+    category: roomData.category ?? "Tech",
+    // Accept both camelCase and the raw field
+    host_id: (roomData as Record<string, unknown>).host_id ?? roomData.hostId,
+    start_time: (roomData as Record<string, unknown>).start_time ?? roomData.startsAt,
+    status: (roomData as Record<string, unknown>).status ?? "open",
+    room_type: (roomData as Record<string, unknown>).room_type ?? "qa",
+    max_speakers: (roomData as Record<string, unknown>).max_speakers ?? 8,
+    attendee_count: roomData.attendees ?? 0,
+  };
+}
+
 export async function createRoom(roomData: Partial<MockRoom>): Promise<MockRoom> {
   if (isSupabaseConfigured && supabase) {
+    const insert = toDbInsert(roomData);
     const { data, error } = await supabase
       .from("rooms")
-      .insert(roomData)
+      .insert(insert)
       .select()
       .single();
     if (error) throw error;

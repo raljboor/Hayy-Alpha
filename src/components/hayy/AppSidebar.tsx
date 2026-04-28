@@ -1,9 +1,10 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { Home, Mic, Handshake, User, Briefcase, UserCheck, LogOut, Settings, X, MessageCircle, Bell } from "lucide-react";
 import { Logo } from "./Logo";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { NavBadge } from "./InboxPrimitives";
+import { useAuthContext } from "@/context/AuthContext";
 
 const mainNav = [
   { to: "/app", label: "Home", icon: Home, end: true, badge: 0 },
@@ -27,6 +28,14 @@ interface AppSidebarProps {
 
 export const AppSidebar = ({ mobileOpen = false, onMobileOpenChange }: AppSidebarProps) => {
   const close = () => onMobileOpenChange?.(false);
+  const { signOut } = useAuthContext();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    close();
+    await signOut();
+    navigate("/login");
+  };
 
   return (
     <>
@@ -109,8 +118,8 @@ export const AppSidebar = ({ mobileOpen = false, onMobileOpenChange }: AppSideba
             <p className="font-display text-sm font-semibold text-foreground">Founding member</p>
             <p className="text-xs text-muted-foreground mt-1">You're shaping Hayy from day one.</p>
           </div>
-          <Button asChild variant="ghost" size="sm" className="w-full justify-start">
-            <NavLink to="/" onClick={close}><LogOut className="h-4 w-4" /> Log out</NavLink>
+          <Button variant="ghost" size="sm" className="w-full justify-start" onClick={handleSignOut}>
+            <LogOut className="h-4 w-4" /> Log out
           </Button>
         </div>
       </aside>

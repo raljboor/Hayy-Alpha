@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Mic, Handshake, Coffee, Sparkles } from "lucide-react";
+import { Mic, Handshake, Coffee, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,14 +16,21 @@ const features = [
 const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setErrorMsg(null);
+    setSubmitting(true);
     const form = new FormData(e.currentTarget);
     const { error } = await loginUser({
       email: String(form.get("email") ?? ""),
       password: String(form.get("password") ?? ""),
     });
+    setSubmitting(false);
     if (error) {
+      setErrorMsg(error.message);
       toast.error("Couldn't log you in", { description: error.message });
       return;
     }
@@ -96,6 +104,7 @@ const Login = () => {
                 required
                 placeholder="you@hayy.community"
                 className="h-12 rounded-xl bg-cream border-border"
+                disabled={submitting}
               />
             </div>
 
@@ -117,11 +126,22 @@ const Login = () => {
                 required
                 placeholder="••••••••"
                 className="h-12 rounded-xl bg-cream border-border"
+                disabled={submitting}
               />
             </div>
 
-            <Button type="submit" variant="hero" size="lg" className="w-full mt-2">
-              Log in
+            {errorMsg && (
+              <p className="text-sm text-destructive rounded-xl bg-destructive/10 px-4 py-2.5">
+                {errorMsg}
+              </p>
+            )}
+
+            <Button type="submit" variant="hero" size="lg" className="w-full mt-2" disabled={submitting}>
+              {submitting ? (
+                <><Loader2 className="h-4 w-4 animate-spin" />Logging in…</>
+              ) : (
+                "Log in"
+              )}
             </Button>
           </form>
 

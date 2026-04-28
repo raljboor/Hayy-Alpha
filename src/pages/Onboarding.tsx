@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Check, Upload, Video, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Upload, Video, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,12 +9,44 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Logo } from "@/components/hayy/Logo";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { updateProfile, uploadResume, uploadVideoIntro } from "@/lib/api/profiles";
+import type { RoleType } from "@/types/models";
 
-const steps = [
-  { n: 1, label: "Career target", hint: "Tell us what you're aiming for." },
-  { n: 2, label: "Your story", hint: "Share who you are beyond bullet points." },
-  { n: 3, label: "What help do you want?", hint: "We'll match you to the right rooms and hosts." },
-];
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface OnboardingData {
+  // Step 1 – Career target
+  targetRole: string;
+  targetIndustry: string;
+  targetCompanies: string;
+  location: string;
+  experienceLevel: string;
+  // Step 2 – Story
+  bio: string;
+  skills: string;
+  linkedinUrl: string;
+  resumeFile: File | null;
+  videoFile: File | null;
+  // Step 3 – Help type maps to role_type
+  helpSelected: string[];
+}
+
+const EMPTY: OnboardingData = {
+  targetRole: "",
+  targetIndustry: "",
+  targetCompanies: "",
+  location: "",
+  experienceLevel: "",
+  bio: "",
+  skills: "",
+  linkedinUrl: "",
+  resumeFile: null,
+  videoFile: null,
+  helpSelected: [],
+};
 
 const helpOptions = [
   "Coffee chats",
@@ -25,22 +57,99 @@ const helpOptions = [
   "Networking practice",
 ];
 
+const steps = [
+  { n: 1, label: "Career target", hint: "Tell us what you're aiming for." },
+  { n: 2, label: "Your story", hint: "Share who you are beyond bullet points." },
+  { n: 3, label: "What help do you want?", hint: "We'll match you to the right rooms and hosts." },
+];
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function deriveRoleType(helpSelected: string[]): RoleType {
+  if (helpSelected.length === 0) return "candidate";
+  // If user picked mostly hosting-style options, suggest candidate as default.
+  return "candidate";
+}
+
+function buildProfileUpdates(data: OnboardingData) {
+  const targetRoles = [data.targetRole, data.targetIndustry]
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const skills = data.skills
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return {
+    location: data.location.trim() || undefined,
+    bio: data.bio.trim() || undefined,
+    target_roles: targetRoles.length > 0 ? targetRoles : undefined,
+    skills: skills.length > 0 ? skills : undefined,
+    linkedin_url: data.linkedinUrl.trim() || undefined,
+    role_type: deriveRoleType(data.helpSelected),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
+
 const Onboarding = () => {
+  const { userId, refreshProfile } = useCurrentUser();
   const [step, setStep] = useState(0);
-  const [help, setHelp] = useState<string[]>([]);
+  const [data, setData] = useState<OnboardingData>(EMPTY);
+  const [saving, setSaving] = useState(false);
   const navigate = useNavigate();
 
-  const toggleHelp = (h: string) =>
-    setHelp((prev) => (prev.includes(h) ? prev.filter((x) => x !== h) : [...prev, h]));
+  const update = (patch: Partial<OnboardingData>) =>
+    setData((prev) => ({ ...prev, ...patch }));
 
-  const next = () => {
+  const toggleHelp = (h: string) =>
+    update({
+      helpSelected: data.helpSelected.includes(h)
+        ? data.helpSelected.filter((x) => x !== h)
+        : [...data.helpSelected, h],
+    });
+
+  const next = async () => {
     if (step < steps.length - 1) {
       setStep(step + 1);
-    } else {
+      return;
+    }
+
+    // Final step — persist profile
+    setSaving(true);
+    try {
+      const uid = userId ?? "u1"; // safe fallback in mock mode
+      const updates = buildProfileUpdates(data);
+      await updateProfile(uid, updates);
+
+      // Upload files if provided (non-blocking — failures are toasted, not thrown)
+      if (data.resumeFile) {
+        try {
+          await uploadResume(uid, data.resumeFile);
+        } catch {
+          toast.error("Resume upload failed — you can try again from your profile.");
+        }
+      }
+      if (data.videoFile) {
+        try {
+          await uploadVideoIntro(uid, data.videoFile);
+        } catch {
+          toast.error("Video intro upload failed — you can try again from your profile.");
+        }
+      }
+
+      await refreshProfile();
       toast.success("You're in. Welcome to Hayy.", {
         description: "We'll line up your first warm intro soon.",
       });
       navigate("/app/dashboard");
+    } catch {
+      toast.error("Couldn't save your profile — please try again.");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -96,23 +205,25 @@ const Onboarding = () => {
             <p className="mt-2 text-muted-foreground">{current.hint}</p>
 
             <div className="mt-7">
-              {step === 0 && <StepCareerTarget />}
-              {step === 1 && <StepStory />}
-              {step === 2 && <StepHelp selected={help} onToggle={toggleHelp} />}
+              {step === 0 && <StepCareerTarget data={data} update={update} />}
+              {step === 1 && <StepStory data={data} update={update} />}
+              {step === 2 && <StepHelp selected={data.helpSelected} onToggle={toggleHelp} />}
             </div>
 
             <div className="mt-9 flex items-center justify-between gap-3">
               <Button
                 variant="ghost"
                 onClick={back}
-                disabled={step === 0}
+                disabled={step === 0 || saving}
                 className={step === 0 ? "invisible" : ""}
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back
               </Button>
-              <Button variant="hero" size="lg" onClick={next}>
-                {step === steps.length - 1 ? (
+              <Button variant="hero" size="lg" onClick={next} disabled={saving}>
+                {saving ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" />Saving…</>
+                ) : step === steps.length - 1 ? (
                   <>Finish onboarding<Sparkles className="h-4 w-4" /></>
                 ) : (
                   <>Continue<ArrowRight className="h-4 w-4" /></>
@@ -134,33 +245,65 @@ const Onboarding = () => {
 
 const fieldClass = "h-11 rounded-xl bg-cream border-border";
 
-const StepCareerTarget = () => (
+interface StepProps {
+  data: OnboardingData;
+  update: (patch: Partial<OnboardingData>) => void;
+}
+
+const StepCareerTarget = ({ data, update }: StepProps) => (
   <div className="space-y-5">
     <div className="grid sm:grid-cols-2 gap-4">
       <div className="space-y-2">
         <Label htmlFor="role">Target role</Label>
-        <Input id="role" placeholder="e.g. Senior Product Manager" className={fieldClass} />
+        <Input
+          id="role"
+          placeholder="e.g. Senior Product Manager"
+          className={fieldClass}
+          value={data.targetRole}
+          onChange={(e) => update({ targetRole: e.target.value })}
+        />
       </div>
       <div className="space-y-2">
         <Label htmlFor="industry">Target industry</Label>
-        <Input id="industry" placeholder="e.g. Fintech, Health, B2B SaaS" className={fieldClass} />
+        <Input
+          id="industry"
+          placeholder="e.g. Fintech, Health, B2B SaaS"
+          className={fieldClass}
+          value={data.targetIndustry}
+          onChange={(e) => update({ targetIndustry: e.target.value })}
+        />
       </div>
     </div>
 
     <div className="space-y-2">
       <Label htmlFor="companies">Target companies</Label>
-      <Input id="companies" placeholder="Shopify, Amazon, Notion…" className={fieldClass} />
+      <Input
+        id="companies"
+        placeholder="Shopify, Amazon, Notion…"
+        className={fieldClass}
+        value={data.targetCompanies}
+        onChange={(e) => update({ targetCompanies: e.target.value })}
+      />
       <p className="text-xs text-muted-foreground">Separate with commas. We'll match you to rooms hosted by people inside.</p>
     </div>
 
     <div className="grid sm:grid-cols-2 gap-4">
       <div className="space-y-2">
         <Label htmlFor="location">Location</Label>
-        <Input id="location" placeholder="City, country" className={fieldClass} />
+        <Input
+          id="location"
+          placeholder="City, country"
+          className={fieldClass}
+          value={data.location}
+          onChange={(e) => update({ location: e.target.value })}
+        />
       </div>
       <div className="space-y-2">
         <Label>Experience level</Label>
-        <Select>
+        <Select
+          value={data.experienceLevel}
+          onValueChange={(v) => update({ experienceLevel: v })}
+        >
           <SelectTrigger className={fieldClass}><SelectValue placeholder="Choose one" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="student">Student</SelectItem>
@@ -175,7 +318,7 @@ const StepCareerTarget = () => (
   </div>
 );
 
-const StepStory = () => (
+const StepStory = ({ data, update }: StepProps) => (
   <div className="space-y-5">
     <div className="space-y-2">
       <Label htmlFor="bio">Short bio</Label>
@@ -184,18 +327,34 @@ const StepStory = () => (
         rows={4}
         placeholder="A few warm sentences about who you are, what you've built, and what you're chasing next."
         className="rounded-xl bg-cream border-border resize-none"
+        value={data.bio}
+        onChange={(e) => update({ bio: e.target.value })}
       />
       <p className="text-xs text-muted-foreground">This is what hosts read before saying yes to a chat.</p>
     </div>
 
     <div className="space-y-2">
       <Label htmlFor="skills">Key skills</Label>
-      <Input id="skills" placeholder="e.g. Strategy, SQL, brand storytelling" className={fieldClass} />
+      <Input
+        id="skills"
+        placeholder="e.g. Strategy, SQL, brand storytelling"
+        className={fieldClass}
+        value={data.skills}
+        onChange={(e) => update({ skills: e.target.value })}
+      />
+      <p className="text-xs text-muted-foreground">Separate with commas.</p>
     </div>
 
     <div className="space-y-2">
       <Label htmlFor="linkedin">LinkedIn URL</Label>
-      <Input id="linkedin" type="url" placeholder="https://linkedin.com/in/yourname" className={fieldClass} />
+      <Input
+        id="linkedin"
+        type="url"
+        placeholder="https://linkedin.com/in/yourname"
+        className={fieldClass}
+        value={data.linkedinUrl}
+        onChange={(e) => update({ linkedinUrl: e.target.value })}
+      />
     </div>
 
     <div className="grid sm:grid-cols-2 gap-4 pt-2">
@@ -203,29 +362,68 @@ const StepStory = () => (
         icon={Upload}
         title="Resume"
         hint="PDF or DOCX, up to 5MB"
+        accept=".pdf,.doc,.docx"
+        file={data.resumeFile}
+        onFile={(f) => update({ resumeFile: f })}
       />
       <UploadTile
         icon={Video}
         title="Video intro"
         hint="Optional · 60 seconds"
+        accept="video/*"
+        file={data.videoFile}
+        onFile={(f) => update({ videoFile: f })}
       />
     </div>
   </div>
 );
 
-const UploadTile = ({ icon: Icon, title, hint }: { icon: typeof Upload; title: string; hint: string }) => (
-  <button
-    type="button"
-    onClick={() => toast("Uploads coming soon", { description: "We'll enable this when your account is set up." })}
-    className="rounded-2xl border border-dashed border-border bg-cream/60 p-5 text-left hover:border-primary/40 hover:bg-cream transition-colors group"
-  >
-    <span className="h-10 w-10 rounded-xl bg-card flex items-center justify-center text-clay shadow-soft mb-3 group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-      <Icon className="h-4 w-4" />
-    </span>
-    <p className="font-medium text-foreground">{title}</p>
-    <p className="text-xs text-muted-foreground mt-0.5">{hint}</p>
-  </button>
-);
+interface UploadTileProps {
+  icon: typeof Upload;
+  title: string;
+  hint: string;
+  accept: string;
+  file: File | null;
+  onFile: (f: File) => void;
+}
+
+const UploadTile = ({ icon: Icon, title, hint, accept, file, onFile }: UploadTileProps) => {
+  const inputRef = useRef<HTMLInputElement>(null);
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept={accept}
+        className="sr-only"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onFile(f);
+        }}
+      />
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        className="rounded-2xl border border-dashed border-border bg-cream/60 p-5 text-left hover:border-primary/40 hover:bg-cream transition-colors group"
+      >
+        <span className={cn(
+          "h-10 w-10 rounded-xl flex items-center justify-center shadow-soft mb-3 transition-colors",
+          file
+            ? "bg-olive text-olive-foreground"
+            : "bg-card text-clay group-hover:bg-primary group-hover:text-primary-foreground",
+        )}>
+          <Icon className="h-4 w-4" />
+        </span>
+        <p className="font-medium text-foreground">{title}</p>
+        {file ? (
+          <p className="text-xs text-olive mt-0.5 truncate">{file.name}</p>
+        ) : (
+          <p className="text-xs text-muted-foreground mt-0.5">{hint}</p>
+        )}
+      </button>
+    </>
+  );
+};
 
 const StepHelp = ({ selected, onToggle }: { selected: string[]; onToggle: (h: string) => void }) => (
   <div>

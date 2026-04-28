@@ -15,6 +15,7 @@ import {
   Video,
   Loader2,
   Link as LinkIcon,
+  Camera,
 } from "lucide-react";
 import { toast } from "sonner";
 import { UserAvatar } from "@/components/hayy/UserAvatar";
@@ -24,7 +25,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/hayy/ErrorState";
-import { getProfile, updateProfile, uploadResume, uploadVideoIntro } from "@/lib/api/profiles";
+import { getProfile, updateProfile, uploadResume, uploadVideoIntro, uploadAvatar } from "@/lib/api/profiles";
 import { useAsync } from "@/lib/useAsync";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { isMockMode } from "@/lib/runtimeMode";
@@ -176,9 +177,16 @@ const Profile = () => {
   const [editSkills, setEditSkills] = useState("");
   const [editLinkedin, setEditLinkedin] = useState("");
 
+  // Editable field for referral goals
+  const [editReferralGoals, setEditReferralGoals] = useState("");
+
   // Upload states
   const [resumeUploading, setResumeUploading] = useState(false);
   const [videoUploading, setVideoUploading] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  // Local avatar preview — updated optimistically after upload
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // Seed edit fields whenever the profile loads or edit mode opens
   useEffect(() => {
@@ -191,6 +199,7 @@ const Profile = () => {
       setEditTargetRoles((profile.target_roles ?? []).join(", "));
       setEditSkills((profile.skills ?? []).join(", "));
       setEditLinkedin(profile.linkedin_url ?? "");
+      setEditReferralGoals(profile.referral_goals ?? "");
     }
   }, [profile, editing]);
 
@@ -204,6 +213,7 @@ const Profile = () => {
     setEditTargetRoles((profile?.target_roles ?? mockTargetRoles).join(", "));
     setEditSkills((profile?.skills ?? mockSkills).join(", "));
     setEditLinkedin(profile?.linkedin_url ?? "");
+    setEditReferralGoals(profile?.referral_goals ?? "");
     setEditing(true);
   };
 
@@ -222,6 +232,7 @@ const Profile = () => {
         location: editLocation.trim() || undefined,
         pronouns: editPronouns.trim() || undefined,
         bio: editBio.trim() || undefined,
+        referral_goals: editReferralGoals.trim() || null,
         target_roles: editTargetRoles
           .split(",")
           .map((s) => s.trim())
@@ -283,6 +294,31 @@ const Profile = () => {
     }
   };
 
+  const handleAvatarUpload = async (file: File) => {
+    if (!userId) { toast.error("Not signed in."); return; }
+    // Optimistic preview — show immediately before upload completes
+    const preview = URL.createObjectURL(file);
+    setAvatarPreview(preview);
+    setAvatarUploading(true);
+    try {
+      const url = await uploadAvatar(userId, file);
+      setAvatarPreview(url);
+      await refreshProfile();
+      refetch();
+      toast.success("Profile photo updated");
+    } catch (err) {
+      setAvatarPreview(null); // revert preview on failure
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.toLowerCase().includes("bucket") || msg.toLowerCase().includes("storage")) {
+        toast.error("Avatar upload unavailable — create the 'avatars' storage bucket first.");
+      } else {
+        toast.error("Photo upload failed. Please try again.");
+      }
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
   // Derived display values: prefer live profile, fall back to mock display data
   const me = profile
     ? {
@@ -313,8 +349,10 @@ const Profile = () => {
   }, [profile]);
 
   const displayGoal = useMemo(() => {
-    if (profile?.bio) return profile.bio;
-    return isMockMode ? mockReferralGoal : null;
+    // Prefer dedicated referral_goals field; fall back to bio excerpt in mock mode
+    if (profile?.referral_goals) return profile.referral_goals;
+    if (isMockMode) return mockReferralGoal;
+    return null;
   }, [profile]);
 
   // Rooms and referrals — real data not fetched on Profile page yet.
@@ -342,7 +380,42 @@ const Profile = () => {
         <div className="lg:col-span-1 space-y-5 md:space-y-6 min-w-0">
           {/* Profile hero — view or edit */}
           <section className="w-full max-w-full box-border rounded-[28px] bg-gradient-warm border border-clay/20 p-6 shadow-soft">
-            <UserAvatar user={me} size="xl" className="ring-4 ring-card" />
+            {/* Avatar — shows photo if available, otherwise initials */}
+            <div className="relative inline-block">
+              {avatarPreview || profile?.avatar_url ? (
+                <img
+                  src={avatarPreview ?? profile!.avatar_url!}
+                  alt={me.name}
+                  className="h-20 w-20 rounded-full object-cover ring-4 ring-card"
+                />
+              ) : (
+                <UserAvatar user={me} size="xl" className="ring-4 ring-card" />
+              )}
+              {/* Upload overlay — always visible so user can change photo */}
+              <div>
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="sr-only"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void handleAvatarUpload(f);
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  disabled={avatarUploading}
+                  title="Upload profile photo"
+                  className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-card border border-border flex items-center justify-center shadow-soft hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors disabled:opacity-60"
+                >
+                  {avatarUploading
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <Camera className="h-3.5 w-3.5" />}
+                </button>
+              </div>
+            </div>
 
             {editing ? (
               /* ---------- Edit mode ---------- */
@@ -478,18 +551,6 @@ const Profile = () => {
             </div>
           </Card>
 
-          {/* Referral goals (desktop left col) */}
-          <Card className="hidden lg:block">
-            <div className="flex items-center gap-2">
-              <Target className="h-4 w-4 text-clay" />
-              <SectionTitle>Referral goals</SectionTitle>
-            </div>
-            {displayGoal ? (
-              <p className="mt-3 text-[16px] leading-[1.6] text-foreground/85">{displayGoal}</p>
-            ) : (
-              <p className="mt-3 text-sm text-muted-foreground italic">Add your bio to describe your referral goals.</p>
-            )}
-          </Card>
         </div>
 
         {/* RIGHT/MAIN COLUMN */}
@@ -576,6 +637,43 @@ const Profile = () => {
             )}
           </Card>
 
+          {/* Referral goals — editable in edit mode, displayed in view mode */}
+          {editing ? (
+            <Card>
+              <SectionTitle>Referral goals</SectionTitle>
+              <div className="mt-4 space-y-1.5">
+                <Label className="text-xs text-muted-foreground">
+                  Describe the kinds of warm introductions, companies, or roles you're hoping to access.
+                </Label>
+                <Textarea
+                  rows={3}
+                  value={editReferralGoals}
+                  onChange={(e) => setEditReferralGoals(e.target.value)}
+                  placeholder="Looking for warm introductions into product teams at Canadian tech companies…"
+                  className="rounded-xl bg-cream border-border resize-none"
+                  disabled={saving}
+                />
+              </div>
+            </Card>
+          ) : (
+            <Card>
+              <div className="flex items-center gap-2">
+                <Target className="h-4 w-4 text-clay" />
+                <SectionTitle>Referral goals</SectionTitle>
+              </div>
+              {displayGoal ? (
+                <p className="mt-3 text-[16px] leading-[1.6] text-foreground/85">{displayGoal}</p>
+              ) : (
+                <button
+                  className="mt-3 text-sm text-muted-foreground italic hover:text-primary transition-colors text-left"
+                  onClick={openEdit}
+                >
+                  No referral goals yet — click to add them.
+                </button>
+              )}
+            </Card>
+          )}
+
           {/* LinkedIn — editable in edit mode */}
           {editing && (
             <Card>
@@ -603,19 +701,6 @@ const Profile = () => {
               </div>
             </Card>
           )}
-
-          {/* Referral goals (mobile only) */}
-          <Card className="lg:hidden">
-            <div className="flex items-center gap-2">
-              <Target className="h-4 w-4 text-clay" />
-              <SectionTitle>Referral goals</SectionTitle>
-            </div>
-            {displayGoal ? (
-              <p className="mt-3 text-[16px] leading-[1.6] text-foreground/85">{displayGoal}</p>
-            ) : (
-              <p className="mt-3 text-sm text-muted-foreground italic">Add your bio to describe your referral goals.</p>
-            )}
-          </Card>
 
           {/* Rooms joined */}
           <Card>

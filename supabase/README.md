@@ -84,12 +84,15 @@ To use it:
 
 In the Supabase dashboard go to **Storage → New bucket** and create:
 
-| Bucket name | Public | Purpose |
-|---|---|---|
-| `resumes` | No (private) | User resume uploads |
-| `video-intros` | No (private) | User video intro uploads |
+| Bucket name | Public | Purpose | Allowed MIME | Max size |
+|---|---|---|---|---|
+| `resumes` | No (private) | User resume uploads | application/pdf, .doc, .docx | 10 MB |
+| `video-intros` | No (private) | User video intro uploads | video/* | 100 MB |
+| `avatars` | No (private) | Profile picture uploads | image/png, image/jpeg, image/webp | 5 MB |
 
-The frontend uses signed URLs via `supabase.storage.from("resumes").getPublicUrl(path)`. For private buckets you may want to switch to `createSignedUrl()` in Phase 5.
+After creating the buckets, run migration `003_add_profile_picture_and_referral_goals.sql` to add storage RLS policies for the `avatars` bucket and the `referral_goals` column to `user_profiles`.
+
+The frontend uses `getPublicUrl()` for bucket paths. For fully private buckets switch to `createSignedUrl()` in a later phase.
 
 ---
 

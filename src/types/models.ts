@@ -16,6 +16,7 @@ export interface UserProfile {
   location: string | null;
   pronouns: string | null;
   bio: string | null;
+  referral_goals: string | null;
   target_roles: string[];
   skills: string[];
   linkedin_url: string | null;

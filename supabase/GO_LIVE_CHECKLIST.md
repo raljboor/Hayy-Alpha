@@ -50,14 +50,19 @@ This enables Row Level Security on all 8 tables and creates 24+ named policies.
 
 ## 4. Create Storage buckets
 
-Go to **Storage → New bucket** and create these two buckets:
+Go to **Storage → New bucket** and create these three buckets:
 
-| Bucket name | Access | Purpose |
-|---|---|---|
-| `resumes` | Private | User resume uploads |
-| `video-intros` | Private | User video intro uploads |
+| Bucket name | Access | Purpose | Allowed MIME | Max size |
+|---|---|---|---|---|
+| `resumes` | Private | User resume uploads | application/pdf, .doc, .docx | 10 MB |
+| `video-intros` | Private | User video intro uploads | video/* | 100 MB |
+| `avatars` | Private | Profile picture uploads | image/png, image/jpeg, image/webp | 5 MB |
 
-> **Note:** Buckets are private by default. The app uses `getPublicUrl()` today. For private buckets, switch to `createSignedUrl()` in Phase 5 follow-up.
+After creating the buckets, run migration `003_add_profile_picture_and_referral_goals.sql` in the SQL Editor. This adds:
+- The `referral_goals text` column to `user_profiles`
+- RLS policies for the `avatars` storage bucket
+
+> **Note:** Buckets are private. The app uses `getPublicUrl()` today. For fully private access switch to `createSignedUrl()` in a follow-up.
 
 ---
 

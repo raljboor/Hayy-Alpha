@@ -81,7 +81,7 @@ const performanceRooms = [
 // ---------------------------------------------------------------------------
 
 const RecruiterDashboard = () => {
-  const { userId, profile, refreshProfile } = useCurrentUser();
+  const { userId, profile, loading: authLoading, refreshProfile } = useCurrentUser();
 
   const {
     data: apiCandidates,
@@ -158,10 +158,16 @@ const RecruiterDashboard = () => {
   // Role prompt
   // ---------------------------------------------------------------------------
 
-  const isRecruiter =
-    !profile ||
-    profile.role_type === "recruiter" ||
-    profile.role_type === "admin";
+  // isRecruiter:
+  // - true in mock mode (always show recruiter dashboard in demo)
+  // - true when profile has loaded and role is recruiter/admin
+  // - false when profile has loaded but role is something else
+  // - undefined/waiting while profile is still loading (don't show prompt yet)
+  const isRecruiter = isMockMode
+    ? true
+    : profile !== null
+      ? profile.role_type === "recruiter" || profile.role_type === "admin"
+      : true; // treat as recruiter while loading to avoid flash-of-prompt
 
   const handleEnableRecruiterMode = async () => {
     if (!userId) return;
@@ -233,7 +239,8 @@ const RecruiterDashboard = () => {
   return (
     <div className="space-y-8">
       {/* Soft role prompt */}
-      {!isRecruiter && (
+      {/* Show role prompt only after profile is loaded and role is confirmed non-recruiter */}
+      {!authLoading && profile !== null && !isRecruiter && (
         <div className="rounded-3xl bg-cream border border-clay/20 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <p className="font-display text-lg text-foreground">Recruiter tools are for hiring teams</p>

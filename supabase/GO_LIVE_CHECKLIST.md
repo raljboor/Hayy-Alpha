@@ -155,6 +155,57 @@ Specifically check:
 
 ---
 
+## 11. Role-based testing checklist
+
+Test all three account types to verify role detection and onboarding work correctly.
+
+### Test account: Job Seeker
+
+- [ ] Sign up, select **"Job seeker"**
+- [ ] `user_profiles.role_type` = `job_seeker` in Supabase Table Editor
+- [ ] Redirected to `/onboarding?role=job_seeker`
+- [ ] 3-step job seeker intake form appears (Career target → Story → Help)
+- [ ] Onboarding saves `bio`, `target_roles`, `skills`, `linkedin_url`, `referral_goals` to `user_profiles`
+- [ ] Dashboard shows real stats (0 referrals, 0 rooms) — no mock data
+- [ ] Profile page shows empty states for bio/skills/roles (not Amira's mock content)
+- [ ] HostDashboard shows "Become a referral host" prompt (correct, user is not a host)
+- [ ] RecruiterDashboard shows "Enable recruiter mode" prompt (correct)
+
+### Test account: Referral Host
+
+- [ ] Sign up, select **"Referral host"**
+- [ ] `user_profiles.role_type` = `referral_host` in Supabase Table Editor
+- [ ] Redirected to `/onboarding?role=referral_host`
+- [ ] 2-step host intake form appears (Host profile → Availability)
+- [ ] Onboarding saves profile to `user_profiles` and creates row in `host_settings`
+- [ ] HostDashboard shows **full host dashboard** — no "Become a referral host" prompt
+- [ ] HostDashboard incoming requests section shows "No incoming referral requests yet" (empty state)
+- [ ] Availability toggles reflect the settings saved during onboarding
+- [ ] RecruiterDashboard shows "Enable recruiter mode" prompt (correct)
+
+### Test account: Recruiter
+
+- [ ] Sign up, select **"Recruiter / employer"**
+- [ ] `user_profiles.role_type` = `recruiter` in Supabase Table Editor
+- [ ] Redirected to `/onboarding?role=recruiter`
+- [ ] 2-step recruiter intake form appears (Company → Hiring focus)
+- [ ] Onboarding saves `company_name`, `recruiter_title`, `hiring_focus`, `departments_hiring`, `locations_hiring`, `company_description` to `user_profiles`
+- [ ] RecruiterDashboard shows **full recruiter dashboard** — no "Enable recruiter mode" prompt
+- [ ] Candidate pipeline shows "No candidates yet" empty state (not mock Amira/Sara/Lina)
+- [ ] Room performance table is hidden (mock-only, not shown in production)
+- [ ] HostDashboard shows "Become a referral host" prompt (correct)
+
+### General production data checks
+
+- [ ] Dashboard stats are all 0 for a fresh account (not 6/3/2/1)
+- [ ] Profile completion checklist reflects real field values (not pre-checked)
+- [ ] No mock rooms appear in "Suggested rooms" (section is empty if no rooms exist)
+- [ ] No mock messages/notifications appear
+- [ ] Open the browser console — confirm `[Hayy] Supabase configured: true`
+- [ ] Open the browser console — confirm `[Hayy:Auth] userId=... role_type=...` shows the correct role
+
+---
+
 ## Security reminders
 
 - **NEVER** expose the `service_role` key. It bypasses all RLS and has full DB access.

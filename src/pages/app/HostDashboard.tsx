@@ -181,7 +181,7 @@ const nextActionMeta = {
 };
 
 const HostDashboard = () => {
-  const { userId, profile, refreshProfile } = useCurrentUser();
+  const { userId, profile, loading: authLoading, refreshProfile } = useCurrentUser();
   // In mock mode fall back to Yusuf (u2) so the page renders with fixture data.
   // In production use the real userId; never fall back to a mock user ID.
   const hostId = userId ?? (isMockMode ? "u2" : null);
@@ -296,13 +296,20 @@ const HostDashboard = () => {
     toast.success(`Marked complete with ${getUser(r.candidateId)?.name.split(" ")[0] ?? "candidate"}`);
   };
 
-  // referral_host and admin can access the host dashboard without a prompt
-  const isHost = !profile || profile.role_type === "referral_host" || profile.role_type === "admin";
+  // isHost: true in mock mode (always show host dashboard in demo)
+  // true when profile is loaded with referral_host/admin role
+  // treat as host while loading to avoid flash-of-prompt
+  const isHost = isMockMode
+    ? true
+    : profile !== null
+      ? profile.role_type === "referral_host" || profile.role_type === "admin"
+      : true;
 
   return (
     <div className="space-y-8">
       {/* Soft role prompt — shown when user is not yet a host */}
-      {!isHost && (
+      {/* Show role prompt only after profile is loaded and role is confirmed non-host */}
+      {!authLoading && profile !== null && !isHost && (
         <div className="rounded-3xl bg-cream border border-clay/20 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <p className="font-display text-lg text-foreground">Become a referral host</p>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import {
   Briefcase,
@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { users } from "@/lib/mockData";
+import { isSupabaseConfigured } from "@/lib/supabaseClient";
 import { updateProfile } from "@/lib/api/profiles";
 import { getRooms, createRoom } from "@/lib/api/rooms";
 import {
@@ -87,7 +88,9 @@ const RecruiterDashboard = () => {
     error: candidatesError,
     refetch: refetchCandidates,
   } = useAsync(
-    () => (userId ? getRecruiterCandidates(userId) : getRecruiterCandidates("mock")),
+    // Only fetch when userId is known; return [] otherwise so Supabase is never
+    // called with a placeholder string that would return RLS-filtered results.
+    () => (userId ? getRecruiterCandidates(userId) : Promise.resolve([])),
     [userId],
   );
 
@@ -96,12 +99,13 @@ const RecruiterDashboard = () => {
     loading: roomsLoading,
   } = useAsync(() => getRooms(), []);
 
-  // Local pipeline state — seeded from API
+  // Local pipeline state — seeded from API result
   const [pipeline, setPipeline] = useState<PipelineCandidate[]>([]);
 
-  // Seed from API when data arrives; mock data comes pre-loaded from the API module
-  useMemo(() => {
-    if (apiCandidates) setPipeline(apiCandidates);
+  useEffect(() => {
+    // apiCandidates is [] (empty) when Supabase returns no rows — show empty state.
+    // apiCandidates is the mock pipeline when Supabase is not configured.
+    if (apiCandidates !== null) setPipeline(apiCandidates);
   }, [apiCandidates]);
 
   const [filter, setFilter] = useState<(typeof statusFilters)[number]>("All");
@@ -109,19 +113,27 @@ const RecruiterDashboard = () => {
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [enablingRecruiterMode, setEnablingRecruiterMode] = useState(false);
 
-  // Rooms created by this recruiter (filter by hostId when Supabase is configured)
+  // Rooms created by this recruiter.
+  // In Supabase mode: filter by hostId = userId (may be empty — that's fine).
+  // In mock mode (userId null and Supabase not configured): show first 3 mock rooms.
   const recruiterRooms = useMemo(() => {
-    const rooms = apiRooms ?? [];
-    if (!userId) return rooms.slice(0, 3); // mock: show first 3
-    return rooms.filter((r) => r.hostId === userId).slice(0, 5);
+    const allRooms = apiRooms ?? [];
+    if (isSupabaseConfigured && userId) {
+      return allRooms.filter((r) => r.hostId === userId).slice(0, 5);
+    }
+    // Mock mode: show first 3 as demo upcoming rooms
+    return allRooms.slice(0, 3);
   }, [apiRooms, userId]);
 
-  // Fall back to mock upcoming rooms when no recruiter rooms found
-  const mockUpcomingRooms = [
-    { id: "er1", title: "Amazon Canada · PMM Q&A", startsAt: new Date(Date.now() + 2 * 86400000).toISOString(), attendees: 142, tags: ["Q&A"] },
-    { id: "er2", title: "Shopify Engineering Open House", startsAt: new Date(Date.now() + 5 * 86400000).toISOString(), attendees: 96, tags: ["Open house"] },
-    { id: "er3", title: "Newcomer Coffee Chat — Ops", startsAt: new Date(Date.now() + 9 * 86400000).toISOString(), attendees: 38, tags: ["Coffee chat"] },
-  ];
+  // In mock mode, show demo upcoming rooms when the recruiter has no rooms yet.
+  // In Supabase mode, only show real rooms (may be empty — handled in sidebar).
+  const mockUpcomingRooms = !isSupabaseConfigured
+    ? [
+        { id: "er1", title: "Amazon Canada · PMM Q&A", startsAt: new Date(Date.now() + 2 * 86400000).toISOString(), attendees: 142, tags: ["Q&A"] },
+        { id: "er2", title: "Shopify Engineering Open House", startsAt: new Date(Date.now() + 5 * 86400000).toISOString(), attendees: 96, tags: ["Open house"] },
+        { id: "er3", title: "Newcomer Coffee Chat — Ops", startsAt: new Date(Date.now() + 9 * 86400000).toISOString(), attendees: 38, tags: ["Coffee chat"] },
+      ]
+    : [];
   const displayRooms = recruiterRooms.length > 0
     ? recruiterRooms.map((r) => ({ id: r.id, title: r.title, startsAt: r.startsAt, attendees: r.attendees, tags: r.tags }))
     : mockUpcomingRooms;
@@ -519,6 +531,10 @@ const RecruiterDashboard = () => {
               <div className="mt-4 space-y-2">
                 {[1, 2].map((i) => <Skeleton key={i} className="h-20 w-full rounded-2xl" />)}
               </div>
+            ) : displayRooms.length === 0 ? (
+              <p className="mt-4 rounded-2xl border border-dashed border-border bg-cream/40 p-5 text-center text-sm text-muted-foreground">
+                No rooms yet — create your first hiring room above.
+              </p>
             ) : (
               <ul className="mt-4 space-y-3">
                 {displayRooms.map((r) => (

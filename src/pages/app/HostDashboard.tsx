@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { users, getUser, type ReferralRequest as MockReferralRequest } from "@/data/mockData";
+import { isSupabaseConfigured } from "@/lib/supabaseClient";
 import { getIncomingReferralRequests, updateReferralStatus } from "@/lib/api/referrals";
 import { getHostSettings, upsertHostSettings, updateHostCapacity, updateHostAvailability } from "@/lib/api/hostSettings";
 import { updateProfile } from "@/lib/api/profiles";
@@ -193,12 +194,17 @@ const HostDashboard = () => {
     [hostId],
   );
 
-  // Seed local state from the API result; fall back to rich mock fixtures when
-  // Supabase is not configured (apiRequests will be the mock array).
-  const [requests, setRequests] = useState<IncomingRequest[]>(mockFallbackRequests);
+  // Seed local state from the API result.
+  // - Mock mode (Supabase not configured): starts with rich fixture data.
+  // - Supabase mode: starts empty; shows real data or empty state once loaded.
+  const [requests, setRequests] = useState<IncomingRequest[]>(
+    isSupabaseConfigured ? [] : mockFallbackRequests,
+  );
 
   useEffect(() => {
-    if (apiRequests && apiRequests.length > 0) {
+    if (apiRequests !== null) {
+      // Always reflect what the API returned — empty [] means "no requests yet",
+      // not "fall back to mock data".
       setRequests(apiRequests.map(toIncomingRequest));
     }
   }, [apiRequests]);

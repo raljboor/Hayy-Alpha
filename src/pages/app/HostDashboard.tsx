@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Coffee,
   Handshake,
@@ -28,9 +28,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { users, getUser } from "@/data/mockData";
-import { getIncomingReferralRequests } from "@/lib/api/referrals";
+import { users, getUser, type ReferralRequest as MockReferralRequest } from "@/data/mockData";
+import { getIncomingReferralRequests, updateReferralStatus } from "@/lib/api/referrals";
 import { useAsync } from "@/lib/useAsync";
+import type { ThreadStatus } from "@/data/mockData";
 
 type RequestType = "Coffee chat" | "Referral" | "Resume feedback";
 type RequestStatus = "pending" | "accepted";
@@ -47,7 +48,50 @@ interface IncomingRequest {
   nextAction?: "Schedule chat" | "Review resume" | "Submit referral" | "Mark complete";
 }
 
-const initialRequests: IncomingRequest[] = [
+/** Converts an API-shaped MockReferralRequest into the richer IncomingRequest used by this page. */
+function toIncomingRequest(r: MockReferralRequest): IncomingRequest {
+  const rawType = r.type as string;
+  const type: RequestType =
+    rawType === "coffee chat"
+      ? "Coffee chat"
+      : rawType === "resume feedback"
+      ? "Resume feedback"
+      : "Referral";
+
+  const statusMap: Record<string, RequestStatus> = {
+    pending: "pending",
+    accepted: "accepted",
+    declined: "pending",
+    submitted: "accepted",
+    completed: "accepted",
+  };
+
+  const nextActionMap: Record<RequestType, IncomingRequest["nextAction"]> = {
+    "Coffee chat": "Schedule chat",
+    "Resume feedback": "Review resume",
+    Referral: "Submit referral",
+  };
+
+  const status: RequestStatus = statusMap[r.status] ?? "pending";
+  const nextAction: IncomingRequest["nextAction"] =
+    status === "accepted" ? nextActionMap[type] : undefined;
+
+  return {
+    id: r.id,
+    candidateId: r.candidateId,
+    type,
+    targetRole: r.role,
+    targetCompany: r.company,
+    message: r.message,
+    // Skills are not stored on mock requests; leave empty until DB schema ships.
+    skills: [],
+    status,
+    nextAction,
+  };
+}
+
+/** Mock fallback — rich fixtures with skills shown when Supabase is not configured. */
+const mockFallbackRequests: IncomingRequest[] = [
   {
     id: "hr1",
     candidateId: "u1",
@@ -133,10 +177,21 @@ const nextActionMeta = {
 
 const HostDashboard = () => {
   const host = getUser("u2")!;
-  // Backend-ready: pulls incoming requests for this host (mock today, Supabase later).
-  // The richer in-page request fixtures below stay until the backend ships matching shapes.
-  useAsync(() => getIncomingReferralRequests(host.id), [host.id]);
-  const [requests, setRequests] = useState<IncomingRequest[]>(initialRequests);
+  const { data: apiRequests, refetch } = useAsync(
+    () => getIncomingReferralRequests(host.id),
+    [host.id],
+  );
+
+  // Seed local state from the API result; fall back to rich mock fixtures when
+  // Supabase is not configured (apiRequests will be the mock array).
+  const [requests, setRequests] = useState<IncomingRequest[]>(mockFallbackRequests);
+
+  useEffect(() => {
+    if (apiRequests && apiRequests.length > 0) {
+      setRequests(apiRequests.map(toIncomingRequest));
+    }
+  }, [apiRequests]);
+
   const [coffeeChats, setCoffeeChats] = useState(true);
   const [referrals, setReferrals] = useState(true);
   const [resumeFeedback, setResumeFeedback] = useState(false);
@@ -149,19 +204,25 @@ const HostDashboard = () => {
     setRequests((prev) => prev.map((r) => (r.id === id ? { ...r, status, nextAction } : r)));
   };
 
-  const onAccept = (r: IncomingRequest) => {
+  const onAccept = async (r: IncomingRequest) => {
     const action: IncomingRequest["nextAction"] =
       r.type === "Coffee chat" ? "Schedule chat" : r.type === "Resume feedback" ? "Review resume" : "Submit referral";
     updateStatus(r.id, "accepted", action);
+    await updateReferralStatus(r.id, "Accepted" as ThreadStatus);
+    refetch();
     toast.success("Accepted — they'll be notified gently");
   };
-  const onDecline = (r: IncomingRequest) => {
+  const onDecline = async (r: IncomingRequest) => {
     setRequests((prev) => prev.filter((x) => x.id !== r.id));
+    await updateReferralStatus(r.id, "Declined" as ThreadStatus);
+    refetch();
     toast("Declined kindly");
   };
   const onAskMore = () => toast.success("Sent a quick follow-up question");
-  const onComplete = (r: IncomingRequest) => {
+  const onComplete = async (r: IncomingRequest) => {
     setRequests((prev) => prev.filter((x) => x.id !== r.id));
+    await updateReferralStatus(r.id, "Completed" as ThreadStatus);
+    refetch();
     toast.success(`Marked complete with ${getUser(r.candidateId)?.name.split(" ")[0]}`);
   };
 

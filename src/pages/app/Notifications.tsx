@@ -15,6 +15,7 @@ import { EmptyState } from "@/components/hayy/EmptyState";
 import { ErrorState } from "@/components/hayy/ErrorState";
 import { getNotifications, markAllNotificationsRead } from "@/lib/api/notifications";
 import { useAsync } from "@/lib/useAsync";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { type Notification, type NotificationType } from "@/lib/inboxData";
 import { cn } from "@/lib/utils";
 
@@ -27,7 +28,11 @@ const iconFor: Record<NotificationType, { Icon: typeof Handshake; tone: string }
 };
 
 const Notifications = () => {
-  const { data, loading, error, refetch } = useAsync(() => getNotifications(), []);
+  const { userId } = useCurrentUser();
+  const { data, loading, error, refetch } = useAsync(
+    () => getNotifications(userId ?? undefined),
+    [userId],
+  );
   const [items, setItems] = useState<Notification[]>([]);
 
   useEffect(() => {
@@ -39,7 +44,7 @@ const Notifications = () => {
 
   const markAll = async () => {
     setItems((prev) => prev.map((n) => ({ ...n, unread: false })));
-    await markAllNotificationsRead("u1");
+    if (userId) await markAllNotificationsRead(userId);
     toast.success("All caught up");
   };
 

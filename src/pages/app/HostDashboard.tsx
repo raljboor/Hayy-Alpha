@@ -31,6 +31,7 @@ import {
 import { users, getUser, type ReferralRequest as MockReferralRequest } from "@/data/mockData";
 import { getIncomingReferralRequests, updateReferralStatus } from "@/lib/api/referrals";
 import { useAsync } from "@/lib/useAsync";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { ThreadStatus } from "@/data/mockData";
 
 type RequestType = "Coffee chat" | "Referral" | "Resume feedback";
@@ -176,10 +177,14 @@ const nextActionMeta = {
 };
 
 const HostDashboard = () => {
-  const host = getUser("u2")!;
+  const { userId } = useCurrentUser();
+  // Fall back to "u2" (Yusuf) in mock mode so the page renders with fixtures.
+  const hostId = userId ?? "u2";
+  const host = getUser(hostId) ?? getUser("u2")!;
+
   const { data: apiRequests, refetch } = useAsync(
-    () => getIncomingReferralRequests(host.id),
-    [host.id],
+    () => getIncomingReferralRequests(hostId),
+    [hostId],
   );
 
   // Seed local state from the API result; fall back to rich mock fixtures when

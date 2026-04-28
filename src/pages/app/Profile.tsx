@@ -15,8 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/hayy/ErrorState";
 import { getProfile, updateProfile } from "@/lib/api/profiles";
 import { useAsync } from "@/lib/useAsync";
-
-const ME_ID = "u1";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 const fallbackMe = {
   name: "Amira Khan",
@@ -107,7 +106,12 @@ const Chip = ({ children }: { children: React.ReactNode }) => (
 );
 
 const Profile = () => {
-  const { data: profile, loading, error, refetch } = useAsync(() => getProfile(ME_ID), []);
+  const { userId, loading: authLoading } = useCurrentUser();
+  const { data: profile, loading: profileLoading, error, refetch } = useAsync(
+    () => (userId ? getProfile(userId) : Promise.resolve(null)),
+    [userId],
+  );
+  const loading = authLoading || profileLoading;
 
   const me = profile
     ? {
@@ -124,10 +128,9 @@ const Profile = () => {
       }
     : fallbackMe;
 
-  // Surface updateProfile so the API is reachable from this page.
-  // Wired to the existing "Edit profile" button.
   const handleEdit = async () => {
-    await updateProfile(ME_ID, { headline: me.headline });
+    if (!userId) return;
+    await updateProfile(userId, { headline: me.headline });
     toast("Profile updated");
   };
 

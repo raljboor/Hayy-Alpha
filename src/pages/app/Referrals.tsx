@@ -28,6 +28,7 @@ import { ErrorState } from "@/components/hayy/ErrorState";
 import { type ReferralThread, type ThreadStatus } from "@/lib/inboxData";
 import { getReferralThreads, createReferralRequest } from "@/lib/api/referrals";
 import { useAsync } from "@/lib/useAsync";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { users } from "@/data/mockData";
 
 const tabs = ["All", "Incoming", "Outgoing", "Pending", "Accepted", "Declined", "Completed"] as const;
@@ -41,6 +42,7 @@ const filterFn = (t: ReferralThread, tab: Tab) => {
 };
 
 const Referrals = () => {
+  const { userId } = useCurrentUser();
   const [tab, setTab] = useState<Tab>("All");
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
@@ -66,7 +68,7 @@ const Referrals = () => {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
     await createReferralRequest({
-      requester_id: ME_ID,
+      requester_id: userId ?? "u1",
       host_id: String(form.get("host") ?? ""),
       target_company: String(form.get("company") ?? ""),
       target_role: String(form.get("role") ?? ""),
@@ -96,7 +98,7 @@ const Referrals = () => {
               New request
             </Button>
           </DialogTrigger>
-          <NewRequestDialog onSubmit={onSubmit} />
+          <NewRequestDialog onSubmit={onSubmit} currentUserId={userId ?? "u1"} />
         </Dialog>
       </header>
 
@@ -213,10 +215,14 @@ const Referrals = () => {
   );
 };
 
-const ME_ID = "u1";
-
-const NewRequestDialog = ({ onSubmit }: { onSubmit: (e: React.FormEvent<HTMLFormElement>) => void }) => {
-  const hosts = users.filter((u) => u.id !== ME_ID);
+const NewRequestDialog = ({
+  onSubmit,
+  currentUserId,
+}: {
+  onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+  currentUserId: string;
+}) => {
+  const hosts = users.filter((u) => u.id !== currentUserId);
   return (
     <DialogContent className="sm:max-w-lg max-w-[calc(100vw-2rem)]">
       <DialogHeader>

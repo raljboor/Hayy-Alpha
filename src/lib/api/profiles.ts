@@ -18,7 +18,7 @@ import {
 export async function getProfile(userId: string): Promise<UserProfile | null> {
   if (isSupabaseConfigured && supabase) {
     const { data, error } = await supabase
-      .from("profiles")
+      .from("user_profiles")
       .select("*")
       .eq("id", userId)
       .maybeSingle();
@@ -53,7 +53,7 @@ export async function getProfile(userId: string): Promise<UserProfile | null> {
 export async function getProfileUi(userId: string) {
   if (isSupabaseConfigured && supabase) {
     const { data, error } = await supabase
-      .from("profiles")
+      .from("user_profiles")
       .select("*")
       .eq("id", userId)
       .maybeSingle();
@@ -70,7 +70,7 @@ export async function updateProfile(
 ): Promise<UserProfile | null> {
   if (isSupabaseConfigured && supabase) {
     const { data, error } = await supabase
-      .from("profiles")
+      .from("user_profiles")
       .update(updates)
       .eq("id", userId)
       .select()

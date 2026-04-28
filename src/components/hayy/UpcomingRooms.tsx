@@ -1,7 +1,7 @@
 import { Calendar, Users, ArrowUpRight, ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/lib/auth";
+import { useAuthContext } from "@/context/AuthContext";
 
 const rooms = [
   {
@@ -37,8 +37,8 @@ const rooms = [
 ];
 
 export const UpcomingRooms = () => {
-  const { authed } = useAuth();
-  const viewAllTo = authed ? "/app/rooms" : "/signup";
+  const { isAuthenticated } = useAuthContext();
+  const viewAllTo = isAuthenticated ? "/app/rooms" : "/signup";
 
   return (
     <section id="rooms" className="py-20 md:py-28">

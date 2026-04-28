@@ -22,9 +22,8 @@ import { type ThreadMessage } from "@/lib/inboxData";
 import { getReferralRequestById } from "@/lib/api/referrals";
 import { getMessagesForReferral, sendReferralMessage } from "@/lib/api/messages";
 import { useAsync } from "@/lib/useAsync";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { cn } from "@/lib/utils";
-
-const ME_ID = "u1";
 
 const Bubble = ({ msg }: { msg: ThreadMessage }) => {
   const mine = msg.sender === "me";
@@ -53,6 +52,7 @@ const Bubble = ({ msg }: { msg: ThreadMessage }) => {
 };
 
 const ReferralThread = () => {
+  const { userId } = useCurrentUser();
   const { id = "" } = useParams();
   const [params] = useSearchParams();
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -60,12 +60,12 @@ const ReferralThread = () => {
   const [sending, setSending] = useState(false);
 
   const { data: thread, loading, error, refetch } = useAsync(
-    () => getReferralRequestById(id),
-    [id],
+    () => getReferralRequestById(id, userId ?? undefined),
+    [id, userId],
   );
   const { data: liveMessages, refetch: refetchMessages } = useAsync(
-    () => getMessagesForReferral(id),
-    [id],
+    () => getMessagesForReferral(id, userId ?? "me"),
+    [id, userId],
   );
   const messages = useMemo<ThreadMessage[]>(
     () => liveMessages ?? thread?.messages ?? [],
@@ -111,7 +111,7 @@ const ReferralThread = () => {
     if (!reply.trim()) return;
     setSending(true);
     try {
-      await sendReferralMessage(id, ME_ID, reply.trim());
+      await sendReferralMessage(id, userId ?? "u1", reply.trim());
       setReply("");
       await refetchMessages();
       toast.success("Reply sent");

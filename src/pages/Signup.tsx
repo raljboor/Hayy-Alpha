@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Sparkles, Users, Mic, Handshake } from "lucide-react";
+import { Sparkles, Users, Mic, Handshake, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +23,8 @@ const highlights = [
 
 const Signup = () => {
   const [role, setRole] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const navigate = useNavigate();
   const [params] = useSearchParams();
 
@@ -33,13 +35,17 @@ const Signup = () => {
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setErrorMsg(null);
+    setSubmitting(true);
     const form = new FormData(e.currentTarget);
     const { error } = await signUpUser({
       email: String(form.get("email") ?? ""),
       password: String(form.get("password") ?? ""),
       fullName: String(form.get("name") ?? ""),
     });
+    setSubmitting(false);
     if (error) {
+      setErrorMsg(error.message);
       toast.error("Couldn't create your account", { description: error.message });
       return;
     }
@@ -102,22 +108,22 @@ const Signup = () => {
           <form onSubmit={onSubmit} className="mt-7 space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Full name</Label>
-              <Input id="name" name="name" required placeholder="Amira Mansour" className="h-11 rounded-xl bg-cream border-border" />
+              <Input id="name" name="name" required placeholder="Amira Mansour" className="h-11 rounded-xl bg-cream border-border" disabled={submitting} />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" name="email" type="email" required placeholder="you@example.com" className="h-11 rounded-xl bg-cream border-border" />
+              <Input id="email" name="email" type="email" required placeholder="you@example.com" className="h-11 rounded-xl bg-cream border-border" disabled={submitting} />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" name="password" type="password" required placeholder="At least 8 characters" className="h-11 rounded-xl bg-cream border-border" />
+              <Input id="password" name="password" type="password" required placeholder="At least 8 characters" className="h-11 rounded-xl bg-cream border-border" disabled={submitting} />
             </div>
 
             <div className="space-y-2">
               <Label>I am a</Label>
-              <Select value={role} onValueChange={setRole} required>
+              <Select value={role} onValueChange={setRole} required disabled={submitting}>
                 <SelectTrigger className="h-11 rounded-xl bg-cream border-border">
                   <SelectValue placeholder="Select your role" />
                 </SelectTrigger>
@@ -133,16 +139,26 @@ const Signup = () => {
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="target">Target role or industry</Label>
-                <Input id="target" placeholder="e.g. Operations, PM, Tech" className="h-11 rounded-xl bg-cream border-border" />
+                <Input id="target" placeholder="e.g. Operations, PM, Tech" className="h-11 rounded-xl bg-cream border-border" disabled={submitting} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="location">Location</Label>
-                <Input id="location" placeholder="City, country" className="h-11 rounded-xl bg-cream border-border" />
+                <Input id="location" placeholder="City, country" className="h-11 rounded-xl bg-cream border-border" disabled={submitting} />
               </div>
             </div>
 
-            <Button type="submit" variant="hero" size="lg" className="w-full mt-2">
-              Create account
+            {errorMsg && (
+              <p className="text-sm text-destructive rounded-xl bg-destructive/10 px-4 py-2.5">
+                {errorMsg}
+              </p>
+            )}
+
+            <Button type="submit" variant="hero" size="lg" className="w-full mt-2" disabled={submitting}>
+              {submitting ? (
+                <><Loader2 className="h-4 w-4 animate-spin" />Creating account…</>
+              ) : (
+                "Create account"
+              )}
             </Button>
 
             <p className="text-[11px] text-center text-muted-foreground leading-relaxed">

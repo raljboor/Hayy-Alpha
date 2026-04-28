@@ -30,7 +30,10 @@ import {
 } from "@/components/ui/select";
 import { users, getUser, type ReferralRequest as MockReferralRequest } from "@/data/mockData";
 import { getIncomingReferralRequests, updateReferralStatus } from "@/lib/api/referrals";
+import { getHostSettings, upsertHostSettings, updateHostCapacity, updateHostAvailability } from "@/lib/api/hostSettings";
+import { updateProfile } from "@/lib/api/profiles";
 import { useAsync } from "@/lib/useAsync";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { ThreadStatus } from "@/data/mockData";
 
 type RequestType = "Coffee chat" | "Referral" | "Resume feedback";
@@ -176,10 +179,18 @@ const nextActionMeta = {
 };
 
 const HostDashboard = () => {
-  const host = getUser("u2")!;
+  const { userId, profile, refreshProfile } = useCurrentUser();
+  // Fall back to "u2" (Yusuf) in mock mode so the page renders with fixtures.
+  const hostId = userId ?? "u2";
+  const host = getUser(hostId) ?? getUser("u2")!;
+
   const { data: apiRequests, refetch } = useAsync(
-    () => getIncomingReferralRequests(host.id),
-    [host.id],
+    () => getIncomingReferralRequests(hostId),
+    [hostId],
+  );
+  const { data: hostSettings } = useAsync(
+    () => (hostId ? getHostSettings(hostId) : Promise.resolve(null)),
+    [hostId],
   );
 
   // Seed local state from the API result; fall back to rich mock fixtures when
@@ -192,10 +203,54 @@ const HostDashboard = () => {
     }
   }, [apiRequests]);
 
+  // Availability toggles — seeded from host_settings once loaded
   const [coffeeChats, setCoffeeChats] = useState(true);
   const [referrals, setReferrals] = useState(true);
   const [resumeFeedback, setResumeFeedback] = useState(false);
   const [capacity, setCapacity] = useState("3");
+  const [enablingHostMode, setEnablingHostMode] = useState(false);
+
+  useEffect(() => {
+    if (hostSettings) {
+      setCoffeeChats(hostSettings.open_to_coffee_chats);
+      setReferrals(hostSettings.open_to_referrals);
+      setResumeFeedback(hostSettings.open_to_resume_feedback);
+      setCapacity(String(hostSettings.monthly_capacity));
+    }
+  }, [hostSettings]);
+
+  // Persist toggle changes
+  const handleToggleCoffeeChats = async (v: boolean) => {
+    setCoffeeChats(v);
+    if (userId) await updateHostAvailability(userId, { open_to_coffee_chats: v }).catch(() => {});
+  };
+  const handleToggleReferrals = async (v: boolean) => {
+    setReferrals(v);
+    if (userId) await updateHostAvailability(userId, { open_to_referrals: v }).catch(() => {});
+  };
+  const handleToggleResumeFeedback = async (v: boolean) => {
+    setResumeFeedback(v);
+    if (userId) await updateHostAvailability(userId, { open_to_resume_feedback: v }).catch(() => {});
+  };
+  const handleCapacityChange = async (v: string) => {
+    setCapacity(v);
+    if (userId) await updateHostCapacity(userId, parseInt(v, 10) || 3).catch(() => {});
+  };
+
+  const handleEnableHostMode = async () => {
+    if (!userId) return;
+    setEnablingHostMode(true);
+    try {
+      await updateProfile(userId, { role_type: "referral_host" });
+      await upsertHostSettings(userId, {});
+      await refreshProfile();
+      toast.success("Host mode enabled! You can now receive referral requests.");
+    } catch {
+      toast.error("Couldn't enable host mode — please try again.");
+    } finally {
+      setEnablingHostMode(false);
+    }
+  };
 
   const incoming = requests.filter((r) => r.status === "pending");
   const accepted = requests.filter((r) => r.status === "accepted");
@@ -226,8 +281,26 @@ const HostDashboard = () => {
     toast.success(`Marked complete with ${getUser(r.candidateId)?.name.split(" ")[0]}`);
   };
 
+  // referral_host and admin can access the host dashboard without a prompt
+  const isHost = !profile || profile.role_type === "referral_host" || profile.role_type === "admin";
+
   return (
     <div className="space-y-8">
+      {/* Soft role prompt — shown when user is not yet a host */}
+      {!isHost && (
+        <div className="rounded-3xl bg-cream border border-clay/20 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <p className="font-display text-lg text-foreground">Become a referral host</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Enable host mode to receive referral requests from candidates in live rooms.
+            </p>
+          </div>
+          <Button variant="hero" size="sm" onClick={handleEnableHostMode} disabled={enablingHostMode}>
+            {enablingHostMode ? "Enabling…" : "Enable host mode"}
+          </Button>
+        </div>
+      )}
+
       {/* Header */}
       <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
@@ -239,12 +312,12 @@ const HostDashboard = () => {
         </div>
       </header>
 
-      {/* Stats */}
+      {/* Stats — derived from live request counts */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard label="Monthly capacity" value={capacity} tone="primary" icon={Users} hint="You set the pace" />
-        <StatCard label="Requests received" value={7} tone="clay" icon={Inbox} />
-        <StatCard label="Accepted" value={4} tone="olive" icon={CheckCircle2} />
-        <StatCard label="Referrals made" value={2} icon={Handshake} hint="This month" />
+        <StatCard label="Requests received" value={requests.length} tone="clay" icon={Inbox} />
+        <StatCard label="Accepted" value={accepted.length} tone="olive" icon={CheckCircle2} />
+        <StatCard label="Referrals made" value={requests.filter((r) => r.nextAction === "Submit referral").length} icon={Handshake} hint="This month" />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
@@ -384,24 +457,24 @@ const HostDashboard = () => {
                 icon={Coffee}
                 label="Open to coffee chats"
                 checked={coffeeChats}
-                onCheckedChange={setCoffeeChats}
+                onCheckedChange={handleToggleCoffeeChats}
               />
               <ToggleRow
                 icon={Handshake}
                 label="Open to referrals"
                 checked={referrals}
-                onCheckedChange={setReferrals}
+                onCheckedChange={handleToggleReferrals}
               />
               <ToggleRow
                 icon={FileText}
                 label="Open to resume feedback"
                 checked={resumeFeedback}
-                onCheckedChange={setResumeFeedback}
+                onCheckedChange={handleToggleResumeFeedback}
               />
 
               <div className="pt-2 space-y-2">
                 <Label className="text-sm">Monthly capacity</Label>
-                <Select value={capacity} onValueChange={setCapacity}>
+                <Select value={capacity} onValueChange={handleCapacityChange}>
                   <SelectTrigger className="bg-card"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {["1", "2", "3", "5", "8", "Unlimited"].map((v) => (

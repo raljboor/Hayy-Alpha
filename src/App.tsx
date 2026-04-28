@@ -3,12 +3,14 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider } from "@/context/AuthContext";
 
 import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import Login from "./pages/Login.tsx";
 import Signup from "./pages/Signup.tsx";
 import Onboarding from "./pages/Onboarding.tsx";
+import AuthConfirm from "./pages/AuthConfirm.tsx";
 
 import AuthLayout from "./layouts/AuthLayout.tsx";
 import AppLayout from "./layouts/AppLayout.tsx";
@@ -36,6 +38,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <AuthProvider>
         <Routes>
           {/* Public */}
           <Route path="/" element={<Index />} />
@@ -45,6 +48,9 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
           </Route>
+
+          {/* Email confirmation callback — no layout wrapper needed */}
+          <Route path="/auth/confirm" element={<AuthConfirm />} />
 
           {/* Onboarding (full-screen, own layout) — auth required */}
           <Route
@@ -92,6 +98,7 @@ const App = () => (
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

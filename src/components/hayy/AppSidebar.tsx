@@ -1,18 +1,14 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { Home, Mic, Handshake, User, Briefcase, UserCheck, LogOut, Settings, X, MessageCircle, Bell } from "lucide-react";
 import { Logo } from "./Logo";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { NavBadge } from "./InboxPrimitives";
-
-const mainNav = [
-  { to: "/app", label: "Home", icon: Home, end: true, badge: 0 },
-  { to: "/app/rooms", label: "Rooms", icon: Mic, end: false, badge: 0 },
-  { to: "/app/referrals", label: "Referrals", icon: Handshake, end: false, badge: 4 },
-  { to: "/app/messages", label: "Messages", icon: MessageCircle, end: false, badge: 2 },
-  { to: "/app/notifications", label: "Notifications", icon: Bell, end: false, badge: 3 },
-  { to: "/app/profile", label: "Profile", icon: User, end: false, badge: 0 },
-];
+import { useAuthContext } from "@/context/AuthContext";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { getReferralThreads, getReferralRequests } from "@/lib/api/referrals";
+import { getNotifications } from "@/lib/api/notifications";
+import { useAsync } from "@/lib/useAsync";
 
 const supplyNav = [
   { to: "/app/host", label: "Host dashboard", icon: UserCheck },
@@ -25,8 +21,55 @@ interface AppSidebarProps {
   onMobileOpenChange?: (open: boolean) => void;
 }
 
+/**
+ * Derives live badge counts from API data.
+ * Falls back to 0 while loading so the sidebar never shows stale fixture numbers.
+ */
+function useBadgeCounts(userId: string | null) {
+  const { data: threads } = useAsync(
+    () => getReferralThreads(userId ?? undefined),
+    [userId],
+  );
+  const { data: referrals } = useAsync(
+    () => getReferralRequests(userId ?? undefined),
+    [userId],
+  );
+  const { data: notifications } = useAsync(
+    () => getNotifications(userId ?? undefined),
+    [userId],
+  );
+
+  const unreadMessages = (threads ?? []).filter((t) => t.unread).length;
+  const unreadNotifications = (notifications ?? []).filter((n) => n.unread).length;
+  const pendingReferrals = (referrals ?? []).filter(
+    (r) => r.status === "pending",
+  ).length;
+
+  return { unreadMessages, unreadNotifications, pendingReferrals };
+}
+
 export const AppSidebar = ({ mobileOpen = false, onMobileOpenChange }: AppSidebarProps) => {
   const close = () => onMobileOpenChange?.(false);
+  const { signOut } = useAuthContext();
+  const { userId } = useCurrentUser();
+  const navigate = useNavigate();
+
+  const { unreadMessages, unreadNotifications, pendingReferrals } = useBadgeCounts(userId);
+
+  const mainNav = [
+    { to: "/app", label: "Home", icon: Home, end: true, badge: 0 },
+    { to: "/app/rooms", label: "Rooms", icon: Mic, end: false, badge: 0 },
+    { to: "/app/referrals", label: "Referrals", icon: Handshake, end: false, badge: pendingReferrals },
+    { to: "/app/messages", label: "Messages", icon: MessageCircle, end: false, badge: unreadMessages },
+    { to: "/app/notifications", label: "Notifications", icon: Bell, end: false, badge: unreadNotifications },
+    { to: "/app/profile", label: "Profile", icon: User, end: false, badge: 0 },
+  ];
+
+  const handleSignOut = async () => {
+    close();
+    await signOut();
+    navigate("/login");
+  };
 
   return (
     <>
@@ -109,8 +152,8 @@ export const AppSidebar = ({ mobileOpen = false, onMobileOpenChange }: AppSideba
             <p className="font-display text-sm font-semibold text-foreground">Founding member</p>
             <p className="text-xs text-muted-foreground mt-1">You're shaping Hayy from day one.</p>
           </div>
-          <Button asChild variant="ghost" size="sm" className="w-full justify-start">
-            <NavLink to="/" onClick={close}><LogOut className="h-4 w-4" /> Log out</NavLink>
+          <Button variant="ghost" size="sm" className="w-full justify-start" onClick={handleSignOut}>
+            <LogOut className="h-4 w-4" /> Log out
           </Button>
         </div>
       </aside>

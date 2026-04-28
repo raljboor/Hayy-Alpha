@@ -15,11 +15,15 @@ import {
   TrendingUp,
   Mic,
   Check,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { StatCard } from "@/components/hayy/StatCard";
 import { UserAvatar } from "@/components/hayy/UserAvatar";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/hayy/EmptyState";
+import { ErrorState } from "@/components/hayy/ErrorState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,27 +38,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { users, getUser } from "@/lib/mockData";
+import { users } from "@/lib/mockData";
+import { updateProfile } from "@/lib/api/profiles";
+import { getRooms, createRoom } from "@/lib/api/rooms";
+import {
+  getRecruiterCandidates,
+  updateRecruiterCandidateStatus,
+  archiveRecruiterCandidate,
+  type PipelineCandidate,
+  type CandidateStatus,
+} from "@/lib/api/recruiterCandidates";
+import { useAsync } from "@/lib/useAsync";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
-type CandidateStatus = "Referred" | "Applied" | "Shortlisted" | "Interviewed" | "Archived";
-
-interface PipelineCandidate {
-  id: string;
-  userId: string;
-  targetRole: string;
-  skills: string[];
-  referralSource: string;
-  fitScore: number;
-  status: CandidateStatus;
-}
-
-const initialPipeline: PipelineCandidate[] = [
-  { id: "pc1", userId: "u1", targetRole: "Product Marketing Manager", skills: ["PMM", "B2C", "Analytics"], referralSource: "Yusuf Rahman · Amazon", fitScore: 92, status: "Shortlisted" },
-  { id: "pc2", userId: "u5", targetRole: "Product Designer", skills: ["UX", "Figma", "Research"], referralSource: "Sara — Design room", fitScore: 88, status: "Referred" },
-  { id: "pc3", userId: "u3", targetRole: "Senior Software Engineer", skills: ["Backend", "TypeScript", "Distributed"], referralSource: "Lina Haddad · Shopify", fitScore: 84, status: "Interviewed" },
-  { id: "pc4", userId: "u6", targetRole: "Operations Lead", skills: ["Operations", "Lean", "Logistics"], referralSource: "Ops referral night", fitScore: 79, status: "Applied" },
-  { id: "pc5", userId: "u4", targetRole: "Talent Partner", skills: ["Recruiting", "Sourcing"], referralSource: "Recruiter exchange", fitScore: 71, status: "Archived" },
-];
+// ---------------------------------------------------------------------------
+// Types / constants
+// ---------------------------------------------------------------------------
 
 const statusStyles: Record<CandidateStatus, string> = {
   Referred: "bg-clay/15 text-clay border-clay/30",
@@ -64,24 +63,68 @@ const statusStyles: Record<CandidateStatus, string> = {
   Archived: "bg-muted text-muted-foreground border-border",
 };
 
-const statusFilters: ("All" | CandidateStatus)[] = ["All", "Referred", "Applied", "Shortlisted", "Interviewed", "Archived"];
-
-const upcomingRooms = [
-  { id: "er1", title: "Amazon Canada · PMM Q&A", startsAt: new Date(Date.now() + 2 * 86400000).toISOString(), signups: 142, format: "Q&A" },
-  { id: "er2", title: "Shopify Engineering Open House", startsAt: new Date(Date.now() + 5 * 86400000).toISOString(), signups: 96, format: "Open house" },
-  { id: "er3", title: "Newcomer Coffee Chat — Ops", startsAt: new Date(Date.now() + 9 * 86400000).toISOString(), signups: 38, format: "Coffee chat" },
+const statusFilters: ("All" | CandidateStatus)[] = [
+  "All", "Referred", "Applied", "Shortlisted", "Interviewed", "Archived",
 ];
 
+// Static performance table — will be replaced when analytics tables exist
 const performanceRooms = [
   { name: "Amazon Canada Career Room", signups: 184, attendance: 78, questions: 42, requests: 31, shortlisted: 6 },
   { name: "Shopify Engineering Open House", signups: 96, attendance: 71, questions: 28, requests: 19, shortlisted: 4 },
   { name: "Operations Referral Night", signups: 64, attendance: 84, questions: 22, requests: 15, shortlisted: 3 },
 ];
 
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
 const RecruiterDashboard = () => {
-  const [pipeline, setPipeline] = useState<PipelineCandidate[]>(initialPipeline);
+  const { userId, profile, refreshProfile } = useCurrentUser();
+
+  const {
+    data: apiCandidates,
+    loading: candidatesLoading,
+    error: candidatesError,
+    refetch: refetchCandidates,
+  } = useAsync(
+    () => (userId ? getRecruiterCandidates(userId) : getRecruiterCandidates("mock")),
+    [userId],
+  );
+
+  const {
+    data: apiRooms,
+    loading: roomsLoading,
+  } = useAsync(() => getRooms(), []);
+
+  // Local pipeline state — seeded from API
+  const [pipeline, setPipeline] = useState<PipelineCandidate[]>([]);
+
+  // Seed from API when data arrives; mock data comes pre-loaded from the API module
+  useMemo(() => {
+    if (apiCandidates) setPipeline(apiCandidates);
+  }, [apiCandidates]);
+
   const [filter, setFilter] = useState<(typeof statusFilters)[number]>("All");
   const [date, setDate] = useState<Date | undefined>();
+  const [creatingRoom, setCreatingRoom] = useState(false);
+  const [enablingRecruiterMode, setEnablingRecruiterMode] = useState(false);
+
+  // Rooms created by this recruiter (filter by hostId when Supabase is configured)
+  const recruiterRooms = useMemo(() => {
+    const rooms = apiRooms ?? [];
+    if (!userId) return rooms.slice(0, 3); // mock: show first 3
+    return rooms.filter((r) => r.hostId === userId).slice(0, 5);
+  }, [apiRooms, userId]);
+
+  // Fall back to mock upcoming rooms when no recruiter rooms found
+  const mockUpcomingRooms = [
+    { id: "er1", title: "Amazon Canada · PMM Q&A", startsAt: new Date(Date.now() + 2 * 86400000).toISOString(), attendees: 142, tags: ["Q&A"] },
+    { id: "er2", title: "Shopify Engineering Open House", startsAt: new Date(Date.now() + 5 * 86400000).toISOString(), attendees: 96, tags: ["Open house"] },
+    { id: "er3", title: "Newcomer Coffee Chat — Ops", startsAt: new Date(Date.now() + 9 * 86400000).toISOString(), attendees: 38, tags: ["Coffee chat"] },
+  ];
+  const displayRooms = recruiterRooms.length > 0
+    ? recruiterRooms.map((r) => ({ id: r.id, title: r.title, startsAt: r.startsAt, attendees: r.attendees, tags: r.tags }))
+    : mockUpcomingRooms;
 
   const filtered = useMemo(
     () => (filter === "All" ? pipeline : pipeline.filter((c) => c.status === filter)),
@@ -90,28 +133,107 @@ const RecruiterDashboard = () => {
 
   const counts = useMemo(
     () => ({
-      activeRooms: upcomingRooms.length,
+      activeRooms: displayRooms.length,
       referred: pipeline.length,
       shortlisted: pipeline.filter((c) => c.status === "Shortlisted").length,
       interviews: pipeline.filter((c) => c.status === "Interviewed").length,
     }),
-    [pipeline],
+    [pipeline, displayRooms.length],
   );
 
-  const onCreate = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    e.currentTarget.reset();
-    setDate(undefined);
-    toast.success("Hiring room created", { description: "Candidates will be notified gently." });
+  // ---------------------------------------------------------------------------
+  // Role prompt
+  // ---------------------------------------------------------------------------
+
+  const isRecruiter =
+    !profile ||
+    profile.role_type === "recruiter" ||
+    profile.role_type === "admin";
+
+  const handleEnableRecruiterMode = async () => {
+    if (!userId) return;
+    setEnablingRecruiterMode(true);
+    try {
+      await updateProfile(userId, { role_type: "recruiter" });
+      await refreshProfile();
+      toast.success("Recruiter mode enabled!");
+    } catch {
+      toast.error("Couldn't enable recruiter mode — please try again.");
+    } finally {
+      setEnablingRecruiterMode(false);
+    }
   };
 
-  const updateStatus = (id: string, status: CandidateStatus) => {
+  // ---------------------------------------------------------------------------
+  // Actions
+  // ---------------------------------------------------------------------------
+
+  const onCreate = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    const title = String(form.get("title") ?? "").trim();
+    if (!title) return;
+
+    setCreatingRoom(true);
+    try {
+      await createRoom({
+        title,
+        description: String(form.get("desc") ?? ""),
+        hostId: userId ?? undefined,
+        startsAt: date?.toISOString() ?? new Date(Date.now() + 86400000).toISOString(),
+        status: "upcoming",
+        attendees: 0,
+        speakers: 0,
+        tags: [],
+        company: "",
+        category: "Tech",
+        coverColor: "bg-primary",
+        durationMin: 60,
+        access: (String(form.get("visibility") ?? "open")) as "open" | "waitlist" | "invite-only",
+      });
+      e.currentTarget.reset();
+      setDate(undefined);
+      toast.success("Hiring room created", { description: "Candidates will be notified gently." });
+    } catch {
+      toast.error("Couldn't create room — please try again.");
+    } finally {
+      setCreatingRoom(false);
+    }
+  };
+
+  const updateStatus = async (id: string, status: CandidateStatus) => {
     setPipeline((prev) => prev.map((c) => (c.id === id ? { ...c, status } : c)));
+    await updateRecruiterCandidateStatus(id, status).catch(() => {});
     toast.success(`Moved to ${status}`);
   };
 
+  const handleArchive = async (id: string) => {
+    setPipeline((prev) => prev.map((c) => (c.id === id ? { ...c, status: "Archived" as CandidateStatus } : c)));
+    await archiveRecruiterCandidate(id).catch(() => {});
+    toast("Archived");
+  };
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
+
   return (
     <div className="space-y-8">
+      {/* Soft role prompt */}
+      {!isRecruiter && (
+        <div className="rounded-3xl bg-cream border border-clay/20 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <p className="font-display text-lg text-foreground">Recruiter tools are for hiring teams</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Enable recruiter mode to create rooms and build your candidate pipeline.
+            </p>
+          </div>
+          <Button variant="hero" size="sm" onClick={handleEnableRecruiterMode} disabled={enablingRecruiterMode}>
+            {enablingRecruiterMode ? "Enabling…" : "Enable recruiter mode"}
+          </Button>
+        </div>
+      )}
+
       {/* Header */}
       <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
@@ -149,16 +271,16 @@ const RecruiterDashboard = () => {
             <form onSubmit={onCreate} className="mt-6 grid sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2 space-y-2">
                 <Label htmlFor="title">Room title</Label>
-                <Input id="title" required placeholder="e.g. Stripe Canada · APAC Ops Q&A" className="bg-cream" />
+                <Input id="title" name="title" required placeholder="e.g. Stripe Canada · APAC Ops Q&A" className="bg-cream" />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="job">Attached job</Label>
-                <Input id="job" placeholder="e.g. Operations Analyst · req-2148" className="bg-cream" />
+                <Input id="job" name="job" placeholder="e.g. Operations Analyst · req-2148" className="bg-cream" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="dept">Department</Label>
-                <Input id="dept" placeholder="e.g. Operations" className="bg-cream" />
+                <Input id="dept" name="dept" placeholder="e.g. Operations" className="bg-cream" />
               </div>
 
               <div className="space-y-2">
@@ -191,7 +313,7 @@ const RecruiterDashboard = () => {
               </div>
               <div className="space-y-2">
                 <Label>Room format</Label>
-                <Select defaultValue="qa">
+                <Select name="format" defaultValue="qa">
                   <SelectTrigger className="bg-cream"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="qa">Q&A</SelectItem>
@@ -204,11 +326,11 @@ const RecruiterDashboard = () => {
 
               <div className="space-y-2">
                 <Label htmlFor="limit">Candidate limit</Label>
-                <Input id="limit" type="number" min={5} max={500} defaultValue={50} className="bg-cream" />
+                <Input id="limit" name="limit" type="number" min={5} max={500} defaultValue={50} className="bg-cream" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="visibility">Visibility</Label>
-                <Select defaultValue="open">
+                <Select name="visibility" defaultValue="open">
                   <SelectTrigger className="bg-cream"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="open">Open</SelectItem>
@@ -222,6 +344,7 @@ const RecruiterDashboard = () => {
                 <Label htmlFor="desc">Description</Label>
                 <Textarea
                   id="desc"
+                  name="desc"
                   rows={4}
                   placeholder="Tell candidates what to expect, who's hosting, and how this connects to a real role."
                   className="bg-cream resize-none"
@@ -229,8 +352,9 @@ const RecruiterDashboard = () => {
               </div>
 
               <div className="sm:col-span-2 flex justify-end">
-                <Button type="submit" variant="hero" size="lg">
-                  <Plus className="h-4 w-4" />Create room
+                <Button type="submit" variant="hero" size="lg" disabled={creatingRoom}>
+                  {creatingRoom ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  {creatingRoom ? "Creating…" : "Create room"}
                 </Button>
               </div>
             </form>
@@ -263,22 +387,32 @@ const RecruiterDashboard = () => {
               ))}
             </div>
 
-            <div className="space-y-3">
-              {filtered.map((c) => {
-                const u = getUser(c.userId)!;
-                return (
+            {candidatesLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-2xl" />)}
+              </div>
+            ) : candidatesError ? (
+              <ErrorState description="Couldn't load the candidate pipeline." onRetry={refetchCandidates} />
+            ) : filtered.length === 0 ? (
+              <EmptyState
+                icon={Users}
+                title="No candidates in this stage"
+                description="Candidates referred from live rooms will appear here."
+              />
+            ) : (
+              <div className="space-y-3">
+                {filtered.map((c) => (
                   <article key={c.id} className="rounded-2xl border border-border bg-cream/40 p-4 md:p-5">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="flex items-start gap-3 min-w-0">
-                        <UserAvatar user={u} size="md" />
+                        <UserAvatar
+                          user={{ name: c.candidateName, initials: c.candidateInitials, avatarColor: c.candidateAvatarColor }}
+                          size="md"
+                        />
                         <div className="min-w-0">
-                          <p className="font-medium text-foreground truncate">{u.name}</p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            → {c.targetRole}
-                          </p>
-                          <p className="text-[11px] text-muted-foreground mt-0.5">
-                            via {c.referralSource}
-                          </p>
+                          <p className="font-medium text-foreground truncate">{c.candidateName}</p>
+                          <p className="text-xs text-muted-foreground truncate">→ {c.targetRole}</p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">via {c.referralSource}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
@@ -303,7 +437,7 @@ const RecruiterDashboard = () => {
                     </div>
 
                     <div className="mt-4 flex flex-wrap gap-2">
-                      <Button size="sm" variant="ghost" onClick={() => toast(`Opening ${u.name}'s profile`)}>
+                      <Button size="sm" variant="ghost" onClick={() => toast(`Opening ${c.candidateName}'s profile`)}>
                         <Eye className="h-4 w-4" />View profile
                       </Button>
                       {c.status !== "Shortlisted" ? (
@@ -315,22 +449,22 @@ const RecruiterDashboard = () => {
                           <Check className="h-4 w-4" />Move to interview
                         </Button>
                       )}
-                      <Button size="sm" variant="soft" onClick={() => toast.success(`Message sent to ${u.name.split(" ")[0]}`)}>
+                      <Button size="sm" variant="soft" onClick={() => toast.success(`Message sent to ${c.candidateName.split(" ")[0]}`)}>
                         <MessageCircle className="h-4 w-4" />Message
                       </Button>
+                      {c.status !== "Archived" && (
+                        <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => handleArchive(c.id)}>
+                          Archive
+                        </Button>
+                      )}
                     </div>
                   </article>
-                );
-              })}
-              {filtered.length === 0 && (
-                <p className="rounded-2xl border border-dashed border-border bg-cream/40 p-8 text-center text-sm text-muted-foreground">
-                  No candidates in this stage yet.
-                </p>
-              )}
-            </div>
+                ))}
+              </div>
+            )}
           </section>
 
-          {/* Room performance */}
+          {/* Room performance — TODO: load from analytics when available */}
           <section className="rounded-3xl bg-card border border-border p-6 md:p-8">
             <div className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-clay" />
@@ -381,24 +515,30 @@ const RecruiterDashboard = () => {
               <Mic className="h-4 w-4 text-clay" />
               <h3 className="font-display text-lg text-foreground">Upcoming employer rooms</h3>
             </div>
-            <ul className="mt-4 space-y-3">
-              {upcomingRooms.map((r) => (
-                <li key={r.id} className="rounded-2xl bg-card border border-border p-4">
-                  <p className="text-sm font-medium text-foreground">{r.title}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {format(new Date(r.startsAt), "EEE, MMM d · p")}
-                  </p>
-                  <div className="mt-2 flex items-center justify-between text-[11px]">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-cream border border-border px-2 py-0.5 text-foreground/70">
-                      {r.format}
-                    </span>
-                    <span className="text-muted-foreground inline-flex items-center gap-1">
-                      <Users className="h-3 w-3" />{r.signups} signups
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            {roomsLoading ? (
+              <div className="mt-4 space-y-2">
+                {[1, 2].map((i) => <Skeleton key={i} className="h-20 w-full rounded-2xl" />)}
+              </div>
+            ) : (
+              <ul className="mt-4 space-y-3">
+                {displayRooms.map((r) => (
+                  <li key={r.id} className="rounded-2xl bg-card border border-border p-4">
+                    <p className="text-sm font-medium text-foreground">{r.title}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {format(new Date(r.startsAt), "EEE, MMM d · p")}
+                    </p>
+                    <div className="mt-2 flex items-center justify-between text-[11px]">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-cream border border-border px-2 py-0.5 text-foreground/70">
+                        {r.tags[0] ?? "Room"}
+                      </span>
+                      <span className="text-muted-foreground inline-flex items-center gap-1">
+                        <Users className="h-3 w-3" />{r.attendees} signups
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
             <Button variant="soft" size="sm" className="mt-4 w-full" asChild>
               <a href="/app/rooms">Manage all rooms</a>
             </Button>

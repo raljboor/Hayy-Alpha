@@ -16,8 +16,9 @@ import {
   X,
 } from "lucide-react";
 import { getUser, users } from "@/lib/mockData";
-import { getRoomById } from "@/lib/api/rooms";
+import { getRoomById, leaveRoom } from "@/lib/api/rooms";
 import { useAsync } from "@/lib/useAsync";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserAvatar } from "@/components/hayy/UserAvatar";
 import { Button } from "@/components/ui/button";
@@ -69,6 +70,7 @@ type Tile = {
 const LiveRoom = () => {
   const { id = "" } = useParams();
   const navigate = useNavigate();
+  const { userId } = useCurrentUser();
   const { data: room, loading } = useAsync(() => getRoomById(id), [id]);
 
   const [muted, setMuted] = useState(true);
@@ -80,6 +82,9 @@ const LiveRoom = () => {
   const [chatText, setChatText] = useState("");
   const [questions, setQuestions] = useState(sampleQuestions);
 
+  // TODO (Phase 7 realtime): replace mock tiles with Supabase Realtime presence.
+  // Subscribe to supabase.channel(`room:${id}`).on('presence', ...) to get
+  // the live participant list and speaking state.
   const tiles: Tile[] = useMemo(() => {
     const pool = users.concat(users).slice(0, 8);
     return pool.map((u, i) => ({
@@ -153,10 +158,20 @@ const LiveRoom = () => {
             Live now
           </span>
           <p className="font-display text-base sm:text-lg truncate max-w-[55vw]">
-            Breaking Into Corporate Roles in Canada
+            {room.title}
           </p>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => navigate(`/app/rooms/${room.id}`)}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={async () => {
+            // TODO (Phase 7 realtime): disconnect from presence channel here
+            if (userId) {
+              await leaveRoom(room.id, userId).catch(() => {});
+            }
+            navigate(`/app/rooms/${room.id}`);
+          }}
+        >
           <LogOut className="h-4 w-4" />Leave
         </Button>
       </header>

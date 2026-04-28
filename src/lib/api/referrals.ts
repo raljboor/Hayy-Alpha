@@ -1,13 +1,8 @@
 /**
  * Referrals API.
  *
- * Two UI shapes are maintained:
- *  - MockReferralRequest  lightweight rows (Dashboard, HostDashboard)
- *  - ReferralThread       rich conversation threads (Referrals, Thread pages)
- *
  * Mock mode: returns fixtures from src/data/mockData.ts.
- * Supabase mode: fetches rows and passes them through adapter functions so
- * pages always receive the same UI-shaped types.
+ * Supabase mode: fetches rows and adapts them to UI shapes.
  */
 import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
 import {
@@ -20,81 +15,119 @@ import {
 import {
   adaptReferralRequestsFromDb,
   adaptReferralRequestFromDb,
+  adaptThreadFromDb,
   type DbReferralRequest,
+  type DbReferralThread,
 } from "@/lib/adapters/referralsAdapter";
 
-export async function getReferralRequests(_userId?: string): Promise<MockReferralRequest[]> {
+// ---------------------------------------------------------------------------
+// getReferralRequests
+// ---------------------------------------------------------------------------
+
+export async function getReferralRequests(userId?: string): Promise<MockReferralRequest[]> {
   if (isSupabaseConfigured && supabase) {
-    const { data, error } = await supabase
-      .from("referral_requests")
-      .select("*")
-      .order("created_at", { ascending: false });
+    let query = supabase.from("referral_requests").select("*").order("created_at", { ascending: false });
+    if (userId) {
+      query = query.or(`requester_id.eq.${userId},host_id.eq.${userId}`);
+    }
+    const { data, error } = await query;
     if (error) throw error;
     return adaptReferralRequestsFromDb((data ?? []) as DbReferralRequest[]);
   }
   return referralRequests;
 }
 
-export async function getReferralThreads(): Promise<ReferralThread[]> {
+// ---------------------------------------------------------------------------
+// getReferralThreads — the key Phase 6 implementation
+// ---------------------------------------------------------------------------
+
+export async function getReferralThreads(userId?: string): Promise<ReferralThread[]> {
   if (isSupabaseConfigured && supabase) {
-    // TODO (Phase 6): replace with the full join query once the schema exists:
-    //
-    //   const { data, error } = await supabase
-    //     .from("referral_requests")
-    //     .select(`
-    //       *,
-    //       referral_messages(*),
-    //       requester:profiles!requester_id(id, full_name, avatar_url, headline),
-    //       host:profiles!host_id(id, full_name, avatar_url, headline)
-    //     `)
-    //     .order("updated_at", { ascending: false });
-    //
-    //   Then pass each row + currentUserId through adaptThreadFromDb().
-    //
-    // For now, fall back to mock data so the UI keeps working.
-    return threads;
+    const uid = userId;
+    if (!uid) return threads; // no auth yet — return mock
+
+    const { data, error } = await supabase
+      .from("referral_requests")
+      .select(`
+        *,
+        referral_messages ( id, sender_id, body, attachment_url, read_at, created_at ),
+        requester:user_profiles!referral_requests_requester_id_fkey ( id, full_name, avatar_url, headline ),
+        host:user_profiles!referral_requests_host_id_fkey ( id, full_name, avatar_url, headline )
+      `)
+      .or(`requester_id.eq.${uid},host_id.eq.${uid}`)
+      .order("updated_at", { ascending: false });
+
+    if (error) throw error;
+    if (!data || data.length === 0) return [];
+
+    return data.map((row) => {
+      // Sort messages chronologically
+      const msgs = ((row.referral_messages as unknown[]) ?? []).sort(
+        (a, b) =>
+          new Date((a as { created_at: string }).created_at).getTime() -
+          new Date((b as { created_at: string }).created_at).getTime(),
+      );
+
+      const dbThread: DbReferralThread = {
+        referral: row as unknown as DbReferralRequest,
+        messages: msgs as DbReferralThread["messages"],
+        requester: row.requester as DbReferralThread["requester"],
+        host: row.host as DbReferralThread["host"],
+        currentUserId: uid,
+      };
+      return adaptThreadFromDb(dbThread);
+    });
   }
+
+  // Mock fallback
   return threads;
 }
 
-export async function getReferralRequestById(referralId: string): Promise<ReferralThread | null> {
+// ---------------------------------------------------------------------------
+// getReferralRequestById
+// ---------------------------------------------------------------------------
+
+export async function getReferralRequestById(
+  referralId: string,
+  userId?: string,
+): Promise<ReferralThread | null> {
   if (isSupabaseConfigured && supabase) {
-    // TODO (Phase 6): fetch with messages + profiles join, then adaptThreadFromDb().
     const { data, error } = await supabase
       .from("referral_requests")
-      .select("*")
+      .select(`
+        *,
+        referral_messages ( id, sender_id, body, attachment_url, read_at, created_at ),
+        requester:user_profiles!referral_requests_requester_id_fkey ( id, full_name, avatar_url, headline ),
+        host:user_profiles!referral_requests_host_id_fkey ( id, full_name, avatar_url, headline )
+      `)
       .eq("id", referralId)
       .maybeSingle();
+
     if (error) throw error;
     if (!data) return null;
-    // Lightweight fallback: build a minimal thread from the request row alone.
-    // Full thread hydration (with messages) requires the join query in Phase 6.
-    const req = adaptReferralRequestFromDb(data as DbReferralRequest);
-    return (
-      threads.find((t) => t.id === referralId) ??
-      ({
-        id: req.id,
-        person: { name: "Unknown", initials: "?", avatarColor: "bg-primary" },
-        roleCompany: `${req.role} @ ${req.company}`,
-        requestType: req.type,
-        targetRole: req.role,
-        targetCompany: req.company,
-        status: (req.status.charAt(0).toUpperCase() + req.status.slice(1)) as ThreadStatus,
-        lastPreview: req.message,
-        lastUpdated: req.updatedAt,
-        unread: false,
-        direction: req.direction,
-        readiness: 0,
-        inboxContext: `${req.type} · ${req.company}`,
-        messages: [],
-        hostMeta: { title: "", capacity: "", responseTime: "" },
-        files: [],
-        nextSteps: [],
-      } satisfies ReferralThread)
+
+    const msgs = ((data.referral_messages as unknown[]) ?? []).sort(
+      (a, b) =>
+        new Date((a as { created_at: string }).created_at).getTime() -
+        new Date((b as { created_at: string }).created_at).getTime(),
     );
+
+    const dbThread: DbReferralThread = {
+      referral: data as unknown as DbReferralRequest,
+      messages: msgs as DbReferralThread["messages"],
+      requester: data.requester as DbReferralThread["requester"],
+      host: data.host as DbReferralThread["host"],
+      currentUserId: userId ?? "",
+    };
+    return adaptThreadFromDb(dbThread);
   }
+
   return threads.find((t) => t.id === referralId) ?? null;
 }
+
+// ---------------------------------------------------------------------------
+// createReferralRequest
+// ---------------------------------------------------------------------------
 
 export interface CreateReferralInput {
   requester_id: string;
@@ -112,15 +145,50 @@ export async function createReferralRequest(data: CreateReferralInput) {
   return { data: { id: `mock-${Date.now()}`, ...data }, error: null };
 }
 
+// ---------------------------------------------------------------------------
+// updateReferralStatus — notifies requester when host changes status
+// ---------------------------------------------------------------------------
+
 export async function updateReferralStatus(referralId: string, status: ThreadStatus) {
   if (isSupabaseConfigured && supabase) {
-    return supabase
+    const dbStatus = status.toLowerCase();
+
+    // Update the row
+    const { error: updateError } = await supabase
       .from("referral_requests")
-      .update({ status: status.toLowerCase(), updated_at: new Date().toISOString() })
+      .update({ status: dbStatus, updated_at: new Date().toISOString() })
       .eq("id", referralId);
+
+    if (updateError) throw updateError;
+
+    // Fetch the referral so we can notify the requester
+    const { data: req } = await supabase
+      .from("referral_requests")
+      .select("requester_id, host_id")
+      .eq("id", referralId)
+      .maybeSingle();
+
+    if (req?.requester_id) {
+      const statusLabel = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+      await supabase.from("notifications").insert({
+        user_id: req.requester_id,
+        type: "Referral update",
+        title: "Referral request updated",
+        body: `Your referral request was marked as ${statusLabel}.`,
+        related_entity_type: "referral_request",
+        related_entity_id: referralId,
+      });
+    }
+
+    return { data: { referralId, status }, error: null };
   }
+
   return { data: { referralId, status }, error: null };
 }
+
+// ---------------------------------------------------------------------------
+// getIncomingReferralRequests / getOutgoingReferralRequests
+// ---------------------------------------------------------------------------
 
 export async function getIncomingReferralRequests(hostId: string): Promise<MockReferralRequest[]> {
   if (isSupabaseConfigured && supabase) {

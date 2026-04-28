@@ -15,9 +15,10 @@ import { getRooms } from "@/lib/api/rooms";
 import { getReferralRequests, getReferralThreads } from "@/lib/api/referrals";
 import { getNotifications } from "@/lib/api/notifications";
 import { useAsync } from "@/lib/useAsync";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { cn } from "@/lib/utils";
 
-const me = users[0]; // Amira
+const mockMe = users[0]; // Amira — display fallback in mock mode
 
 const suggestedRoomTitles = [
   "Amazon Canada Career Room",
@@ -40,10 +41,15 @@ const checklist = [
 ];
 
 const Dashboard = () => {
+  const { userId, profile } = useCurrentUser();
+  const me = profile
+    ? { name: profile.full_name || mockMe.name, id: userId ?? mockMe.id }
+    : mockMe;
+
   const roomsQ = useAsync(() => getRooms(), []);
-  const referralsQ = useAsync(() => getReferralRequests(), []);
-  const threadsQ = useAsync(() => getReferralThreads(), []);
-  const notificationsQ = useAsync(() => getNotifications(), []);
+  const referralsQ = useAsync(() => getReferralRequests(userId ?? undefined), [userId]);
+  const threadsQ = useAsync(() => getReferralThreads(userId ?? undefined), [userId]);
+  const notificationsQ = useAsync(() => getNotifications(userId ?? undefined), [userId]);
 
   const rooms = roomsQ.data ?? [];
   const referralRequests = referralsQ.data ?? [];

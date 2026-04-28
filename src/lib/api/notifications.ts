@@ -3,7 +3,7 @@
  *
  * Mock mode: returns UI-shaped fixtures from inboxData.ts directly.
  * Supabase mode: fetches DB-shaped rows and converts them to the UI shape
- * via notificationsAdapter — bridging read_at → unread and created_at → time.
+ * via notificationsAdapter.
  */
 import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
 import { notifications, type Notification as UiNotification } from "@/data/mockData";
@@ -12,12 +12,18 @@ import {
   type DbNotification,
 } from "@/lib/adapters/notificationsAdapter";
 
-export async function getNotifications(_userId?: string): Promise<UiNotification[]> {
+export async function getNotifications(userId?: string): Promise<UiNotification[]> {
   if (isSupabaseConfigured && supabase) {
-    const { data, error } = await supabase
+    let query = supabase
       .from("notifications")
       .select("*")
       .order("created_at", { ascending: false });
+
+    if (userId) {
+      query = query.eq("user_id", userId);
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
     return adaptNotificationsFromDb((data ?? []) as DbNotification[]);
   }

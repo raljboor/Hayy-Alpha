@@ -60,12 +60,12 @@ const ReferralThread = () => {
   const [sending, setSending] = useState(false);
 
   const { data: thread, loading, error, refetch } = useAsync(
-    () => getReferralRequestById(id),
-    [id],
+    () => getReferralRequestById(id, userId ?? undefined),
+    [id, userId],
   );
   const { data: liveMessages, refetch: refetchMessages } = useAsync(
-    () => getMessagesForReferral(id),
-    [id],
+    () => getMessagesForReferral(id, userId ?? "me"),
+    [id, userId],
   );
   const messages = useMemo<ThreadMessage[]>(
     () => liveMessages ?? thread?.messages ?? [],

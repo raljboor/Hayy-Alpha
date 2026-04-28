@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Handshake,
   MessageSquare,
@@ -13,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/hayy/EmptyState";
 import { ErrorState } from "@/components/hayy/ErrorState";
-import { getNotifications, markAllNotificationsRead } from "@/lib/api/notifications";
+import { getNotifications, markAllNotificationsRead, markNotificationRead } from "@/lib/api/notifications";
 import { useAsync } from "@/lib/useAsync";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { type Notification, type NotificationType } from "@/lib/inboxData";
@@ -27,8 +28,21 @@ const iconFor: Record<NotificationType, { Icon: typeof Handshake; tone: string }
   "Host joined": { Icon: UserPlus, tone: "bg-secondary text-foreground" },
 };
 
+/** Maps notification related_entity_type to a frontend route. */
+function routeForNotification(n: Notification & { related_entity_type?: string; related_entity_id?: string }): string | null {
+  if (!n.related_entity_type || !n.related_entity_id) return null;
+  if (n.related_entity_type === "referral_request" || n.related_entity_type === "referral_message") {
+    return `/app/referrals/${n.related_entity_id}`;
+  }
+  if (n.related_entity_type === "room") {
+    return `/app/rooms/${n.related_entity_id}`;
+  }
+  return null;
+}
+
 const Notifications = () => {
   const { userId } = useCurrentUser();
+  const navigate = useNavigate();
   const { data, loading, error, refetch } = useAsync(
     () => getNotifications(userId ?? undefined),
     [userId],
@@ -46,6 +60,17 @@ const Notifications = () => {
     setItems((prev) => prev.map((n) => ({ ...n, unread: false })));
     if (userId) await markAllNotificationsRead(userId);
     toast.success("All caught up");
+  };
+
+  const handleNotificationClick = async (n: Notification) => {
+    // Mark read optimistically
+    if (n.unread) {
+      setItems((prev) => prev.map((item) => item.id === n.id ? { ...item, unread: false } : item));
+      await markNotificationRead(n.id);
+    }
+    // Navigate if we have a related entity
+    const route = routeForNotification(n as Notification & { related_entity_type?: string; related_entity_id?: string });
+    if (route) navigate(route);
   };
 
   return (
@@ -78,15 +103,21 @@ const Notifications = () => {
         <EmptyState icon={Bell} title="You're all caught up" description="New activity will land here." />
       ) : (
         <>
-          <Group title="Today" items={today} />
-          <Group title="Earlier" items={earlier} />
+          <Group title="Today" items={today} onClickItem={handleNotificationClick} />
+          <Group title="Earlier" items={earlier} onClickItem={handleNotificationClick} />
         </>
       )}
     </div>
   );
 };
 
-const Group = ({ title, items }: { title: string; items: Notification[] }) => {
+interface GroupProps {
+  title: string;
+  items: Notification[];
+  onClickItem: (n: Notification) => void;
+}
+
+const Group = ({ title, items, onClickItem }: GroupProps) => {
   if (!items.length) return null;
   return (
     <section className="space-y-3">
@@ -94,20 +125,18 @@ const Group = ({ title, items }: { title: string; items: Notification[] }) => {
       <ul className="rounded-3xl bg-card border border-border divide-y divide-border overflow-hidden">
         {items.map((n) => {
           const { Icon, tone } = iconFor[n.type];
+          const clickable = !!(n as Notification & { related_entity_type?: string }).related_entity_type || n.unread;
           return (
             <li
               key={n.id}
+              onClick={() => onClickItem(n)}
               className={cn(
                 "p-4 sm:p-5 flex items-start gap-3 transition-colors",
                 n.unread && "bg-clay/5",
+                clickable && "cursor-pointer hover:bg-cream/60",
               )}
             >
-              <span
-                className={cn(
-                  "h-10 w-10 rounded-2xl inline-flex items-center justify-center shrink-0",
-                  tone,
-                )}
-              >
+              <span className={cn("h-10 w-10 rounded-2xl inline-flex items-center justify-center shrink-0", tone)}>
                 <Icon className="h-5 w-5" />
               </span>
               <div className="min-w-0 flex-1">
@@ -118,12 +147,7 @@ const Group = ({ title, items }: { title: string; items: Notification[] }) => {
                   {n.unread && <span className="h-2 w-2 rounded-full bg-clay shrink-0" />}
                   <span className="ml-auto text-[11px] text-muted-foreground">{n.time}</span>
                 </div>
-                <p
-                  className={cn(
-                    "mt-1 text-[15px] leading-snug",
-                    n.unread ? "text-foreground font-medium" : "text-foreground/90",
-                  )}
-                >
+                <p className={cn("mt-1 text-[15px] leading-snug", n.unread ? "text-foreground font-medium" : "text-foreground/90")}>
                   {n.title}
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground leading-relaxed">{n.body}</p>

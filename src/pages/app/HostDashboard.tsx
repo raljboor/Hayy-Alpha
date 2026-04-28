@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/select";
 import { users, getUser, type ReferralRequest as MockReferralRequest } from "@/data/mockData";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
+import { isMockMode } from "@/lib/runtimeMode";
 import { getIncomingReferralRequests, updateReferralStatus } from "@/lib/api/referrals";
 import { getHostSettings, upsertHostSettings, updateHostCapacity, updateHostAvailability } from "@/lib/api/hostSettings";
 import { updateProfile } from "@/lib/api/profiles";
@@ -181,18 +182,26 @@ const nextActionMeta = {
 
 const HostDashboard = () => {
   const { userId, profile, refreshProfile } = useCurrentUser();
-  // Fall back to "u2" (Yusuf) in mock mode so the page renders with fixtures.
-  const hostId = userId ?? "u2";
-  const host = getUser(hostId) ?? getUser("u2")!;
+  // In mock mode fall back to Yusuf (u2) so the page renders with fixture data.
+  // In production use the real userId; never fall back to a mock user ID.
+  const hostId = userId ?? (isMockMode ? "u2" : null);
+  const mockHost = isMockMode ? (getUser(userId ?? "u2") ?? getUser("u2")!) : null;
 
   const { data: apiRequests, refetch } = useAsync(
-    () => getIncomingReferralRequests(hostId),
+    () => (hostId ? getIncomingReferralRequests(hostId) : Promise.resolve([])),
     [hostId],
   );
   const { data: hostSettings } = useAsync(
     () => (hostId ? getHostSettings(hostId) : Promise.resolve(null)),
     [hostId],
   );
+
+  // Derive display values for the host profile preview card.
+  // In production: use real profile data. In mock mode: use fixture user.
+  const hostDisplayName = profile?.full_name ?? mockHost?.name ?? "You";
+  const hostDisplayHeadline = profile?.headline ?? mockHost?.role ?? "";
+  const hostDisplayLocation = profile?.location ?? mockHost?.location ?? "";
+  const hostDisplayBio = profile?.bio ?? mockHost?.bio ?? "";
 
   // Seed local state from the API result.
   // - Mock mode (Supabase not configured): starts with rich fixture data.
@@ -284,7 +293,7 @@ const HostDashboard = () => {
     setRequests((prev) => prev.filter((x) => x.id !== r.id));
     await updateReferralStatus(r.id, "Completed" as ThreadStatus);
     refetch();
-    toast.success(`Marked complete with ${getUser(r.candidateId)?.name.split(" ")[0]}`);
+    toast.success(`Marked complete with ${getUser(r.candidateId)?.name.split(" ")[0] ?? "candidate"}`);
   };
 
   // referral_host and admin can access the host dashboard without a prompt
@@ -345,15 +354,18 @@ const HostDashboard = () => {
             ) : (
               <div className="space-y-4">
                 {incoming.map((r) => {
-                  const c = getUser(r.candidateId)!;
+                  // getUser() works in mock mode; in production candidateId is a UUID not in fixtures.
+                  const c = getUser(r.candidateId);
+                  const candidateName = c?.name ?? `Candidate (${r.candidateId.slice(0, 8)}…)`;
+                  const candidateInitials = candidateName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
                   return (
                     <article key={r.id} className="rounded-2xl border border-border bg-cream/40 p-5">
                       <div className="flex items-start justify-between gap-3 flex-wrap">
                         <div className="flex items-start gap-3 min-w-0">
-                          <UserAvatar user={c} size="md" />
+                          <UserAvatar user={c ?? { name: candidateName, initials: candidateInitials, avatarColor: "bg-primary" }} size="md" />
                           <div className="min-w-0">
-                            <p className="font-medium text-foreground truncate">{c.name}</p>
-                            <p className="text-xs text-muted-foreground truncate">{c.role} · {c.location}</p>
+                            <p className="font-medium text-foreground truncate">{candidateName}</p>
+                            <p className="text-xs text-muted-foreground truncate">{c?.role ?? r.targetRole}</p>
                           </div>
                         </div>
                         <span className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-0.5 text-[11px] font-medium text-foreground/80">
@@ -411,17 +423,19 @@ const HostDashboard = () => {
             ) : (
               <ul className="divide-y divide-border">
                 {accepted.map((r) => {
-                  const c = getUser(r.candidateId)!;
+                  const c = getUser(r.candidateId);
+                  const cName = c?.name ?? `Candidate (${r.candidateId.slice(0, 8)}…)`;
+                  const cInitials = cName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
                   const action = r.nextAction ?? "Mark complete";
                   const meta = nextActionMeta[action];
                   const Icon = meta.icon;
                   return (
                     <li key={r.id} className="py-4 flex items-center justify-between gap-3 flex-wrap">
                       <div className="flex items-center gap-3 min-w-0">
-                        <UserAvatar user={c} size="sm" />
+                        <UserAvatar user={c ?? { name: cName, initials: cInitials, avatarColor: "bg-primary" }} size="sm" />
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-foreground truncate">
-                            {c.name} <span className="text-muted-foreground font-normal">· {r.targetRole} at {r.targetCompany}</span>
+                            {cName} <span className="text-muted-foreground font-normal">· {r.targetRole} at {r.targetCompany}</span>
                           </p>
                           <p className="text-xs text-muted-foreground">{r.type}</p>
                         </div>
@@ -513,13 +527,22 @@ const HostDashboard = () => {
 
             <div className="mt-4 rounded-2xl border border-border bg-cream/50 p-5">
               <div className="flex items-center gap-3">
-                <UserAvatar user={host} size="lg" />
+                <UserAvatar
+                  user={{
+                    name: hostDisplayName,
+                    initials: hostDisplayName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2),
+                    avatarColor: "bg-primary",
+                  }}
+                  size="lg"
+                />
                 <div className="min-w-0">
-                  <p className="font-display text-base font-semibold text-foreground truncate">{host.name}</p>
-                  <p className="text-xs text-muted-foreground truncate">{host.role} · {host.company}</p>
-                  <p className="text-xs text-muted-foreground inline-flex items-center gap-1 mt-0.5">
-                    <MapPin className="h-3 w-3" />{host.location}
-                  </p>
+                  <p className="font-display text-base font-semibold text-foreground truncate">{hostDisplayName}</p>
+                  <p className="text-xs text-muted-foreground truncate">{hostDisplayHeadline}</p>
+                  {hostDisplayLocation && (
+                    <p className="text-xs text-muted-foreground inline-flex items-center gap-1 mt-0.5">
+                      <MapPin className="h-3 w-3" />{hostDisplayLocation}
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap gap-1.5">
@@ -527,7 +550,9 @@ const HostDashboard = () => {
                 {referrals && <Badge tone="clay">Referrals</Badge>}
                 {resumeFeedback && <Badge tone="primary">Resume feedback</Badge>}
               </div>
-              <p className="mt-3 text-sm text-foreground/80 line-clamp-3">{host.bio}</p>
+              {hostDisplayBio && (
+                <p className="mt-3 text-sm text-foreground/80 line-clamp-3">{hostDisplayBio}</p>
+              )}
               <Button variant="soft" size="sm" className="mt-4 w-full" asChild>
                 <a href={`/app/profile`}><ExternalLink className="h-4 w-4" />Open public profile</a>
               </Button>

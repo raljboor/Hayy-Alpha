@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import {
   MapPin,
   BadgeCheck,
@@ -26,6 +27,7 @@ import { ErrorState } from "@/components/hayy/ErrorState";
 import { getProfile, updateProfile, uploadResume, uploadVideoIntro } from "@/lib/api/profiles";
 import { useAsync } from "@/lib/useAsync";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { isMockMode } from "@/lib/runtimeMode";
 
 // ---------------------------------------------------------------------------
 // Static mock data — display-only; never used in API calls
@@ -293,10 +295,32 @@ const Profile = () => {
       }
     : fallbackMe;
 
-  const displayBio = profile?.bio ? [profile.bio] : mockCareerStory;
-  const displayTargetRoles = profile?.target_roles?.length ? profile.target_roles : mockTargetRoles;
-  const displaySkills = profile?.skills?.length ? profile.skills : mockSkills;
-  const displayGoal = profile?.bio || mockReferralGoal;
+  // In production: show real data or null/empty (render empty states below).
+  // In mock mode: fall back to Amira's fixture data for a richer demo.
+  const displayBio = useMemo(() => {
+    if (profile?.bio) return [profile.bio];
+    return isMockMode ? mockCareerStory : null;
+  }, [profile]);
+
+  const displayTargetRoles = useMemo(() => {
+    if (profile?.target_roles?.length) return profile.target_roles;
+    return isMockMode ? mockTargetRoles : [];
+  }, [profile]);
+
+  const displaySkills = useMemo(() => {
+    if (profile?.skills?.length) return profile.skills;
+    return isMockMode ? mockSkills : [];
+  }, [profile]);
+
+  const displayGoal = useMemo(() => {
+    if (profile?.bio) return profile.bio;
+    return isMockMode ? mockReferralGoal : null;
+  }, [profile]);
+
+  // Rooms and referrals — real data not fetched on Profile page yet.
+  // Show mock data in demo mode; show empty state in production.
+  const displayRoomsJoined = isMockMode ? roomsJoined : [];
+  const displayReferralsReceived = isMockMode ? referralsReceived : [];
 
   if (loading) {
     return (
@@ -460,7 +484,11 @@ const Profile = () => {
               <Target className="h-4 w-4 text-clay" />
               <SectionTitle>Referral goals</SectionTitle>
             </div>
-            <p className="mt-3 text-[16px] leading-[1.6] text-foreground/85">{displayGoal}</p>
+            {displayGoal ? (
+              <p className="mt-3 text-[16px] leading-[1.6] text-foreground/85">{displayGoal}</p>
+            ) : (
+              <p className="mt-3 text-sm text-muted-foreground italic">Add your bio to describe your referral goals.</p>
+            )}
           </Card>
         </div>
 
@@ -483,7 +511,7 @@ const Profile = () => {
                 className="rounded-xl bg-cream border-border resize-none"
                 disabled={saving}
               />
-            ) : (
+            ) : displayBio ? (
               <div className="space-y-3">
                 {displayBio.map((p, i) => (
                   <p key={i} className="text-[16px] md:text-[17px] leading-[1.6] text-foreground/85 max-w-[68ch]">
@@ -491,6 +519,10 @@ const Profile = () => {
                   </p>
                 ))}
               </div>
+            ) : (
+              <p className="text-sm text-muted-foreground italic">
+                No career story yet. Click "Edit profile" to add your bio.
+              </p>
             )}
           </Card>
 
@@ -510,10 +542,12 @@ const Profile = () => {
                   disabled={saving}
                 />
               </div>
-            ) : (
+            ) : displayTargetRoles.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {displayTargetRoles.map((r) => <Chip key={r}>{r}</Chip>)}
               </div>
+            ) : (
+              <p className="text-sm text-muted-foreground italic">No target roles yet — add them by editing your profile.</p>
             )}
           </Card>
 
@@ -533,10 +567,12 @@ const Profile = () => {
                   disabled={saving}
                 />
               </div>
-            ) : (
+            ) : displaySkills.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {displaySkills.map((s) => <Chip key={s}>{s}</Chip>)}
               </div>
+            ) : (
+              <p className="text-sm text-muted-foreground italic">No skills yet — add them by editing your profile.</p>
             )}
           </Card>
 
@@ -574,46 +610,62 @@ const Profile = () => {
               <Target className="h-4 w-4 text-clay" />
               <SectionTitle>Referral goals</SectionTitle>
             </div>
-            <p className="mt-3 text-[16px] leading-[1.6] text-foreground/85">{displayGoal}</p>
+            {displayGoal ? (
+              <p className="mt-3 text-[16px] leading-[1.6] text-foreground/85">{displayGoal}</p>
+            ) : (
+              <p className="mt-3 text-sm text-muted-foreground italic">Add your bio to describe your referral goals.</p>
+            )}
           </Card>
 
           {/* Rooms joined */}
           <Card>
             <SectionTitle>Rooms joined</SectionTitle>
-            <ul className="mt-4 divide-y divide-border">
-              {roomsJoined.map((r) => (
-                <li key={r} className="py-3 text-[15px] leading-[1.5] text-foreground/85">{r}</li>
-              ))}
-            </ul>
+            {displayRoomsJoined.length > 0 ? (
+              <ul className="mt-4 divide-y divide-border">
+                {displayRoomsJoined.map((r) => (
+                  <li key={r} className="py-3 text-[15px] leading-[1.5] text-foreground/85">{r}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-4 text-sm text-muted-foreground italic">
+                No rooms joined yet. <Link to="/app/rooms" className="text-primary hover:underline">Browse rooms</Link> to get started.
+              </p>
+            )}
           </Card>
 
           {/* Referrals received */}
           <Card>
             <SectionTitle>Referrals received</SectionTitle>
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {referralsReceived.map((r) => {
-                const Icon = r.icon;
-                return (
-                  <article key={r.name} className="w-full max-w-full box-border rounded-2xl border border-border bg-cream/60 p-4">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <UserAvatar user={r} size="md" />
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-foreground truncate">{r.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{r.role} @ {r.company}</p>
+            {displayReferralsReceived.length > 0 ? (
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {displayReferralsReceived.map((r) => {
+                  const Icon = r.icon;
+                  return (
+                    <article key={r.name} className="w-full max-w-full box-border rounded-2xl border border-border bg-cream/60 p-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <UserAvatar user={r} size="md" />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-foreground truncate">{r.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{r.role} @ {r.company}</p>
+                        </div>
                       </div>
-                    </div>
-                    <div className={`mt-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium border ${
-                      r.tone === "olive"
-                        ? "bg-olive/15 text-olive border-olive/30"
-                        : "bg-clay/15 text-clay border-clay/30"
-                    }`}>
-                      <Icon className="h-3 w-3" />
-                      {r.status}
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
+                      <div className={`mt-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium border ${
+                        r.tone === "olive"
+                          ? "bg-olive/15 text-olive border-olive/30"
+                          : "bg-clay/15 text-clay border-clay/30"
+                      }`}>
+                        <Icon className="h-3 w-3" />
+                        {r.status}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="mt-4 text-sm text-muted-foreground italic">
+                No referrals received yet. Join a room to get started.
+              </p>
+            )}
           </Card>
         </div>
       </div>

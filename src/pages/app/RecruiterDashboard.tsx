@@ -40,6 +40,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { users } from "@/lib/mockData";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
+import { isMockMode } from "@/lib/runtimeMode";
 import { updateProfile } from "@/lib/api/profiles";
 import { getRooms, createRoom } from "@/lib/api/rooms";
 import {
@@ -476,8 +477,8 @@ const RecruiterDashboard = () => {
             )}
           </section>
 
-          {/* Room performance — TODO: load from analytics when available */}
-          <section className="rounded-3xl bg-card border border-border p-6 md:p-8">
+          {/* Room performance — only shown in mock mode; analytics table not yet wired */}
+          {isMockMode && <section className="rounded-3xl bg-card border border-border p-6 md:p-8">
             <div className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-clay" />
               <h2 className="font-display text-2xl text-foreground">Room performance</h2>
@@ -517,7 +518,7 @@ const RecruiterDashboard = () => {
                 </tbody>
               </table>
             </div>
-          </section>
+          </section>}
         </div>
 
         {/* Sidebar */}
@@ -560,23 +561,26 @@ const RecruiterDashboard = () => {
             </Button>
           </section>
 
-          <section className="rounded-3xl bg-card border border-border p-6">
-            <h3 className="font-display text-lg text-foreground">Top hosts this month</h3>
-            <ul className="mt-4 space-y-3">
-              {users.slice(1, 4).map((u) => (
-                <li key={u.id} className="flex items-center gap-3">
-                  <UserAvatar user={u} size="sm" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-foreground truncate">{u.name}</p>
-                    <p className="text-[11px] text-muted-foreground truncate">{u.role}{u.company && ` · ${u.company}`}</p>
-                  </div>
-                  <Button size="sm" variant="ghost" onClick={() => toast.success(`Pinged ${u.name.split(" ")[0]}`)}>
-                    <Send className="h-3.5 w-3.5" />
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          </section>
+          {/* Top hosts — mock-only until host discovery is built */}
+          {isMockMode && (
+            <section className="rounded-3xl bg-card border border-border p-6">
+              <h3 className="font-display text-lg text-foreground">Top hosts this month</h3>
+              <ul className="mt-4 space-y-3">
+                {users.slice(1, 4).map((u) => (
+                  <li key={u.id} className="flex items-center gap-3">
+                    <UserAvatar user={u} size="sm" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-foreground truncate">{u.name}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">{u.role}{u.company && ` · ${u.company}`}</p>
+                    </div>
+                    <Button size="sm" variant="ghost" onClick={() => toast.success(`Pinged ${u.name.split(" ")[0]}`)}>
+                      <Send className="h-3.5 w-3.5" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </aside>
       </div>
     </div>

@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -29,6 +30,15 @@ import RecruiterDashboard from "./pages/app/RecruiterDashboard.tsx";
 import Settings from "./pages/app/Settings.tsx";
 
 import RequireAuth from "./components/RequireAuth.tsx";
+
+// Dev-tools pages — only imported when explicitly enabled at build time.
+// Vite tree-shakes the import away entirely when the condition is false,
+// so no dev code reaches the production bundle unless VITE_ENABLE_DEV_TOOLS=true.
+const devToolsEnabled =
+  import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEV_TOOLS === "true";
+const LiveKitTest = devToolsEnabled
+  ? lazy(() => import("./pages/app/dev/LiveKitTest.tsx"))
+  : null;
 
 const queryClient = new QueryClient();
 
@@ -83,6 +93,16 @@ const App = () => (
             <Route path="host" element={<HostDashboard />} />
             <Route path="recruiter" element={<RecruiterDashboard />} />
             <Route path="settings" element={<Settings />} />
+            {devToolsEnabled && LiveKitTest && (
+              <Route
+                path="dev/livekit-test"
+                element={
+                  <Suspense fallback={null}>
+                    <LiveKitTest />
+                  </Suspense>
+                }
+              />
+            )}
           </Route>
 
           {/* Live room: full-screen, no sidebar — auth required */}

@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { Home, Mic, Handshake, User, Briefcase, UserCheck, LogOut, Settings, X, MessageCircle, Bell } from "lucide-react";
+import { Home, Mic, Handshake, User, Briefcase, UserCheck, LogOut, Settings, X, MessageCircle, Bell, FlaskConical } from "lucide-react";
 import { Logo } from "./Logo";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -146,6 +146,24 @@ export const AppSidebar = ({ mobileOpen = false, onMobileOpenChange }: AppSideba
             </div>
           </div>
         </nav>
+
+        {import.meta.env.VITE_ENABLE_DEV_TOOLS === "true" && (
+          <div className="px-4 pb-2">
+            <NavLink
+              to="/app/dev/livekit-test"
+              onClick={close}
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-colors",
+                  isActive ? "bg-yellow-100 text-yellow-800" : "text-muted-foreground hover:bg-yellow-50 hover:text-yellow-800",
+                )
+              }
+            >
+              <FlaskConical className="h-3.5 w-3.5" />
+              LiveKit test
+            </NavLink>
+          </div>
+        )}
 
         <div className="p-4 border-t border-border">
           <div className="rounded-2xl bg-card p-4 mb-3">

@@ -133,8 +133,72 @@ When `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are **not set**, the fronten
 ```
 1. 001_initial_schema.sql   — tables, triggers, indexes
 2. 002_rls_policies.sql     — RLS enable + named policies
-3. seed.sql                 — optional dev data (uncomment + fill UUIDs first)
+3. 003_add_profile_picture_and_referral_goals.sql — avatars bucket + referral_goals column
+4. 004_add_recruiter_profile_fields.sql           — recruiter profile columns
+5. seed.sql                 — optional dev data (uncomment + fill UUIDs first)
 ```
+
+---
+
+## Phase 10 — LiveKit live audio rooms
+
+Live audio is powered by [LiveKit](https://livekit.io). No new Supabase migrations are required for Phase 10A — the existing `rooms` and `room_participants` tables are used as-is.
+
+### Environment variables
+
+Add the following to your `.env` file (see `.env.example`) and to your Vercel project settings:
+
+| Variable | Where | Purpose |
+|---|---|---|
+| `VITE_LIVEKIT_URL` | Frontend + Vercel | `wss://` URL of your LiveKit Cloud project (safe to expose) |
+| `SUPABASE_URL` | Vercel server-only | Mirrors `VITE_SUPABASE_URL` — used by the token endpoint |
+| `SUPABASE_ANON_KEY` | Vercel server-only | Mirrors `VITE_SUPABASE_ANON_KEY` — used by the token endpoint |
+| `LIVEKIT_API_KEY` | Vercel server-only | From LiveKit Cloud → Settings → Keys. **Never expose to browser.** |
+| `LIVEKIT_API_SECRET` | Vercel server-only | From LiveKit Cloud → Settings → Keys. **Never expose to browser.** |
+
+### Token endpoint: `POST /api/livekit-token`
+
+Vercel serverless function at `api/livekit-token.ts`. Issues a signed LiveKit JWT to authenticated users who are registered for the room.
+
+**Request:**
+```json
+POST /api/livekit-token
+Authorization: Bearer <supabase_access_token>
+Content-Type: application/json
+
+{ "roomId": "<supabase_room_uuid>" }
+```
+
+**Success response (200):**
+```json
+{ "token": "<livekit_jwt>", "livekitUrl": "wss://..." }
+```
+
+**Error responses:**
+| Code | Reason |
+|---|---|
+| 400 | Missing or empty `roomId` |
+| 401 | Missing/invalid Authorization header or expired Supabase session |
+| 403 | User is not registered for the room and is not the host |
+| 500 | Server env vars not configured |
+
+**Authorization logic:**
+1. Verifies the Supabase JWT by calling `supabase.auth.getUser(token)` server-side
+2. Queries `room_participants` — user must have `attendance_status = 'registered'`
+3. OR queries `rooms.host_id` — user is the room host
+4. Token identity = Supabase user UUID; name = `user_profiles.full_name` (falls back to email)
+5. TTL: 2 hours; grants: `roomJoin`, `canPublish`, `canSubscribe`, `canPublishData`
+
+### Frontend helper: `src/lib/api/livekit.ts`
+
+```typescript
+import { getLiveKitToken } from "@/lib/api/livekit";
+
+const { token, livekitUrl } = await getLiveKitToken(roomId);
+// Pass token + livekitUrl to LiveKit room.connect() in Phase 10B
+```
+
+Throws human-readable errors for 401, 403, missing env vars, and network failures. Short-circuits immediately in mock mode (no network call made).
 
 ---
 
@@ -142,9 +206,7 @@ When `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are **not set**, the fronten
 
 | Phase | What it adds |
 |---|---|
-| Phase 4 | Wire `useCurrentUser()` into pages (Profile, HostDashboard, Notifications, Settings) |
-| Phase 5 | Onboarding → `updateProfile()`; file uploads to Storage buckets |
-| Phase 6 | Referral thread Supabase query; Realtime subscriptions for messages |
-| Phase 7 | Room join/leave with real participant counts; Realtime presence |
-| Phase 8 | Recruiter pipeline from DB; HostDashboard full wiring |
-| Phase 9 | Generated TypeScript types (`supabase gen types typescript`); QA; build hardening |
+| Phase 10A | LiveKit token endpoint (Vercel serverless) + frontend helper ✓ |
+| Phase 10B | `useLiveKitRoom` hook; wire real audio into LiveRoom.tsx |
+| Phase 10C | Supabase Realtime presence; raised-hand queue from data messages |
+| Phase 11 | Generated TypeScript types (`supabase gen types typescript`); QA hardening |

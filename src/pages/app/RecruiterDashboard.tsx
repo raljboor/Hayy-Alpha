@@ -41,7 +41,6 @@ import { Progress } from "@/components/ui/progress";
 import { users } from "@/lib/mockData";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
 import { isMockMode } from "@/lib/runtimeMode";
-import { updateProfile } from "@/lib/api/profiles";
 import { getRooms, createRoom } from "@/lib/api/rooms";
 import {
   getRecruiterCandidates,
@@ -81,7 +80,7 @@ const performanceRooms = [
 // ---------------------------------------------------------------------------
 
 const RecruiterDashboard = () => {
-  const { userId, profile, loading: authLoading, refreshProfile } = useCurrentUser();
+  const { userId, profile } = useCurrentUser();
 
   const {
     data: apiCandidates,
@@ -112,7 +111,6 @@ const RecruiterDashboard = () => {
   const [filter, setFilter] = useState<(typeof statusFilters)[number]>("All");
   const [date, setDate] = useState<Date | undefined>();
   const [creatingRoom, setCreatingRoom] = useState(false);
-  const [enablingRecruiterMode, setEnablingRecruiterMode] = useState(false);
 
   // Rooms created by this recruiter.
   // In Supabase mode: filter by hostId = userId (may be empty — that's fine).
@@ -154,34 +152,10 @@ const RecruiterDashboard = () => {
     [pipeline, displayRooms.length],
   );
 
-  // ---------------------------------------------------------------------------
-  // Role prompt
-  // ---------------------------------------------------------------------------
-
-  // isRecruiter:
-  // - true in mock mode (always show recruiter dashboard in demo)
-  // - true when profile has loaded and role is recruiter/admin
-  // - false when profile has loaded but role is something else
-  // - undefined/waiting while profile is still loading (don't show prompt yet)
+  // Recruiters can create hiring rooms; all other roles see the form disabled.
   const isRecruiter = isMockMode
     ? true
-    : profile !== null
-      ? profile.role_type === "recruiter" || profile.role_type === "admin"
-      : true; // treat as recruiter while loading to avoid flash-of-prompt
-
-  const handleEnableRecruiterMode = async () => {
-    if (!userId) return;
-    setEnablingRecruiterMode(true);
-    try {
-      await updateProfile(userId, { role_type: "recruiter" });
-      await refreshProfile();
-      toast.success("Recruiter mode enabled!");
-    } catch {
-      toast.error("Couldn't enable recruiter mode — please try again.");
-    } finally {
-      setEnablingRecruiterMode(false);
-    }
-  };
+    : profile?.role_type === "recruiter" || profile?.role_type === "admin";
 
   // ---------------------------------------------------------------------------
   // Actions
@@ -200,7 +174,8 @@ const RecruiterDashboard = () => {
         description: String(form.get("desc") ?? ""),
         hostId: userId ?? undefined,
         startsAt: date?.toISOString() ?? new Date(Date.now() + 86400000).toISOString(),
-        status: "upcoming",
+        status: "open",
+        room_type: "hiring",
         attendees: 0,
         speakers: 0,
         tags: [],
@@ -213,8 +188,8 @@ const RecruiterDashboard = () => {
       e.currentTarget.reset();
       setDate(undefined);
       toast.success("Hiring room created", { description: "Candidates will be notified gently." });
-    } catch {
-      toast.error("Couldn't create room — please try again.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't create room — please try again.");
     } finally {
       setCreatingRoom(false);
     }
@@ -238,22 +213,6 @@ const RecruiterDashboard = () => {
 
   return (
     <div className="space-y-8">
-      {/* Soft role prompt */}
-      {/* Show role prompt only after profile is loaded and role is confirmed non-recruiter */}
-      {!authLoading && profile !== null && !isRecruiter && (
-        <div className="rounded-3xl bg-cream border border-clay/20 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <p className="font-display text-lg text-foreground">Recruiter tools are for hiring teams</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Enable recruiter mode to create rooms and build your candidate pipeline.
-            </p>
-          </div>
-          <Button variant="hero" size="sm" onClick={handleEnableRecruiterMode} disabled={enablingRecruiterMode}>
-            {enablingRecruiterMode ? "Enabling…" : "Enable recruiter mode"}
-          </Button>
-        </div>
-      )}
-
       {/* Header */}
       <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
@@ -288,7 +247,13 @@ const RecruiterDashboard = () => {
             </div>
             <p className="text-sm text-muted-foreground mt-1">Warm, low-pressure conversations — not interviews.</p>
 
-            <form onSubmit={onCreate} className="mt-6 grid sm:grid-cols-2 gap-4">
+            {isRecruiter === false && (
+              <div className="mt-4 rounded-2xl border border-border bg-cream/60 px-4 py-3 text-sm text-muted-foreground">
+                Hiring rooms are for verified recruiters only. Your other rooms (community, referral) can be created from the Rooms page.
+              </div>
+            )}
+
+            <form onSubmit={onCreate} className={cn("mt-6 grid sm:grid-cols-2 gap-4", isRecruiter === false && "pointer-events-none opacity-50")}>
               <div className="sm:col-span-2 space-y-2">
                 <Label htmlFor="title">Room title</Label>
                 <Input id="title" name="title" required placeholder="e.g. Stripe Canada · APAC Ops Q&A" className="bg-cream" />
@@ -372,9 +337,9 @@ const RecruiterDashboard = () => {
               </div>
 
               <div className="sm:col-span-2 flex justify-end">
-                <Button type="submit" variant="hero" size="lg" disabled={creatingRoom}>
+                <Button type="submit" variant="hero" size="lg" disabled={creatingRoom || isRecruiter === false}>
                   {creatingRoom ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                  {creatingRoom ? "Creating…" : "Create room"}
+                  {creatingRoom ? "Creating…" : "Create hiring room"}
                 </Button>
               </div>
             </form>

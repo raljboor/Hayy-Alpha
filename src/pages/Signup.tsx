@@ -8,11 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { signUpUser } from "@/lib/api/auth";
 
+// Maps URL ?type= query params to the correct SQL role_type values
 const typeToRole: Record<string, string> = {
-  seeker: "job-seeker",
-  host: "referral-host",
+  seeker: "job_seeker",
+  host: "referral_host",
   recruiter: "recruiter",
-  partner: "partner",
+  partner: "job_seeker", // community_partner not in schema yet
 };
 
 const highlights = [
@@ -35,6 +36,10 @@ const Signup = () => {
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!role) {
+      setErrorMsg("Please select your role to continue.");
+      return;
+    }
     setErrorMsg(null);
     setSubmitting(true);
     const form = new FormData(e.currentTarget);
@@ -42,6 +47,7 @@ const Signup = () => {
       email: String(form.get("email") ?? ""),
       password: String(form.get("password") ?? ""),
       fullName: String(form.get("name") ?? ""),
+      roleType: role, // passed into Supabase auth metadata → DB trigger
     });
     setSubmitting(false);
     if (error) {
@@ -50,7 +56,8 @@ const Signup = () => {
       return;
     }
     toast.success("Welcome to Hayy", { description: "Let's set up your founding profile." });
-    navigate("/onboarding");
+    // Route to the correct role-based onboarding
+    navigate(`/onboarding?role=${encodeURIComponent(role)}`);
   };
 
   return (
@@ -128,10 +135,10 @@ const Signup = () => {
                   <SelectValue placeholder="Select your role" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="job-seeker">Job seeker</SelectItem>
-                  <SelectItem value="referral-host">Referral host</SelectItem>
+                  <SelectItem value="job_seeker">Job seeker</SelectItem>
+                  <SelectItem value="referral_host">Referral host</SelectItem>
                   <SelectItem value="recruiter">Recruiter / employer</SelectItem>
-                  <SelectItem value="partner">Community partner</SelectItem>
+                  <SelectItem value="community_partner">Community partner</SelectItem>
                 </SelectContent>
               </Select>
             </div>

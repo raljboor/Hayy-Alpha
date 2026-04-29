@@ -13,3 +13,14 @@ export const isSupabaseConfigured: boolean = Boolean(supabaseUrl && supabaseAnon
 export const supabase: SupabaseClient | null = isSupabaseConfigured
   ? createClient(supabaseUrl as string, supabaseAnonKey as string)
   : null;
+
+// Development-only diagnostic: confirms which mode the app is running in.
+// Does NOT log any key values — only the boolean.
+if (import.meta.env.DEV) {
+  console.info(
+    `[Hayy] Supabase configured: ${isSupabaseConfigured}. ` +
+      (isSupabaseConfigured
+        ? "Live data will be fetched from Supabase."
+        : "Running in mock mode — set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to connect."),
+  );
+}

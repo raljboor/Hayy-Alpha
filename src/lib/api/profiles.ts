@@ -36,6 +36,7 @@ export async function getProfile(userId: string): Promise<UserProfile | null> {
     location: u.location,
     pronouns: u.pronouns ?? null,
     bio: u.bio,
+    referral_goals: null,
     target_roles: [],
     skills: [],
     linkedin_url: null,
@@ -116,5 +117,35 @@ export async function uploadVideoIntro(userId: string, file: File): Promise<stri
     const { data } = supabase.storage.from("video-intros").getPublicUrl(path);
     return data.publicUrl;
   }
+  return URL.createObjectURL(file);
+}
+
+/**
+ * Upload a profile avatar image to the `avatars` storage bucket,
+ * then update the user_profiles.avatar_url column with the public URL.
+ *
+ * Returns the public URL of the uploaded image.
+ */
+export async function uploadAvatar(userId: string, file: File): Promise<string> {
+  if (isSupabaseConfigured && supabase) {
+    const path = `${userId}/avatar-${Date.now()}-${file.name}`;
+    const { error: uploadError } = await supabase.storage
+      .from("avatars")
+      .upload(path, file, { upsert: true, contentType: file.type });
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+    const publicUrl = data.publicUrl;
+
+    // Persist the URL to the profile row
+    const { error: updateError } = await supabase
+      .from("user_profiles")
+      .update({ avatar_url: publicUrl })
+      .eq("id", userId);
+    if (updateError) throw updateError;
+
+    return publicUrl;
+  }
+  // Mock mode: return an object URL so the preview updates immediately
   return URL.createObjectURL(file);
 }

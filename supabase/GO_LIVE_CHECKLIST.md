@@ -58,9 +58,16 @@ Go to **Storage → New bucket** and create these three buckets:
 | `video-intros` | Private | User video intro uploads | video/* | 100 MB |
 | `avatars` | Private | Profile picture uploads | image/png, image/jpeg, image/webp | 5 MB |
 
-After creating the buckets, run migration `003_add_profile_picture_and_referral_goals.sql` in the SQL Editor. This adds:
-- The `referral_goals text` column to `user_profiles`
-- RLS policies for the `avatars` storage bucket
+After creating the buckets, run the following migrations **in order** in the SQL Editor:
+
+**Migration 003** — `003_add_profile_picture_and_referral_goals.sql`
+- Adds `referral_goals text` column to `user_profiles`
+- Adds RLS policies for the `avatars` storage bucket
+
+**Migration 004** — `004_add_recruiter_profile_fields.sql`
+- Adds recruiter-specific columns to `user_profiles`: `company_name`, `recruiter_title`, `hiring_focus`, `departments_hiring`, `locations_hiring`, `company_description`
+- Adds index on `company_name` for future recruiter discovery queries
+- Must run after migration 003
 
 > **Note:** Buckets are private. The app uses `getPublicUrl()` today. For fully private access switch to `createSignedUrl()` in a follow-up.
 

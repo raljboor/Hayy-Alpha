@@ -74,13 +74,14 @@ function buildMockProfile(): UserProfile {
     location: u.location,
     pronouns: u.pronouns ?? null,
     bio: u.bio,
+    referral_goals: null,
     target_roles: [],
     skills: [],
     linkedin_url: null,
     resume_url: null,
     video_intro_url: null,
     role_type: "job_seeker",
-  created_at: new Date().toISOString(),
+    created_at: new Date().toISOString(),
   };
 }
 
@@ -106,6 +107,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const p = await getProfile(uid);
       setProfile(p);
       setRole(p?.role_type ?? null);
+      if (import.meta.env.DEV) {
+        console.info(`[Hayy:Auth] userId=${uid} role_type=${p?.role_type ?? "null (profile missing)"}`);
+      }
     } catch {
       setProfile(null);
       setRole(null);
@@ -174,7 +178,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (authed) {
         setUserId(MOCK_USER_ID);
         setProfile(buildMockProfile());
-        setRole("candidate");
+        setRole("job_seeker");
       } else {
         setUserId(null);
         setProfile(null);

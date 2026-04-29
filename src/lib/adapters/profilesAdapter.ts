@@ -38,7 +38,7 @@ function avatarColorForId(id: string): string {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
-export function adaptProfileFromDb(row: DbProfile): MockUser {
+export function adaptProfileFromDb(row: DbProfile): MockUser & { avatar_url?: string | null } {
   return {
     id: row.id,
     name: row.full_name,
@@ -50,6 +50,8 @@ export function adaptProfileFromDb(row: DbProfile): MockUser {
     initials: initials(row.full_name),
     verified: false,
     pronouns: row.pronouns ?? undefined,
+    // Pass avatar_url through so components that render real profile photos can use it
+    avatar_url: row.avatar_url ?? null,
   };
 }
 

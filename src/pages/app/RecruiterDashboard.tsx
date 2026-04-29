@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import {
   Briefcase,
@@ -39,6 +39,8 @@ import {
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { users } from "@/lib/mockData";
+import { isSupabaseConfigured } from "@/lib/supabaseClient";
+import { isMockMode } from "@/lib/runtimeMode";
 import { updateProfile } from "@/lib/api/profiles";
 import { getRooms, createRoom } from "@/lib/api/rooms";
 import {
@@ -79,7 +81,7 @@ const performanceRooms = [
 // ---------------------------------------------------------------------------
 
 const RecruiterDashboard = () => {
-  const { userId, profile, refreshProfile } = useCurrentUser();
+  const { userId, profile, loading: authLoading, refreshProfile } = useCurrentUser();
 
   const {
     data: apiCandidates,
@@ -87,7 +89,9 @@ const RecruiterDashboard = () => {
     error: candidatesError,
     refetch: refetchCandidates,
   } = useAsync(
-    () => (userId ? getRecruiterCandidates(userId) : getRecruiterCandidates("mock")),
+    // Only fetch when userId is known; return [] otherwise so Supabase is never
+    // called with a placeholder string that would return RLS-filtered results.
+    () => (userId ? getRecruiterCandidates(userId) : Promise.resolve([])),
     [userId],
   );
 
@@ -96,12 +100,13 @@ const RecruiterDashboard = () => {
     loading: roomsLoading,
   } = useAsync(() => getRooms(), []);
 
-  // Local pipeline state — seeded from API
+  // Local pipeline state — seeded from API result
   const [pipeline, setPipeline] = useState<PipelineCandidate[]>([]);
 
-  // Seed from API when data arrives; mock data comes pre-loaded from the API module
-  useMemo(() => {
-    if (apiCandidates) setPipeline(apiCandidates);
+  useEffect(() => {
+    // apiCandidates is [] (empty) when Supabase returns no rows — show empty state.
+    // apiCandidates is the mock pipeline when Supabase is not configured.
+    if (apiCandidates !== null) setPipeline(apiCandidates);
   }, [apiCandidates]);
 
   const [filter, setFilter] = useState<(typeof statusFilters)[number]>("All");
@@ -109,19 +114,27 @@ const RecruiterDashboard = () => {
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [enablingRecruiterMode, setEnablingRecruiterMode] = useState(false);
 
-  // Rooms created by this recruiter (filter by hostId when Supabase is configured)
+  // Rooms created by this recruiter.
+  // In Supabase mode: filter by hostId = userId (may be empty — that's fine).
+  // In mock mode (userId null and Supabase not configured): show first 3 mock rooms.
   const recruiterRooms = useMemo(() => {
-    const rooms = apiRooms ?? [];
-    if (!userId) return rooms.slice(0, 3); // mock: show first 3
-    return rooms.filter((r) => r.hostId === userId).slice(0, 5);
+    const allRooms = apiRooms ?? [];
+    if (isSupabaseConfigured && userId) {
+      return allRooms.filter((r) => r.hostId === userId).slice(0, 5);
+    }
+    // Mock mode: show first 3 as demo upcoming rooms
+    return allRooms.slice(0, 3);
   }, [apiRooms, userId]);
 
-  // Fall back to mock upcoming rooms when no recruiter rooms found
-  const mockUpcomingRooms = [
-    { id: "er1", title: "Amazon Canada · PMM Q&A", startsAt: new Date(Date.now() + 2 * 86400000).toISOString(), attendees: 142, tags: ["Q&A"] },
-    { id: "er2", title: "Shopify Engineering Open House", startsAt: new Date(Date.now() + 5 * 86400000).toISOString(), attendees: 96, tags: ["Open house"] },
-    { id: "er3", title: "Newcomer Coffee Chat — Ops", startsAt: new Date(Date.now() + 9 * 86400000).toISOString(), attendees: 38, tags: ["Coffee chat"] },
-  ];
+  // In mock mode, show demo upcoming rooms when the recruiter has no rooms yet.
+  // In Supabase mode, only show real rooms (may be empty — handled in sidebar).
+  const mockUpcomingRooms = !isSupabaseConfigured
+    ? [
+        { id: "er1", title: "Amazon Canada · PMM Q&A", startsAt: new Date(Date.now() + 2 * 86400000).toISOString(), attendees: 142, tags: ["Q&A"] },
+        { id: "er2", title: "Shopify Engineering Open House", startsAt: new Date(Date.now() + 5 * 86400000).toISOString(), attendees: 96, tags: ["Open house"] },
+        { id: "er3", title: "Newcomer Coffee Chat — Ops", startsAt: new Date(Date.now() + 9 * 86400000).toISOString(), attendees: 38, tags: ["Coffee chat"] },
+      ]
+    : [];
   const displayRooms = recruiterRooms.length > 0
     ? recruiterRooms.map((r) => ({ id: r.id, title: r.title, startsAt: r.startsAt, attendees: r.attendees, tags: r.tags }))
     : mockUpcomingRooms;
@@ -145,10 +158,16 @@ const RecruiterDashboard = () => {
   // Role prompt
   // ---------------------------------------------------------------------------
 
-  const isRecruiter =
-    !profile ||
-    profile.role_type === "recruiter" ||
-    profile.role_type === "admin";
+  // isRecruiter:
+  // - true in mock mode (always show recruiter dashboard in demo)
+  // - true when profile has loaded and role is recruiter/admin
+  // - false when profile has loaded but role is something else
+  // - undefined/waiting while profile is still loading (don't show prompt yet)
+  const isRecruiter = isMockMode
+    ? true
+    : profile !== null
+      ? profile.role_type === "recruiter" || profile.role_type === "admin"
+      : true; // treat as recruiter while loading to avoid flash-of-prompt
 
   const handleEnableRecruiterMode = async () => {
     if (!userId) return;
@@ -220,7 +239,8 @@ const RecruiterDashboard = () => {
   return (
     <div className="space-y-8">
       {/* Soft role prompt */}
-      {!isRecruiter && (
+      {/* Show role prompt only after profile is loaded and role is confirmed non-recruiter */}
+      {!authLoading && profile !== null && !isRecruiter && (
         <div className="rounded-3xl bg-cream border border-clay/20 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <p className="font-display text-lg text-foreground">Recruiter tools are for hiring teams</p>
@@ -464,8 +484,8 @@ const RecruiterDashboard = () => {
             )}
           </section>
 
-          {/* Room performance — TODO: load from analytics when available */}
-          <section className="rounded-3xl bg-card border border-border p-6 md:p-8">
+          {/* Room performance — only shown in mock mode; analytics table not yet wired */}
+          {isMockMode && <section className="rounded-3xl bg-card border border-border p-6 md:p-8">
             <div className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-clay" />
               <h2 className="font-display text-2xl text-foreground">Room performance</h2>
@@ -505,7 +525,7 @@ const RecruiterDashboard = () => {
                 </tbody>
               </table>
             </div>
-          </section>
+          </section>}
         </div>
 
         {/* Sidebar */}
@@ -519,6 +539,10 @@ const RecruiterDashboard = () => {
               <div className="mt-4 space-y-2">
                 {[1, 2].map((i) => <Skeleton key={i} className="h-20 w-full rounded-2xl" />)}
               </div>
+            ) : displayRooms.length === 0 ? (
+              <p className="mt-4 rounded-2xl border border-dashed border-border bg-cream/40 p-5 text-center text-sm text-muted-foreground">
+                No rooms yet — create your first hiring room above.
+              </p>
             ) : (
               <ul className="mt-4 space-y-3">
                 {displayRooms.map((r) => (
@@ -544,23 +568,26 @@ const RecruiterDashboard = () => {
             </Button>
           </section>
 
-          <section className="rounded-3xl bg-card border border-border p-6">
-            <h3 className="font-display text-lg text-foreground">Top hosts this month</h3>
-            <ul className="mt-4 space-y-3">
-              {users.slice(1, 4).map((u) => (
-                <li key={u.id} className="flex items-center gap-3">
-                  <UserAvatar user={u} size="sm" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-foreground truncate">{u.name}</p>
-                    <p className="text-[11px] text-muted-foreground truncate">{u.role}{u.company && ` · ${u.company}`}</p>
-                  </div>
-                  <Button size="sm" variant="ghost" onClick={() => toast.success(`Pinged ${u.name.split(" ")[0]}`)}>
-                    <Send className="h-3.5 w-3.5" />
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          </section>
+          {/* Top hosts — mock-only until host discovery is built */}
+          {isMockMode && (
+            <section className="rounded-3xl bg-card border border-border p-6">
+              <h3 className="font-display text-lg text-foreground">Top hosts this month</h3>
+              <ul className="mt-4 space-y-3">
+                {users.slice(1, 4).map((u) => (
+                  <li key={u.id} className="flex items-center gap-3">
+                    <UserAvatar user={u} size="sm" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-foreground truncate">{u.name}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">{u.role}{u.company && ` · ${u.company}`}</p>
+                    </div>
+                    <Button size="sm" variant="ghost" onClick={() => toast.success(`Pinged ${u.name.split(" ")[0]}`)}>
+                      <Send className="h-3.5 w-3.5" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </aside>
       </div>
     </div>

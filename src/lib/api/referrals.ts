@@ -44,7 +44,9 @@ export async function getReferralRequests(userId?: string): Promise<MockReferral
 export async function getReferralThreads(userId?: string): Promise<ReferralThread[]> {
   if (isSupabaseConfigured && supabase) {
     const uid = userId;
-    if (!uid) return threads; // no auth yet — return mock
+    // If Supabase is configured but userId is not yet known, return empty —
+    // the page will refetch once auth resolves.
+    if (!uid) return [];
 
     const { data, error } = await supabase
       .from("referral_requests")

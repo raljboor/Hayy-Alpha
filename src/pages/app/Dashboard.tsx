@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, Mic, Handshake, Users, Sparkles, Coffee, Check, MessageSquare, Bell } from "lucide-react";
+import { ArrowRight, Mic, Handshake, Users, Sparkles, Coffee, Check, MessageSquare, Bell, Calendar, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SectionHeader } from "@/components/hayy/SectionHeader";
 import { StatCard } from "@/components/hayy/StatCard";
@@ -18,7 +18,7 @@ import { useAsync } from "@/lib/useAsync";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { cn } from "@/lib/utils";
 
-const mockMe = users[0]; // Amira — display fallback in mock mode
+const mockMe = users[0];
 
 const suggestedRoomTitles = [
   "Amazon Canada Career Room",
@@ -56,7 +56,6 @@ const Dashboard = () => {
   const threads = threadsQ.data ?? [];
   const notifications = notificationsQ.data ?? [];
 
-  // Build a stable list of "suggested rooms" using rooms data + curated titles
   const suggestedRooms: Room[] = suggestedRoomTitles
     .map((title, i): Room | null => {
       const base = rooms[i % rooms.length];
@@ -70,38 +69,89 @@ const Dashboard = () => {
   const pct = Math.round((completed / checklist.length) * 100);
 
   return (
-    <div className="space-y-12">
-      {/* Welcome */}
-      <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-        <div>
-          <p className="text-sm text-muted-foreground">Welcome back</p>
-          <h1 className="font-display text-3xl sm:text-4xl text-foreground leading-tight">
-            Welcome back, <span className="italic text-primary">{me.name.split(" ")[0]}.</span>
-          </h1>
-          <p className="mt-2 text-muted-foreground max-w-xl">
-            Your career command center — calm, warm, and built around real people.
-          </p>
+    <div className="space-y-10 sm:space-y-14">
+      {/* Welcome Header */}
+      <header className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-cream via-card to-sand/50 border border-border p-6 sm:p-8 lg:p-10">
+        {/* Decorative elements */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-clay/5 rounded-full blur-2xl translate-y-1/2 -translate-x-1/2" />
+        <div className="absolute inset-0 pattern-arabesque opacity-30" />
+        
+        <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+          <div className="max-w-xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-medium mb-4">
+              <Star className="h-3 w-3" />
+              Founding Member
+            </div>
+            <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl text-foreground leading-tight">
+              Welcome back,{" "}
+              <span className="italic text-primary">{me.name.split(" ")[0]}.</span>
+            </h1>
+            <p className="mt-3 text-muted-foreground text-base sm:text-lg leading-relaxed">
+              Your career command center — calm, warm, and built around real people.
+            </p>
+          </div>
+          
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Button asChild variant="outline" size="lg" className="rounded-xl">
+              <Link to="/app/rooms">
+                <Calendar className="h-4 w-4" />
+                Browse Rooms
+              </Link>
+            </Button>
+            <Button asChild variant="hero" size="lg" className="rounded-xl shadow-warm">
+              <Link to="/app/referrals">
+                Request Referral
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
         </div>
-        <Button asChild variant="hero" size="lg">
-          <Link to="/app/rooms">Find a room <ArrowRight className="h-4 w-4" /></Link>
-        </Button>
       </header>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard label="Referral requests" value={6} tone="primary" icon={Handshake} />
-        <StatCard label="Accepted chats" value={3} tone="clay" icon={Coffee} />
-        <StatCard label="Rooms joined" value={2} tone="olive" icon={Mic} />
-        <StatCard label="Host intros" value={1} icon={Sparkles} />
-      </div>
+      {/* Stats Grid */}
+      <section>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard 
+            label="Referral requests" 
+            value={6} 
+            tone="primary" 
+            icon={Handshake}
+            trend={{ value: 12, isPositive: true }}
+          />
+          <StatCard 
+            label="Accepted chats" 
+            value={3} 
+            tone="clay" 
+            icon={Coffee}
+            hint="2 pending responses"
+          />
+          <StatCard 
+            label="Rooms joined" 
+            value={2} 
+            tone="olive" 
+            icon={Mic}
+          />
+          <StatCard 
+            label="Host intros" 
+            value={1} 
+            icon={Sparkles}
+            hint="Keep building momentum"
+          />
+        </div>
+      </section>
 
-      {/* Suggested rooms */}
+      {/* Suggested Rooms */}
       <section>
         <SectionHeader
           eyebrow="Curated for you"
           title="Suggested rooms"
           description="Live and upcoming spaces matched to your goals."
-          action={<Button asChild variant="soft" size="sm"><Link to="/app/rooms">Browse all</Link></Button>}
+          action={
+            <Button asChild variant="soft" size="sm" className="rounded-xl">
+              <Link to="/app/rooms">Browse all</Link>
+            </Button>
+          }
         />
         {roomsQ.loading ? (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -116,110 +166,159 @@ const Dashboard = () => {
         )}
       </section>
 
-      {/* Pending follow-ups + Profile checklist (two columns on desktop) */}
+      {/* Pending Follow-ups + Profile Checklist */}
       <section className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <SectionHeader
             eyebrow="Stay warm"
             title="Pending follow-ups"
-            action={<Button asChild variant="ghost" size="sm"><Link to="/app/referrals">All referrals <ArrowRight className="h-4 w-4" /></Link></Button>}
+            action={
+              <Button asChild variant="ghost" size="sm">
+                <Link to="/app/referrals">
+                  All referrals
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            }
           />
-          <ul className="rounded-3xl bg-card border border-border divide-y divide-border overflow-hidden">
-            {pending.map((r) => {
-              const counterpart = getUser(r.hostId);
-              if (!counterpart) return null;
-              return (
-                <li key={r.id} className="p-4 sm:p-5 flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <UserAvatar user={counterpart} size="md" />
-                    <div className="min-w-0">
-                      <p className="font-medium text-foreground truncate">{counterpart.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{r.role} · {r.company}</p>
-                    </div>
+          <div className="rounded-3xl bg-card border border-border shadow-soft overflow-hidden">
+            <ul className="divide-y divide-border">
+              {pending.length === 0 ? (
+                <li className="p-8 text-center">
+                  <div className="mx-auto w-12 h-12 rounded-2xl bg-secondary flex items-center justify-center mb-3">
+                    <Handshake className="h-5 w-5 text-muted-foreground" />
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <StatusBadge status={r.status} />
-                    <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
-                      <Link to="/app/referrals">View</Link>
-                    </Button>
-                  </div>
+                  <p className="text-muted-foreground">No pending follow-ups</p>
                 </li>
-              );
-            })}
-          </ul>
+              ) : (
+                pending.map((r) => {
+                  const counterpart = getUser(r.hostId);
+                  if (!counterpart) return null;
+                  return (
+                    <li key={r.id} className="group">
+                      <Link 
+                        to="/app/referrals"
+                        className="flex items-center justify-between gap-4 p-5 transition-colors hover:bg-cream/50"
+                      >
+                        <div className="flex items-center gap-4 min-w-0">
+                          <UserAvatar user={counterpart} size="md" />
+                          <div className="min-w-0">
+                            <p className="font-medium text-foreground truncate group-hover:text-primary transition-colors">
+                              {counterpart.name}
+                            </p>
+                            <p className="text-sm text-muted-foreground truncate">
+                              {r.role} · {r.company}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <StatusBadge status={r.status} />
+                          <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </Link>
+                    </li>
+                  );
+                })
+              )}
+            </ul>
+          </div>
         </div>
 
-        {/* Profile completion */}
-        <aside className="rounded-3xl bg-cream border border-border p-6 flex flex-col">
-          <p className="text-xs font-medium uppercase tracking-widest text-clay">Profile completion</p>
-          <h3 className="font-display text-2xl text-foreground mt-1">{pct}% complete</h3>
-          <p className="text-sm text-muted-foreground mt-1">Hosts say yes more often to complete profiles.</p>
+        {/* Profile Completion Card */}
+        <aside className="rounded-3xl bg-gradient-to-b from-cream to-cream/50 border border-border p-6 flex flex-col relative overflow-hidden">
+          <div className="absolute inset-0 pattern-arabesque opacity-20" />
+          
+          <div className="relative">
+            <p className="text-xs font-medium uppercase tracking-widest text-clay">Profile completion</p>
+            <h3 className="font-display text-3xl text-foreground mt-1">{pct}%</h3>
+            <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
+              Hosts say yes more often to complete profiles.
+            </p>
 
-          <div className="mt-4 h-1.5 w-full rounded-full bg-border overflow-hidden">
-            <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+            <div className="mt-5 h-2 w-full rounded-full bg-border/80 overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-primary to-clay rounded-full transition-all duration-500" 
+                style={{ width: `${pct}%` }} 
+              />
+            </div>
+
+            <ul className="mt-6 space-y-3 flex-1">
+              {checklist.map((c) => (
+                <li key={c.label} className="flex items-center gap-3 text-sm">
+                  <span className={cn(
+                    "h-6 w-6 rounded-lg flex items-center justify-center shrink-0 border transition-all",
+                    c.done 
+                      ? "bg-primary border-primary text-primary-foreground" 
+                      : "bg-card border-border text-transparent hover:border-primary/30",
+                  )}>
+                    <Check className="h-3.5 w-3.5" />
+                  </span>
+                  <span className={cn(
+                    "transition-colors",
+                    c.done ? "text-muted-foreground line-through" : "text-foreground"
+                  )}>
+                    {c.label}
+                  </span>
+                </li>
+              ))}
+            </ul>
+
+            <Button asChild variant="hero" size="sm" className="mt-6 w-full rounded-xl">
+              <Link to="/app/profile">Complete profile</Link>
+            </Button>
           </div>
-
-          <ul className="mt-5 space-y-2.5 flex-1">
-            {checklist.map((c) => (
-              <li key={c.label} className="flex items-center gap-3 text-sm">
-                <span className={cn(
-                  "h-5 w-5 rounded-full flex items-center justify-center shrink-0 border",
-                  c.done ? "bg-primary border-primary text-primary-foreground" : "bg-card border-border text-transparent",
-                )}>
-                  <Check className="h-3 w-3" />
-                </span>
-                <span className={cn(c.done ? "text-muted-foreground line-through" : "text-foreground")}>
-                  {c.label}
-                </span>
-              </li>
-            ))}
-          </ul>
-
-          <Button asChild variant="soft" size="sm" className="mt-5">
-            <Link to="/app/profile">Complete profile</Link>
-          </Button>
         </aside>
       </section>
 
-      {/* Latest messages + Notifications */}
+      {/* Messages + Notifications */}
       <section className="grid lg:grid-cols-2 gap-6">
+        {/* Latest Messages */}
         <div className="rounded-3xl bg-card border border-border shadow-soft overflow-hidden">
-          <div className="flex items-center justify-between p-5 border-b border-border">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="h-4 w-4 text-clay" />
-              <h3 className="font-display text-xl text-foreground">Latest messages</h3>
+          <div className="flex items-center justify-between p-5 border-b border-border bg-gradient-to-r from-cream/50 to-transparent">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-clay/10 flex items-center justify-center">
+                <MessageSquare className="h-5 w-5 text-clay" />
+              </div>
+              <h3 className="font-display text-xl text-foreground">Messages</h3>
             </div>
             <Button asChild variant="ghost" size="sm">
-              <Link to="/app/messages">Open inbox <ArrowRight className="h-4 w-4" /></Link>
+              <Link to="/app/messages">
+                View all
+                <ArrowRight className="h-4 w-4" />
+              </Link>
             </Button>
           </div>
           <ul className="divide-y divide-border">
             {threadsQ.loading ? (
               Array.from({ length: 3 }).map((_, i) => (
-                <li key={i} className="p-4"><Skeleton className="h-12 w-full" /></li>
+                <li key={i} className="p-4"><Skeleton className="h-14 w-full rounded-xl" /></li>
               ))
             ) : threadsQ.error ? (
-              <li className="p-4 text-sm text-muted-foreground">Couldn't load messages.</li>
+              <li className="p-6 text-sm text-muted-foreground text-center">Couldn&apos;t load messages.</li>
             ) : threads.length === 0 ? (
-              <li className="p-6 text-sm text-muted-foreground text-center">No messages yet.</li>
+              <li className="p-8 text-center">
+                <p className="text-muted-foreground">No messages yet.</p>
+              </li>
             ) : (
               threads.slice(0, 3).map((t) => (
                 <li key={t.id}>
                   <Link
                     to={`/app/referrals/${t.id}`}
                     className={cn(
-                      "flex items-start gap-3 p-4 transition-colors hover:bg-cream/60",
+                      "flex items-start gap-4 p-4 transition-colors hover:bg-cream/50 group",
                       t.unread && "bg-clay/5",
                     )}
                   >
                     <UserAvatar user={t.person} size="md" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <p className="font-medium text-foreground truncate">{t.person.name}</p>
+                        <p className="font-medium text-foreground truncate group-hover:text-primary transition-colors">
+                          {t.person.name}
+                        </p>
                         {t.unread && <UnreadDot />}
-                        <span className="ml-auto text-[11px] text-muted-foreground shrink-0">{t.lastUpdated}</span>
+                        <span className="ml-auto text-xs text-muted-foreground shrink-0">{t.lastUpdated}</span>
                       </div>
-                      <p className="text-sm text-muted-foreground truncate mt-0.5">{t.lastPreview}</p>
+                      <p className="text-sm text-muted-foreground truncate mt-1">{t.lastPreview}</p>
                     </div>
                   </Link>
                 </li>
@@ -228,35 +327,43 @@ const Dashboard = () => {
           </ul>
         </div>
 
+        {/* Notifications */}
         <div className="rounded-3xl bg-card border border-border shadow-soft overflow-hidden">
-          <div className="flex items-center justify-between p-5 border-b border-border">
-            <div className="flex items-center gap-2">
-              <Bell className="h-4 w-4 text-clay" />
+          <div className="flex items-center justify-between p-5 border-b border-border bg-gradient-to-r from-cream/50 to-transparent">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-olive/10 flex items-center justify-center">
+                <Bell className="h-5 w-5 text-olive" />
+              </div>
               <h3 className="font-display text-xl text-foreground">Notifications</h3>
             </div>
             <Button asChild variant="ghost" size="sm">
-              <Link to="/app/notifications">View all <ArrowRight className="h-4 w-4" /></Link>
+              <Link to="/app/notifications">
+                View all
+                <ArrowRight className="h-4 w-4" />
+              </Link>
             </Button>
           </div>
           <ul className="divide-y divide-border">
             {notificationsQ.loading ? (
               Array.from({ length: 3 }).map((_, i) => (
-                <li key={i} className="p-4"><Skeleton className="h-12 w-full" /></li>
+                <li key={i} className="p-4"><Skeleton className="h-14 w-full rounded-xl" /></li>
               ))
             ) : notificationsQ.error ? (
-              <li className="p-4 text-sm text-muted-foreground">Couldn't load notifications.</li>
+              <li className="p-6 text-sm text-muted-foreground text-center">Couldn&apos;t load notifications.</li>
             ) : notifications.length === 0 ? (
-              <li className="p-6 text-sm text-muted-foreground text-center">No activity yet.</li>
+              <li className="p-8 text-center">
+                <p className="text-muted-foreground">No activity yet.</p>
+              </li>
             ) : (
               notifications.slice(0, 3).map((n) => (
                 <li
                   key={n.id}
                   className={cn(
-                    "p-4 flex items-start gap-3",
+                    "p-4 flex items-start gap-4 transition-colors hover:bg-cream/50",
                     n.unread && "bg-clay/5",
                   )}
                 >
-                  <span className="h-9 w-9 rounded-xl bg-secondary inline-flex items-center justify-center shrink-0">
+                  <span className="h-10 w-10 rounded-xl bg-secondary inline-flex items-center justify-center shrink-0">
                     <Bell className="h-4 w-4 text-clay" />
                   </span>
                   <div className="min-w-0 flex-1">
@@ -265,9 +372,12 @@ const Dashboard = () => {
                         {n.type}
                       </p>
                       {n.unread && <UnreadDot />}
-                      <span className="ml-auto text-[11px] text-muted-foreground">{n.time}</span>
+                      <span className="ml-auto text-xs text-muted-foreground">{n.time}</span>
                     </div>
-                    <p className={cn("text-sm mt-1", n.unread ? "font-medium text-foreground" : "text-foreground/85")}>
+                    <p className={cn(
+                      "text-sm mt-1 leading-relaxed",
+                      n.unread ? "font-medium text-foreground" : "text-foreground/85"
+                    )}>
                       {n.title}
                     </p>
                   </div>
@@ -278,7 +388,7 @@ const Dashboard = () => {
         </div>
       </section>
 
-      {/* Recommended hosts */}
+      {/* Recommended Hosts */}
       <section>
         <SectionHeader
           eyebrow="Warm intros"
@@ -287,43 +397,77 @@ const Dashboard = () => {
         />
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {recommendedHosts.map(({ user, capacity }) => (
-            <article key={user.id} className="rounded-3xl bg-card border border-border p-6 shadow-soft hover:shadow-warm transition-all">
-              <div className="flex items-center gap-3">
-                <UserAvatar user={user} size="lg" />
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <p className="font-medium text-foreground truncate">{user.name}</p>
-                    {user.verified && <Sparkles className="h-3.5 w-3.5 text-clay shrink-0" />}
+            <article 
+              key={user.id} 
+              className="group rounded-3xl bg-card border border-border p-6 shadow-soft hover:shadow-warm transition-all duration-300 relative overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/0 to-primary/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+              
+              <div className="relative">
+                <div className="flex items-center gap-4">
+                  <UserAvatar user={user} size="lg" />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-foreground truncate">{user.name}</p>
+                      {user.verified && (
+                        <span className="h-5 w-5 rounded-full bg-clay/10 flex items-center justify-center">
+                          <Sparkles className="h-3 w-3 text-clay" />
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground truncate">
+                      {user.role}{user.company && ` · ${user.company}`}
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground truncate">{user.role}{user.company && ` · ${user.company}`}</p>
                 </div>
+
+                <div className="mt-4 flex items-center gap-2 text-sm">
+                  <span className="h-2 w-2 rounded-full bg-olive animate-pulse" />
+                  <span className="text-olive font-medium">{capacity}</span>
+                </div>
+
+                <p className="mt-4 text-sm text-muted-foreground line-clamp-2 leading-relaxed">
+                  {user.bio}
+                </p>
+
+                <Button variant="hero" size="sm" className="mt-5 w-full rounded-xl">
+                  <Coffee className="h-4 w-4" />
+                  Request coffee chat
+                </Button>
               </div>
-
-              <div className="mt-4 flex items-center gap-2 text-xs text-foreground/70">
-                <span className="h-2 w-2 rounded-full bg-olive" />
-                {capacity}
-              </div>
-
-              <p className="mt-4 text-sm text-foreground/80 line-clamp-2">{user.bio}</p>
-
-              <Button variant="hero" size="sm" className="mt-5 w-full">
-                <Coffee className="h-4 w-4" /> Request coffee chat
-              </Button>
             </article>
           ))}
         </div>
       </section>
 
-      {/* Footer nudge */}
-      <div className="rounded-3xl bg-gradient-clay text-clay-foreground p-7 sm:p-9 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-widest opacity-90">Founding member</p>
-          <h3 className="font-display text-2xl mt-1">Help shape what Hayy becomes next.</h3>
+      {/* Founding Member CTA */}
+      <section className="rounded-3xl bg-gradient-to-br from-primary via-primary to-clay text-primary-foreground p-8 sm:p-10 relative overflow-hidden">
+        <div className="absolute inset-0 pattern-arabesque opacity-10" />
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl" />
+        
+        <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
+          <div className="max-w-lg">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-sm font-medium mb-3">
+              <Users className="h-4 w-4" />
+              Founding member
+            </div>
+            <h3 className="font-display text-2xl sm:text-3xl leading-tight">
+              Help shape what Hayy becomes next.
+            </h3>
+            <p className="mt-2 text-primary-foreground/80">
+              Your feedback directly influences our roadmap.
+            </p>
+          </div>
+          <Button 
+            variant="soft" 
+            size="lg"
+            className="bg-white text-primary hover:bg-cream shadow-lg rounded-xl shrink-0" 
+            asChild
+          >
+            <Link to="/app/settings">Share feedback</Link>
+          </Button>
         </div>
-        <Button variant="soft" className="bg-card text-foreground hover:bg-cream" asChild>
-          <Link to="/app/settings"><Users className="h-4 w-4" />Share feedback</Link>
-        </Button>
-      </div>
+      </section>
     </div>
   );
 };

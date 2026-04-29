@@ -4,68 +4,80 @@
 
 @layer base {
   :root {
-    /* Warm cream/sand background */
-    --background: 36 30% 96%;
-    --foreground: 20 25% 15%;
+    /* Premium warm ivory/cream background */
+    --background: 38 35% 97%;
+    --foreground: 20 30% 12%;
 
-    --card: 36 40% 98%;
-    --card-foreground: 20 25% 15%;
+    /* Elevated card surface */
+    --card: 40 45% 99%;
+    --card-foreground: 20 30% 12%;
 
-    --popover: 36 40% 98%;
-    --popover-foreground: 20 25% 15%;
+    --popover: 40 45% 99%;
+    --popover-foreground: 20 30% 12%;
 
-    /* Deep burgundy/clay primary */
-    --primary: 12 55% 32%;
-    --primary-foreground: 36 40% 97%;
+    /* Rich bronze/burgundy primary - architectural warmth */
+    --primary: 14 52% 28%;
+    --primary-foreground: 40 50% 98%;
 
-    /* Warm sand secondary */
-    --secondary: 32 35% 90%;
-    --secondary-foreground: 20 25% 15%;
+    /* Warm taupe secondary */
+    --secondary: 30 28% 91%;
+    --secondary-foreground: 20 30% 12%;
 
-    --muted: 32 25% 92%;
-    --muted-foreground: 20 15% 40%;
+    --muted: 32 22% 93%;
+    --muted-foreground: 20 18% 42%;
 
-    /* Olive accent */
-    --accent: 70 20% 55%;
-    --accent-foreground: 36 40% 97%;
+    /* Muted olive accent */
+    --accent: 72 22% 52%;
+    --accent-foreground: 40 50% 98%;
 
-    /* Warm clay */
-    --clay: 18 60% 55%;
-    --clay-foreground: 36 40% 97%;
+    /* Warm terracotta clay */
+    --clay: 16 55% 52%;
+    --clay-foreground: 40 50% 98%;
 
-    /* Olive */
-    --olive: 75 25% 40%;
-    --olive-foreground: 36 40% 97%;
+    /* Sage olive */
+    --olive: 78 28% 38%;
+    --olive-foreground: 40 50% 98%;
 
-    /* Cream */
-    --cream: 38 50% 94%;
-    --sand: 32 35% 85%;
+    /* Warm cream tones */
+    --cream: 40 55% 95%;
+    --sand: 34 38% 86%;
 
-    --destructive: 0 70% 45%;
-    --destructive-foreground: 36 40% 97%;
+    /* Bronze gold for highlights */
+    --bronze: 28 45% 45%;
+    --bronze-foreground: 40 50% 98%;
 
-    --border: 30 20% 85%;
-    --input: 30 20% 88%;
-    --ring: 12 55% 32%;
+    --destructive: 0 65% 42%;
+    --destructive-foreground: 40 50% 98%;
+
+    --border: 32 22% 86%;
+    --input: 32 25% 89%;
+    --ring: 14 52% 28%;
 
     --radius: 1rem;
 
-    --gradient-warm: linear-gradient(135deg, hsl(36 45% 95%), hsl(28 40% 88%));
-    --gradient-clay: linear-gradient(135deg, hsl(12 55% 32%), hsl(18 60% 45%));
-    --gradient-hero: radial-gradient(ellipse at top right, hsl(28 45% 88% / 0.6), transparent 60%), radial-gradient(ellipse at bottom left, hsl(12 40% 85% / 0.4), transparent 60%);
+    /* Premium gradients */
+    --gradient-warm: linear-gradient(145deg, hsl(40 55% 97%), hsl(32 45% 92%));
+    --gradient-clay: linear-gradient(145deg, hsl(14 52% 28%), hsl(16 55% 42%));
+    --gradient-hero: 
+      radial-gradient(ellipse 80% 50% at 20% 40%, hsl(32 55% 90% / 0.5), transparent),
+      radial-gradient(ellipse 60% 40% at 80% 70%, hsl(16 45% 88% / 0.4), transparent),
+      linear-gradient(180deg, hsl(40 55% 97%) 0%, hsl(38 40% 94%) 100%);
+    --gradient-bronze: linear-gradient(145deg, hsl(28 45% 45%), hsl(18 50% 38%));
 
-    --shadow-soft: 0 4px 20px -4px hsl(20 30% 30% / 0.08);
-    --shadow-warm: 0 10px 40px -10px hsl(12 55% 32% / 0.18);
-    --shadow-glow: 0 20px 60px -20px hsl(18 60% 45% / 0.25);
+    /* Refined shadows */
+    --shadow-soft: 0 2px 12px -2px hsl(20 35% 25% / 0.06), 0 1px 3px -1px hsl(20 35% 25% / 0.04);
+    --shadow-warm: 0 8px 32px -8px hsl(14 52% 28% / 0.15), 0 4px 12px -4px hsl(14 52% 28% / 0.08);
+    --shadow-glow: 0 16px 48px -12px hsl(16 55% 42% / 0.22), 0 8px 24px -8px hsl(16 55% 42% / 0.12);
+    --shadow-elevated: 0 12px 40px -12px hsl(20 30% 20% / 0.12), 0 4px 16px -4px hsl(20 30% 20% / 0.06);
 
-    --sidebar-background: 36 40% 98%;
-    --sidebar-foreground: 20 25% 15%;
-    --sidebar-primary: 12 55% 32%;
-    --sidebar-primary-foreground: 36 40% 97%;
-    --sidebar-accent: 32 25% 92%;
-    --sidebar-accent-foreground: 20 25% 15%;
-    --sidebar-border: 30 20% 85%;
-    --sidebar-ring: 12 55% 32%;
+    --sidebar-background: 40 45% 99%;
+    --sidebar-foreground: 20 30% 12%;
+    --sidebar-primary: 14 52% 28%;
+    --sidebar-primary-foreground: 40 50% 98%;
+    --sidebar-accent: 32 22% 93%;
+    --sidebar-accent-foreground: 20 30% 12%;
+    --sidebar-border: 32 22% 86%;
+    --sidebar-ring: 14 52% 28%;
   }
 
   .dark {
@@ -134,6 +146,9 @@
   .bg-gradient-hero {
     background: var(--gradient-hero);
   }
+  .bg-gradient-bronze {
+    background: var(--gradient-bronze);
+  }
   .shadow-soft {
     box-shadow: var(--shadow-soft);
   }
@@ -143,8 +158,38 @@
   .shadow-glow {
     box-shadow: var(--shadow-glow);
   }
+  .shadow-elevated {
+    box-shadow: var(--shadow-elevated);
+  }
   .font-display {
     font-family: 'Fraunces', 'Cormorant Garamond', Georgia, serif;
+  }
+  
+  /* Premium geometric pattern overlay */
+  .pattern-geometric {
+    background-image: url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='0.03'%3E%3Cpath d='M50 50c0-5.523 4.477-10 10-10s10 4.477 10 10-4.477 10-10 10c0 5.523-4.477 10-10 10s-10-4.477-10-10 4.477-10 10-10zM10 10c0-5.523 4.477-10 10-10s10 4.477 10 10-4.477 10-10 10c0 5.523-4.477 10-10 10S0 25.523 0 20s4.477-10 10-10zm10 8c4.418 0 8-3.582 8-8s-3.582-8-8-8-8 3.582-8 8 3.582 8 8 8zm40 40c4.418 0 8-3.582 8-8s-3.582-8-8-8-8 3.582-8 8 3.582 8 8 8z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  }
+  
+  /* Arabic-inspired geometric pattern */
+  .pattern-arabesque {
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='0.025'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  }
+  
+  /* Glass effect for cards */
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-xl border border-border/50;
+  }
+  
+  /* Glowing border on hover */
+  .glow-border {
+    @apply relative overflow-hidden;
+  }
+  .glow-border::before {
+    content: '';
+    @apply absolute -inset-px bg-gradient-to-r from-primary/20 via-clay/30 to-olive/20 rounded-[inherit] opacity-0 transition-opacity duration-300;
+  }
+  .glow-border:hover::before {
+    @apply opacity-100;
   }
 }
 

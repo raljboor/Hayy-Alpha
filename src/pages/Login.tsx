@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Mic, Handshake, Coffee, Sparkles, Loader2 } from "lucide-react";
+import { Mic, Handshake, Coffee, Sparkles, Loader2, ArrowRight, Quote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,13 +42,14 @@ const Login = () => {
   return (
     <div className="w-full max-w-5xl grid lg:grid-cols-[1.05fr_1fr] gap-6 lg:gap-8 items-stretch">
       {/* Side panel — desktop only */}
-      <aside className="hidden lg:flex relative rounded-3xl bg-primary text-primary-foreground p-10 overflow-hidden shadow-warm">
+      <aside className="hidden lg:flex relative rounded-[2rem] bg-gradient-to-br from-primary via-primary to-clay text-primary-foreground p-10 overflow-hidden shadow-warm">
         <div className="absolute -top-16 -right-16 h-64 w-64 rounded-full bg-clay/30 blur-3xl" />
         <div className="absolute -bottom-20 -left-10 h-72 w-72 rounded-full bg-olive/20 blur-3xl" />
+        <div className="absolute top-20 right-10 h-24 w-24 rounded-xl border border-primary-foreground/15 rotate-12 opacity-40" />
 
         <div className="relative flex flex-col justify-between w-full">
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full bg-card/15 backdrop-blur px-3 py-1.5 text-xs font-medium">
+            <span className="inline-flex items-center gap-2 rounded-full bg-card/15 backdrop-blur px-3 py-1.5 text-xs font-medium border border-primary-foreground/20">
               <Sparkles className="h-3.5 w-3.5" />
               Founding community
             </span>
@@ -64,8 +65,8 @@ const Login = () => {
           <ul className="mt-10 space-y-5">
             {features.map((f) => (
               <li key={f.title} className="flex items-start gap-4">
-                <span className="h-10 w-10 rounded-2xl bg-card/15 backdrop-blur flex items-center justify-center shrink-0">
-                  <f.icon className="h-4 w-4" />
+                <span className="h-11 w-11 rounded-2xl bg-card/15 backdrop-blur flex items-center justify-center shrink-0 border border-primary-foreground/10">
+                  <f.icon className="h-5 w-5" />
                 </span>
                 <div>
                   <p className="font-display text-lg font-semibold leading-tight">{f.title}</p>
@@ -76,16 +77,24 @@ const Login = () => {
           </ul>
 
           <figure className="mt-10 rounded-2xl bg-card/10 backdrop-blur border border-card/15 p-5">
-            <p className="font-display italic text-base leading-snug">
-              "I finally understood how referrals actually work."
-            </p>
-            <figcaption className="mt-3 text-xs text-primary-foreground/70">— Amira, founding member</figcaption>
+            <div className="flex items-start gap-3">
+              <Quote className="h-5 w-5 shrink-0 opacity-80" />
+              <div>
+                <p className="font-display italic text-base leading-snug">
+                  &ldquo;I finally understood how referrals actually work.&rdquo;
+                </p>
+                <figcaption className="mt-3 text-xs text-primary-foreground/70 flex items-center gap-2">
+                  <span className="h-5 w-5 rounded-full bg-clay/50 flex items-center justify-center text-[10px] font-semibold">A</span>
+                  Amira — founding member
+                </figcaption>
+              </div>
+            </div>
           </figure>
         </div>
       </aside>
 
       {/* Auth card */}
-      <div className="bg-card rounded-3xl border border-border shadow-warm p-7 sm:p-9">
+      <div className="bg-card/95 backdrop-blur rounded-[2rem] border border-border/60 shadow-elevated p-7 sm:p-9">
         <div className="max-w-sm mx-auto">
           <h1 className="font-display text-3xl sm:text-4xl font-medium text-foreground leading-tight">
             Welcome back.
@@ -103,7 +112,7 @@ const Login = () => {
                 type="email"
                 required
                 placeholder="you@hayy.community"
-                className="h-12 rounded-xl bg-cream border-border"
+                className="h-12 rounded-xl bg-cream/80 border-border/60 focus:border-primary/40"
                 disabled={submitting}
               />
             </div>
@@ -124,8 +133,8 @@ const Login = () => {
                 name="password"
                 type="password"
                 required
-                placeholder="••••••••"
-                className="h-12 rounded-xl bg-cream border-border"
+                placeholder="Enter your password"
+                className="h-12 rounded-xl bg-cream/80 border-border/60 focus:border-primary/40"
                 disabled={submitting}
               />
             </div>
@@ -136,11 +145,14 @@ const Login = () => {
               </p>
             )}
 
-            <Button type="submit" variant="hero" size="lg" className="w-full mt-2" disabled={submitting}>
+            <Button type="submit" variant="hero" size="lg" className="w-full mt-2 group" disabled={submitting}>
               {submitting ? (
                 <><Loader2 className="h-4 w-4 animate-spin" />Logging in…</>
               ) : (
-                "Log in"
+                <>
+                  Log in
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                </>
               )}
             </Button>
           </form>

@@ -55,6 +55,10 @@ export default {
           DEFAULT: "hsl(var(--olive))",
           foreground: "hsl(var(--olive-foreground))",
         },
+        bronze: {
+          DEFAULT: "hsl(var(--bronze))",
+          foreground: "hsl(var(--bronze-foreground))",
+        },
         cream: "hsl(var(--cream))",
         sand: "hsl(var(--sand))",
         sidebar: {

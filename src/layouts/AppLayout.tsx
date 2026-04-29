@@ -31,13 +31,11 @@ export const AppLayout = () => {
   return (
     <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-background">
       {/* Compact mobile top bar */}
-      <header className="lg:hidden sticky top-0 z-40 h-16 flex items-center justify-between px-4 bg-cream/95 backdrop-blur border-b border-border">
-        <div className="scale-90 origin-left">
-          <Logo />
-        </div>
+      <header className="lg:hidden sticky top-0 z-40 h-16 flex items-center justify-between px-4 bg-card/95 backdrop-blur-xl border-b border-border/60 shadow-soft">
+        <Logo size="sm" />
         <button
           onClick={() => setMobileMenuOpen((v) => !v)}
-          className="h-10 w-10 inline-flex items-center justify-center rounded-xl hover:bg-card transition-colors"
+          className="h-10 w-10 inline-flex items-center justify-center rounded-xl bg-secondary/60 hover:bg-secondary transition-colors"
           aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
         >
           {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -48,10 +46,10 @@ export const AppLayout = () => {
       {mobileMenuOpen && (
         <>
           <div
-            className="lg:hidden fixed inset-0 top-16 bg-foreground/30 z-30"
+            className="lg:hidden fixed inset-0 top-16 bg-foreground/30 backdrop-blur-sm z-30"
             onClick={() => setMobileMenuOpen(false)}
           />
-          <nav className="lg:hidden fixed top-16 inset-x-0 z-40 bg-cream border-b border-border shadow-soft px-4 py-3 max-h-[calc(100dvh-4rem)] overflow-y-auto">
+          <nav className="lg:hidden fixed top-16 inset-x-0 z-40 bg-card/98 backdrop-blur-xl border-b border-border shadow-elevated px-4 py-4 max-h-[calc(100dvh-4rem)] overflow-y-auto">
             <ul className="space-y-1">
               {mobileNav.map((item) => (
                 <li key={item.to}>
@@ -61,8 +59,10 @@ export const AppLayout = () => {
                     onClick={() => setMobileMenuOpen(false)}
                     className={({ isActive }) =>
                       cn(
-                        "flex items-center gap-3 px-3 py-3 rounded-xl text-base font-medium transition-colors",
-                        isActive ? "bg-primary text-primary-foreground" : "text-foreground/80 hover:bg-card",
+                        "flex items-center gap-3 px-4 py-3.5 rounded-xl text-base font-medium transition-all",
+                        isActive 
+                          ? "bg-gradient-to-r from-primary to-clay text-primary-foreground shadow-soft" 
+                          : "text-foreground/80 hover:bg-secondary/60 active:bg-secondary",
                       )
                     }
                   >
@@ -82,11 +82,15 @@ export const AppLayout = () => {
           <AppSidebar mobileOpen={sidebarOpen} onMobileOpenChange={setSidebarOpen} />
         </div>
         <main className="flex-1 min-w-0 w-full max-w-full overflow-x-hidden">
-          <div
-            key={pathname}
-            className="w-full max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-12 box-border animate-in fade-in slide-in-from-bottom-1 duration-300"
-          >
-            <Outlet />
+          {/* Subtle pattern background for content area */}
+          <div className="relative min-h-[calc(100vh-4rem)] lg:min-h-screen">
+            <div className="absolute inset-0 pattern-geometric opacity-20 pointer-events-none" />
+            <div
+              key={pathname}
+              className="relative w-full max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-10 box-border animate-in fade-in slide-in-from-bottom-1 duration-300"
+            >
+              <Outlet />
+            </div>
           </div>
         </main>
       </div>

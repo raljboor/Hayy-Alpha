@@ -142,26 +142,45 @@ export async function leaveRoom(roomId: string, userId: string) {
 // Create (host / recruiter)
 // ---------------------------------------------------------------------------
 
+// Valid DB status values (from the check constraint in 001_initial_schema.sql)
+const DB_STATUSES = new Set(["draft", "open", "waitlist", "closed", "completed"]);
+
+/**
+ * Maps UI-facing status strings to the DB check-constraint values.
+ * UI uses 'upcoming' / 'live' / 'ended'; DB uses 'open' / 'completed' etc.
+ */
+function toDbStatus(raw: unknown): string {
+  const s = String(raw ?? "open");
+  if (DB_STATUSES.has(s)) return s;
+  if (s === "upcoming") return "open";
+  if (s === "live") return "open";
+  if (s === "ended") return "completed";
+  return "open";
+}
+
 /**
  * Normalises a UI-shaped (camelCase) room object into the DB column names
  * (snake_case) that Supabase expects, accepting either naming convention.
  */
-function toDbInsert(roomData: Partial<MockRoom> & { hostId?: string; startsAt?: string }): Record<string, unknown> {
+type RoomInsertData = Partial<MockRoom> & { hostId?: string; startsAt?: string; room_type?: string };
+
+function toDbInsert(roomData: RoomInsertData): Record<string, unknown> {
+  const hostId = (roomData as Record<string, unknown>).host_id ?? roomData.hostId;
   return {
     title: roomData.title,
     description: roomData.description ?? "",
     category: roomData.category ?? "Tech",
-    // Accept both camelCase and the raw field
-    host_id: (roomData as Record<string, unknown>).host_id ?? roomData.hostId,
+    host_id: hostId,
+    created_by: hostId,
     start_time: (roomData as Record<string, unknown>).start_time ?? roomData.startsAt,
-    status: (roomData as Record<string, unknown>).status ?? "open",
-    room_type: (roomData as Record<string, unknown>).room_type ?? "qa",
+    status: toDbStatus((roomData as Record<string, unknown>).status ?? roomData.status),
+    room_type: roomData.room_type ?? "community",
     max_speakers: (roomData as Record<string, unknown>).max_speakers ?? 8,
     attendee_count: roomData.attendees ?? 0,
   };
 }
 
-export async function createRoom(roomData: Partial<MockRoom>): Promise<MockRoom> {
+export async function createRoom(roomData: RoomInsertData): Promise<MockRoom> {
   if (isSupabaseConfigured && supabase) {
     const insert = toDbInsert(roomData);
     const { data, error } = await supabase
@@ -169,7 +188,7 @@ export async function createRoom(roomData: Partial<MockRoom>): Promise<MockRoom>
       .insert(insert)
       .select()
       .single();
-    if (error) throw error;
+    if (error) throw new Error(error.message);
     return adaptRoomFromDb(data as DbRoom);
   }
   // Mock: not persisted between renders

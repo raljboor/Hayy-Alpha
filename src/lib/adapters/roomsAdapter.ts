@@ -29,6 +29,7 @@ export interface DbRoom {
   description: string;
   category: string;
   host_id: string;
+  created_by?: string | null;
   start_time: string;
   status: string;
   room_type: string | null;

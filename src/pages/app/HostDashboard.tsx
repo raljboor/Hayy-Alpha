@@ -33,7 +33,6 @@ import { isSupabaseConfigured } from "@/lib/supabaseClient";
 import { isMockMode } from "@/lib/runtimeMode";
 import { getIncomingReferralRequests, updateReferralStatus } from "@/lib/api/referrals";
 import { getHostSettings, upsertHostSettings, updateHostCapacity, updateHostAvailability } from "@/lib/api/hostSettings";
-import { updateProfile } from "@/lib/api/profiles";
 import { useAsync } from "@/lib/useAsync";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { ThreadStatus } from "@/data/mockData";
@@ -181,7 +180,7 @@ const nextActionMeta = {
 };
 
 const HostDashboard = () => {
-  const { userId, profile, loading: authLoading, refreshProfile } = useCurrentUser();
+  const { userId, profile } = useCurrentUser();
   // In mock mode fall back to Yusuf (u2) so the page renders with fixture data.
   // In production use the real userId; never fall back to a mock user ID.
   const hostId = userId ?? (isMockMode ? "u2" : null);
@@ -223,7 +222,6 @@ const HostDashboard = () => {
   const [referrals, setReferrals] = useState(true);
   const [resumeFeedback, setResumeFeedback] = useState(false);
   const [capacity, setCapacity] = useState("3");
-  const [enablingHostMode, setEnablingHostMode] = useState(false);
 
   useEffect(() => {
     if (hostSettings) {
@@ -250,21 +248,6 @@ const HostDashboard = () => {
   const handleCapacityChange = async (v: string) => {
     setCapacity(v);
     if (userId) await updateHostCapacity(userId, parseInt(v, 10) || 3).catch(() => {});
-  };
-
-  const handleEnableHostMode = async () => {
-    if (!userId) return;
-    setEnablingHostMode(true);
-    try {
-      await updateProfile(userId, { role_type: "referral_host" });
-      await upsertHostSettings(userId, {});
-      await refreshProfile();
-      toast.success("Host mode enabled! You can now receive referral requests.");
-    } catch {
-      toast.error("Couldn't enable host mode — please try again.");
-    } finally {
-      setEnablingHostMode(false);
-    }
   };
 
   const incoming = requests.filter((r) => r.status === "pending");
@@ -296,40 +279,15 @@ const HostDashboard = () => {
     toast.success(`Marked complete with ${getUser(r.candidateId)?.name.split(" ")[0] ?? "candidate"}`);
   };
 
-  // isHost: true in mock mode (always show host dashboard in demo)
-  // true when profile is loaded with referral_host/admin role
-  // treat as host while loading to avoid flash-of-prompt
-  const isHost = isMockMode
-    ? true
-    : profile !== null
-      ? profile.role_type === "referral_host" || profile.role_type === "admin"
-      : true;
-
   return (
     <div className="space-y-8">
-      {/* Soft role prompt — shown when user is not yet a host */}
-      {/* Show role prompt only after profile is loaded and role is confirmed non-host */}
-      {!authLoading && profile !== null && !isHost && (
-        <div className="rounded-3xl bg-cream border border-clay/20 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <p className="font-display text-lg text-foreground">Become a referral host</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Enable host mode to receive referral requests from candidates in live rooms.
-            </p>
-          </div>
-          <Button variant="hero" size="sm" onClick={handleEnableHostMode} disabled={enablingHostMode}>
-            {enablingHostMode ? "Enabling…" : "Enable host mode"}
-          </Button>
-        </div>
-      )}
-
       {/* Header */}
       <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
-          <p className="text-xs font-medium uppercase tracking-widest text-clay">Host space</p>
-          <h1 className="font-display text-3xl sm:text-4xl text-foreground mt-1">Help someone get seen.</h1>
+          <p className="text-xs font-medium uppercase tracking-widest text-clay">Hosting</p>
+          <h1 className="font-display text-3xl sm:text-4xl text-foreground mt-1">Your rooms &amp; referrals.</h1>
           <p className="mt-2 text-muted-foreground max-w-xl">
-            Review requests, set your capacity, and support candidates you genuinely trust.
+            Manage incoming requests, set your availability, and support candidates you trust.
           </p>
         </div>
       </header>

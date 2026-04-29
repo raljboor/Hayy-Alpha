@@ -23,6 +23,8 @@ export interface AuthCredentials {
   email: string;
   password: string;
   fullName?: string;
+  /** SQL role_type value — passed to Supabase auth metadata so the DB trigger can store it */
+  roleType?: string;
 }
 
 interface AuthResult {
@@ -34,23 +36,65 @@ interface AuthResult {
 // Sign up
 // ---------------------------------------------------------------------------
 
+/** Normalises a UI role label into a valid SQL role_type value. */
+function normaliseRoleType(raw: string | undefined): string {
+  if (!raw) return "job_seeker";
+  const map: Record<string, string> = {
+    job_seeker: "job_seeker",
+    referral_host: "referral_host",
+    recruiter: "recruiter",
+    admin: "admin",
+    // Legacy / UI aliases
+    "job-seeker": "job_seeker",
+    "referral-host": "referral_host",
+    host: "referral_host",
+    candidate: "job_seeker",
+    community_partner: "job_seeker",
+    partner: "job_seeker",
+  };
+  return map[raw.toLowerCase()] ?? "job_seeker";
+}
+
 export async function signUpUser({
   email,
   password,
   fullName,
+  roleType,
 }: AuthCredentials): Promise<AuthResult> {
+  const normalisedRole = normaliseRoleType(roleType);
+
   if (isSupabaseConfigured && supabase) {
     const result = await supabase.auth.signUp({
       email,
       password,
       options: {
         emailRedirectTo: `${window.location.origin}/auth/confirm`,
-        data: { full_name: fullName ?? "" },
+        // Both full_name and role_type are read by the handle_new_auth_user trigger
+        data: { full_name: fullName ?? "", role_type: normalisedRole },
       },
     });
     if (result.error) {
       return { ...result, error: { message: friendlyError(result.error) } };
     }
+
+    // If the user row was created immediately (e.g. email confirmation disabled),
+    // also upsert the profile to ensure role_type is correct even if the trigger
+    // fired before we could set it.
+    if (result.data.user?.id) {
+      await supabase
+        .from("user_profiles")
+        .upsert(
+          {
+            id: result.data.user.id,
+            full_name: fullName ?? "",
+            role_type: normalisedRole,
+          },
+          { onConflict: "id" },
+        )
+        .then(() => {})
+        .catch(() => {}); // best-effort; profile will be corrected on next load
+    }
+
     return result;
   }
   mockSignIn();

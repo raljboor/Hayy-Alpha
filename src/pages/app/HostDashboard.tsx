@@ -29,6 +29,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { users, getUser, type ReferralRequest as MockReferralRequest } from "@/data/mockData";
+import { isSupabaseConfigured } from "@/lib/supabaseClient";
+import { isMockMode } from "@/lib/runtimeMode";
 import { getIncomingReferralRequests, updateReferralStatus } from "@/lib/api/referrals";
 import { getHostSettings, upsertHostSettings, updateHostCapacity, updateHostAvailability } from "@/lib/api/hostSettings";
 import { updateProfile } from "@/lib/api/profiles";
@@ -179,13 +181,14 @@ const nextActionMeta = {
 };
 
 const HostDashboard = () => {
-  const { userId, profile, refreshProfile } = useCurrentUser();
-  // Fall back to "u2" (Yusuf) in mock mode so the page renders with fixtures.
-  const hostId = userId ?? "u2";
-  const host = getUser(hostId) ?? getUser("u2")!;
+  const { userId, profile, loading: authLoading, refreshProfile } = useCurrentUser();
+  // In mock mode fall back to Yusuf (u2) so the page renders with fixture data.
+  // In production use the real userId; never fall back to a mock user ID.
+  const hostId = userId ?? (isMockMode ? "u2" : null);
+  const mockHost = isMockMode ? (getUser(userId ?? "u2") ?? getUser("u2")!) : null;
 
   const { data: apiRequests, refetch } = useAsync(
-    () => getIncomingReferralRequests(hostId),
+    () => (hostId ? getIncomingReferralRequests(hostId) : Promise.resolve([])),
     [hostId],
   );
   const { data: hostSettings } = useAsync(
@@ -193,12 +196,24 @@ const HostDashboard = () => {
     [hostId],
   );
 
-  // Seed local state from the API result; fall back to rich mock fixtures when
-  // Supabase is not configured (apiRequests will be the mock array).
-  const [requests, setRequests] = useState<IncomingRequest[]>(mockFallbackRequests);
+  // Derive display values for the host profile preview card.
+  // In production: use real profile data. In mock mode: use fixture user.
+  const hostDisplayName = profile?.full_name ?? mockHost?.name ?? "You";
+  const hostDisplayHeadline = profile?.headline ?? mockHost?.role ?? "";
+  const hostDisplayLocation = profile?.location ?? mockHost?.location ?? "";
+  const hostDisplayBio = profile?.bio ?? mockHost?.bio ?? "";
+
+  // Seed local state from the API result.
+  // - Mock mode (Supabase not configured): starts with rich fixture data.
+  // - Supabase mode: starts empty; shows real data or empty state once loaded.
+  const [requests, setRequests] = useState<IncomingRequest[]>(
+    isSupabaseConfigured ? [] : mockFallbackRequests,
+  );
 
   useEffect(() => {
-    if (apiRequests && apiRequests.length > 0) {
+    if (apiRequests !== null) {
+      // Always reflect what the API returned — empty [] means "no requests yet",
+      // not "fall back to mock data".
       setRequests(apiRequests.map(toIncomingRequest));
     }
   }, [apiRequests]);
@@ -278,16 +293,23 @@ const HostDashboard = () => {
     setRequests((prev) => prev.filter((x) => x.id !== r.id));
     await updateReferralStatus(r.id, "Completed" as ThreadStatus);
     refetch();
-    toast.success(`Marked complete with ${getUser(r.candidateId)?.name.split(" ")[0]}`);
+    toast.success(`Marked complete with ${getUser(r.candidateId)?.name.split(" ")[0] ?? "candidate"}`);
   };
 
-  // referral_host and admin can access the host dashboard without a prompt
-  const isHost = !profile || profile.role_type === "referral_host" || profile.role_type === "admin";
+  // isHost: true in mock mode (always show host dashboard in demo)
+  // true when profile is loaded with referral_host/admin role
+  // treat as host while loading to avoid flash-of-prompt
+  const isHost = isMockMode
+    ? true
+    : profile !== null
+      ? profile.role_type === "referral_host" || profile.role_type === "admin"
+      : true;
 
   return (
     <div className="space-y-8">
       {/* Soft role prompt — shown when user is not yet a host */}
-      {!isHost && (
+      {/* Show role prompt only after profile is loaded and role is confirmed non-host */}
+      {!authLoading && profile !== null && !isHost && (
         <div className="rounded-3xl bg-cream border border-clay/20 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <p className="font-display text-lg text-foreground">Become a referral host</p>
@@ -339,15 +361,18 @@ const HostDashboard = () => {
             ) : (
               <div className="space-y-4">
                 {incoming.map((r) => {
-                  const c = getUser(r.candidateId)!;
+                  // getUser() works in mock mode; in production candidateId is a UUID not in fixtures.
+                  const c = getUser(r.candidateId);
+                  const candidateName = c?.name ?? `Candidate (${r.candidateId.slice(0, 8)}…)`;
+                  const candidateInitials = candidateName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
                   return (
                     <article key={r.id} className="rounded-2xl border border-border bg-cream/40 p-5">
                       <div className="flex items-start justify-between gap-3 flex-wrap">
                         <div className="flex items-start gap-3 min-w-0">
-                          <UserAvatar user={c} size="md" />
+                          <UserAvatar user={c ?? { name: candidateName, initials: candidateInitials, avatarColor: "bg-primary" }} size="md" />
                           <div className="min-w-0">
-                            <p className="font-medium text-foreground truncate">{c.name}</p>
-                            <p className="text-xs text-muted-foreground truncate">{c.role} · {c.location}</p>
+                            <p className="font-medium text-foreground truncate">{candidateName}</p>
+                            <p className="text-xs text-muted-foreground truncate">{c?.role ?? r.targetRole}</p>
                           </div>
                         </div>
                         <span className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-0.5 text-[11px] font-medium text-foreground/80">
@@ -405,17 +430,19 @@ const HostDashboard = () => {
             ) : (
               <ul className="divide-y divide-border">
                 {accepted.map((r) => {
-                  const c = getUser(r.candidateId)!;
+                  const c = getUser(r.candidateId);
+                  const cName = c?.name ?? `Candidate (${r.candidateId.slice(0, 8)}…)`;
+                  const cInitials = cName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
                   const action = r.nextAction ?? "Mark complete";
                   const meta = nextActionMeta[action];
                   const Icon = meta.icon;
                   return (
                     <li key={r.id} className="py-4 flex items-center justify-between gap-3 flex-wrap">
                       <div className="flex items-center gap-3 min-w-0">
-                        <UserAvatar user={c} size="sm" />
+                        <UserAvatar user={c ?? { name: cName, initials: cInitials, avatarColor: "bg-primary" }} size="sm" />
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-foreground truncate">
-                            {c.name} <span className="text-muted-foreground font-normal">· {r.targetRole} at {r.targetCompany}</span>
+                            {cName} <span className="text-muted-foreground font-normal">· {r.targetRole} at {r.targetCompany}</span>
                           </p>
                           <p className="text-xs text-muted-foreground">{r.type}</p>
                         </div>
@@ -507,13 +534,22 @@ const HostDashboard = () => {
 
             <div className="mt-4 rounded-2xl border border-border bg-cream/50 p-5">
               <div className="flex items-center gap-3">
-                <UserAvatar user={host} size="lg" />
+                <UserAvatar
+                  user={{
+                    name: hostDisplayName,
+                    initials: hostDisplayName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2),
+                    avatarColor: "bg-primary",
+                  }}
+                  size="lg"
+                />
                 <div className="min-w-0">
-                  <p className="font-display text-base font-semibold text-foreground truncate">{host.name}</p>
-                  <p className="text-xs text-muted-foreground truncate">{host.role} · {host.company}</p>
-                  <p className="text-xs text-muted-foreground inline-flex items-center gap-1 mt-0.5">
-                    <MapPin className="h-3 w-3" />{host.location}
-                  </p>
+                  <p className="font-display text-base font-semibold text-foreground truncate">{hostDisplayName}</p>
+                  <p className="text-xs text-muted-foreground truncate">{hostDisplayHeadline}</p>
+                  {hostDisplayLocation && (
+                    <p className="text-xs text-muted-foreground inline-flex items-center gap-1 mt-0.5">
+                      <MapPin className="h-3 w-3" />{hostDisplayLocation}
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap gap-1.5">
@@ -521,7 +557,9 @@ const HostDashboard = () => {
                 {referrals && <Badge tone="clay">Referrals</Badge>}
                 {resumeFeedback && <Badge tone="primary">Resume feedback</Badge>}
               </div>
-              <p className="mt-3 text-sm text-foreground/80 line-clamp-3">{host.bio}</p>
+              {hostDisplayBio && (
+                <p className="mt-3 text-sm text-foreground/80 line-clamp-3">{hostDisplayBio}</p>
+              )}
               <Button variant="soft" size="sm" className="mt-4 w-full" asChild>
                 <a href={`/app/profile`}><ExternalLink className="h-4 w-4" />Open public profile</a>
               </Button>

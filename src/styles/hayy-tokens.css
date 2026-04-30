@@ -1,0 +1,41 @@
+:root {
+  --warm-bg: hsl(36 32% 96%);
+  --warm-paper: hsl(36 42% 98%);
+  --warm-ink: hsl(20 25% 13%);
+  --warm-ink-soft: hsl(20 14% 38%);
+  --warm-ink-mute: hsl(20 10% 55%);
+  --warm-line: hsl(30 18% 86%);
+  --warm-line-soft: hsl(30 14% 91%);
+  --warm-clay: hsl(12 58% 34%);
+  --warm-clay-2: hsl(18 62% 52%);
+  --warm-olive: hsl(75 22% 38%);
+  --warm-cream: hsl(38 50% 94%);
+  --warm-sand: hsl(32 32% 88%);
+  --warm-live: hsl(8 70% 52%);
+  --warm-spotlight: hsl(42 88% 60%);
+
+  --bg: var(--warm-bg);
+  --paper: var(--warm-paper);
+  --ink: var(--warm-ink);
+  --ink-soft: var(--warm-ink-soft);
+  --ink-mute: var(--warm-ink-mute);
+  --line: var(--warm-line);
+  --line-soft: var(--warm-line-soft);
+  --clay: var(--warm-clay);
+  --clay-2: var(--warm-clay-2);
+  --olive: var(--warm-olive);
+  --cream: var(--warm-cream);
+  --sand: var(--warm-sand);
+  --live: var(--warm-live);
+  --spotlight: var(--warm-spotlight);
+
+  --radius-xs: 8px;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --radius-xl: 28px;
+  --radius-pill: 999px;
+
+  --shadow-soft: 0 2px 10px -4px rgba(40,28,18,.10), 0 1px 2px rgba(40,28,18,.04);
+  --shadow-warm: 0 18px 40px -16px rgba(80,30,12,.22), 0 4px 12px -6px rgba(80,30,12,.12);
+}

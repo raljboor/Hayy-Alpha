@@ -1,45 +1,17 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, Mic, Handshake, Users, Sparkles, Coffee, Check, MessageSquare, Bell } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { SectionHeader } from "@/components/hayy/SectionHeader";
-import { StatCard } from "@/components/hayy/StatCard";
-import { RoomCard } from "@/components/hayy/RoomCard";
-import { UserAvatar } from "@/components/hayy/UserAvatar";
-import { StatusBadge } from "@/components/hayy/StatusBadge";
-import { UnreadDot } from "@/components/hayy/InboxPrimitives";
-import { RoomCardSkeleton } from "@/components/hayy/Skeletons";
-import { Skeleton } from "@/components/ui/skeleton";
-import { ErrorState } from "@/components/hayy/ErrorState";
-import { users, getUser, type Room } from "@/data/mockData";
+import { Mic, ArrowRight } from "lucide-react";
+import { HayySidebar } from "@/components/layout/HayySidebar";
+import { HayyAvatar } from "@/components/ui/HayyAvatar";
 import { getRooms } from "@/lib/api/rooms";
 import { getReferralRequests, getReferralThreads } from "@/lib/api/referrals";
 import { getNotifications } from "@/lib/api/notifications";
 import { useAsync } from "@/lib/useAsync";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { isMockMode } from "@/lib/runtimeMode";
-import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
-// Mock-only constants — only used when Supabase is NOT configured
-// ---------------------------------------------------------------------------
-
-const mockMe = users[0]; // Amira — display fallback in mock mode
-
-const suggestedRoomTitles = [
-  "Amazon Canada Career Room",
-  "Product, Data & Software Career Room",
-  "Career Access for International Professionals",
-];
-
-const recommendedHosts = [
-  { user: users[1], capacity: "3 chats / month open" },
-  { user: users[2], capacity: "2 chats / month open" },
-  { user: users[5], capacity: "1 chat / month open" },
-];
-
-// ---------------------------------------------------------------------------
-// Profile completion helpers
+// Profile completion helpers (unchanged from original)
 // ---------------------------------------------------------------------------
 
 interface ChecklistItem {
@@ -58,7 +30,6 @@ function buildChecklist(profile: {
   video_intro_url?: string | null;
 } | null): ChecklistItem[] {
   if (!profile) {
-    // In mock mode, show some checked items for a better demo feel
     return [
       { label: "Add bio", done: true },
       { label: "Add skills", done: true },
@@ -77,49 +48,65 @@ function buildChecklist(profile: {
 }
 
 // ---------------------------------------------------------------------------
+// Donut SVG
+// ---------------------------------------------------------------------------
+
+const DonutChart = ({ pct }: { pct: number }) => {
+  const R = 36;
+  const circumference = 2 * Math.PI * R;
+  const dash = (pct / 100) * circumference;
+  return (
+    <svg width={88} height={88} viewBox="0 0 88 88" style={{ transform: "rotate(-90deg)" }}>
+      <circle cx={44} cy={44} r={R} fill="none" stroke="var(--line)" strokeWidth={8} />
+      <circle
+        cx={44} cy={44} r={R} fill="none"
+        stroke="var(--clay)" strokeWidth={8}
+        strokeDasharray={`${dash} ${circumference}`}
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Mono label
+// ---------------------------------------------------------------------------
+
+const MonoLabel = ({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) => (
+  <p
+    style={{
+      fontFamily: "monospace",
+      fontSize: 10,
+      letterSpacing: ".1em",
+      textTransform: "uppercase",
+      color: "var(--clay)",
+      margin: 0,
+      ...style,
+    }}
+  >
+    {children}
+  </p>
+);
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
 const Dashboard = () => {
   const { userId, profile } = useCurrentUser();
-  const me = profile
-    ? { name: profile.full_name || mockMe.name, id: userId ?? mockMe.id }
-    : mockMe;
+  const firstName = profile?.full_name?.trim().split(" ")[0] ?? "there";
 
-  const roomsQ = useAsync(() => getRooms(), []);
-  const referralsQ = useAsync(() => getReferralRequests(userId ?? undefined), [userId]);
-  const threadsQ = useAsync(() => getReferralThreads(userId ?? undefined), [userId]);
+  // All data fetches preserved from original — only UI layer changes.
+  const roomsQ       = useAsync(() => getRooms(), []);
+  const referralsQ   = useAsync(() => getReferralRequests(userId ?? undefined), [userId]);
+  const threadsQ     = useAsync(() => getReferralThreads(userId ?? undefined), [userId]);
   const notificationsQ = useAsync(() => getNotifications(userId ?? undefined), [userId]);
 
-  const rooms = roomsQ.data ?? [];
+  // Keep computed values so no data fetching is broken.
   const referralRequests = referralsQ.data ?? [];
-  const threads = threadsQ.data ?? [];
-  const notifications = notificationsQ.data ?? [];
+  void threadsQ;        // fetched; wired to activity timeline in a future phase
+  void notificationsQ;  // fetched; wired to activity timeline in a future phase
 
-  // ---------------------------------------------------------------------------
-  // Stats — computed from real API data in production, hardcoded in mock mode
-  // ---------------------------------------------------------------------------
-  const stats = useMemo(() => {
-    if (isMockMode) {
-      return { total: 6, accepted: 3, roomsJoined: 2, hostIntros: 1 };
-    }
-    return {
-      total: referralRequests.length,
-      accepted: referralRequests.filter(
-        (r) => r.status === "accepted" || r.status === "completed",
-      ).length,
-      // room_participants not fetched on dashboard yet — show 0 until wired
-      roomsJoined: 0,
-      // host intros = accepted/completed referrals where current user is requester
-      hostIntros: referralRequests.filter(
-        (r) => (r.status === "accepted" || r.status === "completed") && r.direction === "outgoing",
-      ).length,
-    };
-  }, [referralRequests]);
-
-  // ---------------------------------------------------------------------------
-  // Profile completion checklist — real in production, mock demo otherwise
-  // ---------------------------------------------------------------------------
   const checklist = useMemo(
     () => (isMockMode ? buildChecklist(null) : buildChecklist(profile)),
     [profile],
@@ -127,300 +114,445 @@ const Dashboard = () => {
   const completedCount = checklist.filter((c) => c.done).length;
   const pct = Math.round((completedCount / checklist.length) * 100);
 
-  // ---------------------------------------------------------------------------
-  // Suggested rooms
-  // In production: show the first 3 real rooms from the DB.
-  // In mock mode: overlay curated titles on mock rooms for a richer demo.
-  // ---------------------------------------------------------------------------
-  const suggestedRooms: Room[] = useMemo(() => {
-    if (isMockMode) {
-      return suggestedRoomTitles
-        .map((title, i): Room | null => {
-          const base = rooms[i % rooms.length];
-          if (!base) return null;
-          return { ...base, id: `s${i}`, title, status: i === 0 ? "live" : "upcoming" };
-        })
-        .filter((r): r is Room => r !== null);
-    }
-    // In production: show first 3 real rooms (may be empty)
-    return rooms.slice(0, 3);
-  }, [rooms]);
+  // Hero room: real data only — never show mock rooms.
+  const heroRoom = useMemo(() => {
+    if (isMockMode) return null;
+    const rooms = roomsQ.data ?? [];
+    return (
+      rooms.find((r) => r.status === "live") ??
+      rooms.find((r) => r.status === "upcoming") ??
+      null
+    );
+  }, [roomsQ.data]);
 
-  // Pending referrals for the "follow-ups" section
-  const pending = referralRequests.filter((r) => r.status === "pending").slice(0, 3);
+  // Date string for greeting header
+  const dateStr = new Date()
+    .toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })
+    .toUpperCase();
+
+  // Pending referral count — keep this computed even if not shown yet
+  void referralRequests;
 
   return (
-    <div className="space-y-12">
-      {/* Welcome */}
-      <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-        <div>
-          <p className="text-sm text-muted-foreground">Welcome back</p>
-          <h1 className="font-display text-3xl sm:text-4xl text-foreground leading-tight">
-            Welcome back, <span className="italic text-primary">{me.name.split(" ")[0]}.</span>
-          </h1>
-          <p className="mt-2 text-muted-foreground max-w-xl">
-            Your career command center — calm, warm, and built around real people.
-          </p>
-        </div>
-        <Button asChild variant="hero" size="lg">
-          <Link to="/app/rooms">Find a room <ArrowRight className="h-4 w-4" /></Link>
-        </Button>
-      </header>
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 10,
+        display: "flex",
+        background: "var(--bg)",
+        overflow: "hidden",
+        fontFamily: "'Inter', system-ui, sans-serif",
+      }}
+    >
+      {/* ── Sidebar ── */}
+      <HayySidebar active="Home" />
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard label="Referral requests" value={stats.total} tone="primary" icon={Handshake} />
-        <StatCard label="Accepted chats" value={stats.accepted} tone="clay" icon={Coffee} />
-        <StatCard label="Rooms joined" value={stats.roomsJoined} tone="olive" icon={Mic} />
-        <StatCard label="Host intros" value={stats.hostIntros} icon={Sparkles} />
-      </div>
+      {/* ── Main scroll area ── */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "36px 32px 48px" }}>
+        <div
+          style={{
+            maxWidth: 1040,
+            margin: "0 auto",
+            display: "grid",
+            gridTemplateColumns: "1fr 272px",
+            gap: "28px",
+            alignItems: "start",
+          }}
+        >
+          {/* ════════════════ LEFT COLUMN ════════════════ */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
 
-      {/* Suggested rooms */}
-      <section>
-        <SectionHeader
-          eyebrow="Curated for you"
-          title="Suggested rooms"
-          description="Live and upcoming spaces matched to your goals."
-          action={<Button asChild variant="soft" size="sm"><Link to="/app/rooms">Browse all</Link></Button>}
-        />
-        {roomsQ.loading ? (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {Array.from({ length: 3 }).map((_, i) => <RoomCardSkeleton key={i} />)}
-          </div>
-        ) : roomsQ.error ? (
-          <ErrorState description="We couldn't load suggested rooms." onRetry={roomsQ.refetch} />
-        ) : suggestedRooms.length === 0 ? (
-          <div className="rounded-3xl bg-cream border border-dashed border-border p-10 text-center">
-            <p className="text-muted-foreground text-sm">No rooms yet — check back soon.</p>
-            <Button asChild variant="soft" size="sm" className="mt-4">
-              <Link to="/app/rooms">Browse rooms</Link>
-            </Button>
-          </div>
-        ) : (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {suggestedRooms.map((r) => <RoomCard key={r.id} room={r} />)}
-          </div>
-        )}
-      </section>
-
-      {/* Pending follow-ups + Profile checklist */}
-      <section className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <SectionHeader
-            eyebrow="Stay warm"
-            title="Pending follow-ups"
-            action={<Button asChild variant="ghost" size="sm"><Link to="/app/referrals">All referrals <ArrowRight className="h-4 w-4" /></Link></Button>}
-          />
-          <ul className="rounded-3xl bg-card border border-border divide-y divide-border overflow-hidden">
-            {referralsQ.loading ? (
-              <li className="p-4"><Skeleton className="h-12 w-full" /></li>
-            ) : pending.length === 0 ? (
-              <li className="p-6 text-sm text-muted-foreground text-center">
-                No pending follow-ups — you're all caught up!
-              </li>
-            ) : (
-              pending.map((r) => {
-                // In mock mode getUser() works; in production hostId is a UUID
-                // not in the mock fixture so we gracefully degrade.
-                const counterpart = getUser(r.hostId);
-                return (
-                  <li key={r.id} className="p-4 sm:p-5 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3 min-w-0">
-                      {counterpart ? (
-                        <UserAvatar user={counterpart} size="md" />
-                      ) : (
-                        <span className="h-9 w-9 rounded-full bg-secondary flex items-center justify-center text-xs font-bold text-muted-foreground shrink-0">
-                          {(r.company ?? "?")[0]}
-                        </span>
-                      )}
-                      <div className="min-w-0">
-                        <p className="font-medium text-foreground truncate">
-                          {counterpart?.name ?? r.company}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">{r.role} · {r.company}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <StatusBadge status={r.status} />
-                      <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
-                        <Link to="/app/referrals">View</Link>
-                      </Button>
-                    </div>
-                  </li>
-                );
-              })
-            )}
-          </ul>
-        </div>
-
-        {/* Profile completion — real field check in production */}
-        <aside className="rounded-3xl bg-cream border border-border p-6 flex flex-col">
-          <p className="text-xs font-medium uppercase tracking-widest text-clay">Profile completion</p>
-          <h3 className="font-display text-2xl text-foreground mt-1">{pct}% complete</h3>
-          <p className="text-sm text-muted-foreground mt-1">Hosts say yes more often to complete profiles.</p>
-
-          <div className="mt-4 h-1.5 w-full rounded-full bg-border overflow-hidden">
-            <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
-          </div>
-
-          <ul className="mt-5 space-y-2.5 flex-1">
-            {checklist.map((c) => (
-              <li key={c.label} className="flex items-center gap-3 text-sm">
-                <span className={cn(
-                  "h-5 w-5 rounded-full flex items-center justify-center shrink-0 border",
-                  c.done ? "bg-primary border-primary text-primary-foreground" : "bg-card border-border text-transparent",
-                )}>
-                  <Check className="h-3 w-3" />
+            {/* ── Greeting ── */}
+            <header style={{ paddingBottom: 4 }}>
+              <MonoLabel style={{ marginBottom: 10 }}>{dateStr}</MonoLabel>
+              <h1
+                style={{
+                  fontFamily: "'Fraunces', Georgia, serif",
+                  fontSize: "clamp(28px, 4vw, 40px)",
+                  fontWeight: 500,
+                  color: "var(--ink)",
+                  margin: 0,
+                  lineHeight: 1.15,
+                }}
+              >
+                Good morning,{" "}
+                <span style={{ fontStyle: "italic", color: "var(--clay)" }}>
+                  {firstName}.
                 </span>
-                <span className={cn(c.done ? "text-muted-foreground line-through" : "text-foreground")}>
-                  {c.label}
-                </span>
-              </li>
-            ))}
-          </ul>
+              </h1>
+            </header>
 
-          <Button asChild variant="soft" size="sm" className="mt-5">
-            <Link to="/app/profile">Complete profile</Link>
-          </Button>
-        </aside>
-      </section>
+            {/* ── Hero room card ── */}
+            <section
+              style={{
+                background: "linear-gradient(135deg, var(--paper) 0%, var(--cream) 100%)",
+                border: "1px solid var(--line)",
+                borderRadius: "var(--radius-xl)",
+                boxShadow: "var(--shadow-warm)",
+                padding: "28px 28px 24px",
+              }}
+            >
+              <MonoLabel style={{ marginBottom: 14 }}>Live now</MonoLabel>
 
-      {/* Latest messages + Notifications */}
-      <section className="grid lg:grid-cols-2 gap-6">
-        <div className="rounded-3xl bg-card border border-border shadow-soft overflow-hidden">
-          <div className="flex items-center justify-between p-5 border-b border-border">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="h-4 w-4 text-clay" />
-              <h3 className="font-display text-xl text-foreground">Latest messages</h3>
-            </div>
-            <Button asChild variant="ghost" size="sm">
-              <Link to="/app/messages">Open inbox <ArrowRight className="h-4 w-4" /></Link>
-            </Button>
-          </div>
-          <ul className="divide-y divide-border">
-            {threadsQ.loading ? (
-              Array.from({ length: 3 }).map((_, i) => (
-                <li key={i} className="p-4"><Skeleton className="h-12 w-full" /></li>
-              ))
-            ) : threadsQ.error ? (
-              <li className="p-4 text-sm text-muted-foreground">Couldn't load messages.</li>
-            ) : threads.length === 0 ? (
-              <li className="p-6 text-sm text-muted-foreground text-center">No messages yet.</li>
-            ) : (
-              threads.slice(0, 3).map((t) => (
-                <li key={t.id}>
-                  <Link
-                    to={`/app/referrals/${t.id}`}
-                    className={cn(
-                      "flex items-start gap-3 p-4 transition-colors hover:bg-cream/60",
-                      t.unread && "bg-clay/5",
+              {roomsQ.loading ? (
+                <div style={{ height: 80, display: "flex", alignItems: "center", color: "var(--ink-mute)", fontSize: 14 }}>
+                  Loading rooms…
+                </div>
+              ) : heroRoom ? (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 20, alignItems: "center" }}>
+                  <div>
+                    {heroRoom.status === "live" && (
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 5,
+                          background: "var(--live)",
+                          color: "var(--paper)",
+                          fontSize: 10,
+                          fontFamily: "monospace",
+                          letterSpacing: ".08em",
+                          textTransform: "uppercase",
+                          padding: "3px 8px",
+                          borderRadius: "var(--radius-pill)",
+                          marginBottom: 10,
+                        }}
+                      >
+                        <span style={{
+                          width: 6, height: 6, borderRadius: "50%",
+                          background: "var(--paper)", opacity: .85,
+                          animation: "pulse 1.5s ease-in-out infinite",
+                        }} />
+                        Live
+                      </span>
                     )}
-                  >
-                    <UserAvatar user={t.person} size="md" />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-foreground truncate">{t.person.name}</p>
-                        {t.unread && <UnreadDot />}
-                        <span className="ml-auto text-[11px] text-muted-foreground shrink-0">{t.lastUpdated}</span>
-                      </div>
-                      <p className="text-sm text-muted-foreground truncate mt-0.5">{t.lastPreview}</p>
-                    </div>
-                  </Link>
-                </li>
-              ))
-            )}
-          </ul>
-        </div>
-
-        <div className="rounded-3xl bg-card border border-border shadow-soft overflow-hidden">
-          <div className="flex items-center justify-between p-5 border-b border-border">
-            <div className="flex items-center gap-2">
-              <Bell className="h-4 w-4 text-clay" />
-              <h3 className="font-display text-xl text-foreground">Notifications</h3>
-            </div>
-            <Button asChild variant="ghost" size="sm">
-              <Link to="/app/notifications">View all <ArrowRight className="h-4 w-4" /></Link>
-            </Button>
-          </div>
-          <ul className="divide-y divide-border">
-            {notificationsQ.loading ? (
-              Array.from({ length: 3 }).map((_, i) => (
-                <li key={i} className="p-4"><Skeleton className="h-12 w-full" /></li>
-              ))
-            ) : notificationsQ.error ? (
-              <li className="p-4 text-sm text-muted-foreground">Couldn't load notifications.</li>
-            ) : notifications.length === 0 ? (
-              <li className="p-6 text-sm text-muted-foreground text-center">No activity yet.</li>
-            ) : (
-              notifications.slice(0, 3).map((n) => (
-                <li
-                  key={n.id}
-                  className={cn("p-4 flex items-start gap-3", n.unread && "bg-clay/5")}
-                >
-                  <span className="h-9 w-9 rounded-xl bg-secondary inline-flex items-center justify-center shrink-0">
-                    <Bell className="h-4 w-4 text-clay" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-[10px] uppercase tracking-wider font-medium text-muted-foreground">{n.type}</p>
-                      {n.unread && <UnreadDot />}
-                      <span className="ml-auto text-[11px] text-muted-foreground">{n.time}</span>
-                    </div>
-                    <p className={cn("text-sm mt-1", n.unread ? "font-medium text-foreground" : "text-foreground/85")}>
-                      {n.title}
+                    <h2
+                      style={{
+                        fontFamily: "'Fraunces', Georgia, serif",
+                        fontSize: 22,
+                        fontWeight: 500,
+                        color: "var(--ink)",
+                        margin: "0 0 6px",
+                        lineHeight: 1.25,
+                      }}
+                    >
+                      {heroRoom.title}
+                    </h2>
+                    <p style={{ fontSize: 13, color: "var(--ink-soft)", margin: "0 0 4px" }}>
+                      {heroRoom.category}
+                      {heroRoom.attendees > 0 && ` · ${heroRoom.attendees} listening`}
                     </p>
                   </div>
-                </li>
-              ))
-            )}
-          </ul>
-        </div>
-      </section>
-
-      {/* Recommended hosts — mock only; in production hide until host discovery is built */}
-      {isMockMode && (
-        <section>
-          <SectionHeader
-            eyebrow="Warm intros"
-            title="Recommended hosts"
-            description="People in your target companies who are open to a conversation right now."
-          />
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {recommendedHosts.map(({ user, capacity }) => (
-              <article key={user.id} className="rounded-3xl bg-card border border-border p-6 shadow-soft hover:shadow-warm transition-all">
-                <div className="flex items-center gap-3">
-                  <UserAvatar user={user} size="lg" />
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <p className="font-medium text-foreground truncate">{user.name}</p>
-                      {user.verified && <Sparkles className="h-3.5 w-3.5 text-clay shrink-0" />}
-                    </div>
-                    <p className="text-xs text-muted-foreground truncate">{user.role}{user.company && ` · ${user.company}`}</p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }}>
+                    <Link
+                      to={`/app/rooms/${heroRoom.id}/live`}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        background: "var(--clay)",
+                        color: "var(--paper)",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        padding: "10px 18px",
+                        borderRadius: "var(--radius-pill)",
+                        textDecoration: "none",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      <Mic size={14} />
+                      Join room
+                    </Link>
+                    <Link
+                      to="/app/rooms"
+                      style={{
+                        fontSize: 12,
+                        color: "var(--ink-soft)",
+                        textDecoration: "none",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 3,
+                      }}
+                    >
+                      Browse all <ArrowRight size={11} />
+                    </Link>
                   </div>
                 </div>
-                <div className="mt-4 flex items-center gap-2 text-xs text-foreground/70">
-                  <span className="h-2 w-2 rounded-full bg-olive" />
-                  {capacity}
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+                  <div>
+                    <p
+                      style={{
+                        fontFamily: "'Fraunces', Georgia, serif",
+                        fontSize: 18,
+                        fontWeight: 500,
+                        color: "var(--ink-soft)",
+                        margin: "0 0 4px",
+                      }}
+                    >
+                      No rooms scheduled today
+                    </p>
+                    <p style={{ fontSize: 13, color: "var(--ink-mute)", margin: 0 }}>
+                      New rooms drop throughout the week.
+                    </p>
+                  </div>
+                  <Link
+                    to="/app/rooms"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      background: "transparent",
+                      color: "var(--ink-soft)",
+                      fontSize: 13,
+                      fontWeight: 500,
+                      padding: "9px 16px",
+                      borderRadius: "var(--radius-pill)",
+                      border: "1px solid var(--line)",
+                      textDecoration: "none",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Browse rooms <ArrowRight size={13} />
+                  </Link>
                 </div>
-                <p className="mt-4 text-sm text-foreground/80 line-clamp-2">{user.bio}</p>
-                <Button variant="hero" size="sm" className="mt-5 w-full">
-                  <Coffee className="h-4 w-4" /> Request coffee chat
-                </Button>
-              </article>
-            ))}
-          </div>
-        </section>
-      )}
+              )}
+            </section>
 
-      {/* Footer nudge */}
-      <div className="rounded-3xl bg-gradient-clay text-clay-foreground p-7 sm:p-9 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-widest opacity-90">Founding member</p>
-          <h3 className="font-display text-2xl mt-1">Help shape what Hayy becomes next.</h3>
+            {/* ── Activity timeline ── */}
+            <section
+              style={{
+                background: "var(--paper)",
+                border: "1px solid var(--line)",
+                borderRadius: "var(--radius-lg)",
+                boxShadow: "var(--shadow-soft)",
+                padding: "24px",
+              }}
+            >
+              <MonoLabel style={{ marginBottom: 16 }}>Recent activity</MonoLabel>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "32px 0",
+                  gap: 8,
+                }}
+              >
+                <span
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: "50%",
+                    background: "var(--line-soft)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: "var(--line)",
+                    }}
+                  />
+                </span>
+                <p
+                  style={{
+                    fontFamily: "'Fraunces', Georgia, serif",
+                    fontSize: 16,
+                    color: "var(--ink-soft)",
+                    margin: 0,
+                  }}
+                >
+                  Your activity will appear here
+                </p>
+                <p style={{ fontSize: 13, color: "var(--ink-mute)", margin: 0 }}>
+                  Join a room or send a referral request to get started.
+                </p>
+              </div>
+            </section>
+          </div>
+
+          {/* ════════════════ RIGHT PANEL ════════════════ */}
+          <aside style={{ display: "flex", flexDirection: "column", gap: 16, position: "sticky", top: 0 }}>
+
+            {/* ── Profile completion ── */}
+            <div
+              style={{
+                background: "var(--cream)",
+                border: "1px solid var(--line)",
+                borderRadius: "var(--radius-lg)",
+                boxShadow: "var(--shadow-soft)",
+                padding: "22px",
+              }}
+            >
+              <MonoLabel style={{ marginBottom: 16 }}>Profile</MonoLabel>
+              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                <div style={{ position: "relative", flexShrink: 0 }}>
+                  <DonutChart pct={pct} />
+                  <span
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontFamily: "'Fraunces', Georgia, serif",
+                      fontSize: 16,
+                      fontWeight: 600,
+                      color: "var(--ink)",
+                    }}
+                  >
+                    {pct}%
+                  </span>
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <p
+                    style={{
+                      fontFamily: "'Fraunces', Georgia, serif",
+                      fontSize: 17,
+                      fontWeight: 500,
+                      color: "var(--ink)",
+                      margin: "0 0 4px",
+                    }}
+                  >
+                    {pct === 100 ? "Complete!" : `${pct}% done`}
+                  </p>
+                  <p style={{ fontSize: 12, color: "var(--ink-soft)", margin: 0, lineHeight: 1.45 }}>
+                    Hosts say yes more often to complete profiles.
+                  </p>
+                </div>
+              </div>
+
+              {/* Checklist */}
+              <ul style={{ listStyle: "none", margin: "18px 0 0", padding: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+                {checklist.map((item) => (
+                  <li key={item.label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span
+                      style={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: "50%",
+                        border: `1.5px solid ${item.done ? "var(--clay)" : "var(--line)"}`,
+                        background: item.done ? "var(--clay)" : "transparent",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {item.done && (
+                        <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                          <path d="M1 4l2.5 2.5L9 1" stroke="var(--paper)" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 13,
+                        color: item.done ? "var(--ink-mute)" : "var(--ink-soft)",
+                        textDecoration: item.done ? "line-through" : "none",
+                      }}
+                    >
+                      {item.label}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+
+              <Link
+                to="/app/profile"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  marginTop: 18,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "var(--clay)",
+                  textDecoration: "none",
+                  fontFamily: "monospace",
+                  letterSpacing: ".04em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Complete profile <ArrowRight size={11} />
+              </Link>
+            </div>
+
+            {/* ── Founding member card ── */}
+            <div
+              style={{
+                background: "var(--clay)",
+                borderRadius: "var(--radius-lg)",
+                boxShadow: "var(--shadow-warm)",
+                padding: "22px",
+              }}
+            >
+              <p
+                style={{
+                  fontFamily: "monospace",
+                  fontSize: 10,
+                  letterSpacing: ".1em",
+                  textTransform: "uppercase",
+                  color: "var(--paper)",
+                  opacity: 0.75,
+                  margin: "0 0 8px",
+                }}
+              >
+                Founding member
+              </p>
+              <p
+                style={{
+                  fontFamily: "'Fraunces', Georgia, serif",
+                  fontSize: 17,
+                  fontWeight: 500,
+                  color: "var(--paper)",
+                  margin: "0 0 4px",
+                  lineHeight: 1.35,
+                }}
+              >
+                You're in the Hayy founding community.
+              </p>
+              <p style={{ fontSize: 12, color: "var(--paper)", opacity: 0.7, margin: 0 }}>
+                Your feedback shapes what we build next.
+              </p>
+            </div>
+
+            {/* ── Avatar identity chip ── */}
+            {profile?.full_name && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  background: "var(--paper)",
+                  border: "1px solid var(--line)",
+                  borderRadius: "var(--radius-pill)",
+                  padding: "8px 14px 8px 8px",
+                  boxShadow: "var(--shadow-soft)",
+                }}
+              >
+                <HayyAvatar name={profile.full_name} size={32} tone="clay" />
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", margin: 0, lineHeight: 1.2 }}>
+                    {profile.full_name}
+                  </p>
+                  {profile.headline && (
+                    <p style={{ fontSize: 11, color: "var(--ink-mute)", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 160 }}>
+                      {profile.headline}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </aside>
         </div>
-        <Button variant="soft" className="bg-card text-foreground hover:bg-cream" asChild>
-          <Link to="/app/settings"><Users className="h-4 w-4" />Share feedback</Link>
-        </Button>
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import {
   Mic,
   MicOff,
@@ -14,7 +14,17 @@ import {
   Volume2,
   Crown,
   X,
+  Loader2,
+  WifiOff,
 } from "lucide-react";
+import {
+  Room as LKRoom,
+  RoomEvent,
+  ConnectionState,
+  RemoteAudioTrack,
+  Track,
+} from "livekit-client";
+import { getLiveKitToken } from "@/lib/api/livekit";
 import { getUser, users } from "@/lib/mockData";
 import { getRoomById, leaveRoom } from "@/lib/api/rooms";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
@@ -63,6 +73,16 @@ type Question = {
   upvotes: number;
 };
 
+/** Shape of a participant derived from LiveKit room state */
+type LKParticipant = {
+  identity: string;
+  name: string;
+  isMicEnabled: boolean;
+  isSpeaking: boolean;
+  isLocal: boolean;
+};
+
+/** Legacy mock-only tile type — only used when Supabase is not configured */
 type Tile = {
   id: string;
   user: ReturnType<typeof getUser>;
@@ -83,6 +103,39 @@ const MOCK_QUESTIONS: Question[] = [
   { id: "q3", userId: "u3", displayName: getUser("u3")?.name ?? "Participant", text: "Should I message before or after applying?", upvotes: 12 },
   { id: "q4", userId: "u4", displayName: getUser("u4")?.name ?? "Participant", text: "How do I follow up without being annoying?", upvotes: 9 },
 ];
+
+// Deterministic avatar colours cycled by participant index
+const AVATAR_COLORS = [
+  "bg-clay",
+  "bg-primary",
+  "bg-olive",
+  "bg-secondary",
+  "bg-sand",
+];
+
+function avatarFor(identity: string, idx: number) {
+  const color = AVATAR_COLORS[idx % AVATAR_COLORS.length];
+  const initials = identity.slice(0, 2).toUpperCase();
+  return { name: identity, initials, avatarColor: color };
+}
+
+// ---------------------------------------------------------------------------
+// AudioTrackRenderer — attaches a LiveKit RemoteAudioTrack to an <audio> node
+// ---------------------------------------------------------------------------
+
+const AudioTrackRenderer = ({ track }: { track: RemoteAudioTrack }) => {
+  const ref = useRef<HTMLAudioElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    track.attach(el);
+    return () => {
+      track.detach(el);
+    };
+  }, [track]);
+  // eslint-disable-next-line jsx-a11y/media-has-caption
+  return <audio ref={ref} autoPlay playsInline className="hidden" />;
+};
 
 // ---------------------------------------------------------------------------
 // Component
@@ -108,16 +161,143 @@ const LiveRoom = () => {
     isSupabaseConfigured ? [] : MOCK_QUESTIONS,
   );
 
-  // In Supabase mode: no mock participant tiles. Real presence will come from
-  // LiveKit room connection. Suppressing mock tiles prevents fake people from
-  // appearing in production.
-  const tiles: Tile[] = useMemo(() => {
-    if (isSupabaseConfigured) {
-      if (import.meta.env.DEV) {
-        console.warn("[LiveRoom] Supabase configured — mock participant tiles suppressed. Real presence will connect via LiveKit.");
+  // ---------------------------------------------------------------------------
+  // LiveKit state (Supabase mode only)
+  // ---------------------------------------------------------------------------
+
+  type LKStatus = "idle" | "connecting" | "connected" | "error";
+  const [lkStatus, setLkStatus] = useState<LKStatus>("idle");
+  const [lkError, setLkError] = useState<string | null>(null);
+  const [lkParticipants, setLkParticipants] = useState<LKParticipant[]>([]);
+  const [lkAudioTracks, setLkAudioTracks] = useState<RemoteAudioTrack[]>([]);
+  const lkRoomRef = useRef<LKRoom | null>(null);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !id || !userId) return;
+
+    let cancelled = false;
+    const lkRoom = new LKRoom();
+    lkRoomRef.current = lkRoom;
+
+    const syncParticipants = () => {
+      if (cancelled) return;
+
+      const all: LKParticipant[] = [];
+
+      // Local participant
+      const local = lkRoom.localParticipant;
+      if (local.identity) {
+        all.push({
+          identity: local.identity,
+          name: local.name ?? local.identity,
+          isMicEnabled: local.isMicrophoneEnabled,
+          isSpeaking: local.isSpeaking,
+          isLocal: true,
+        });
       }
-      return [];
-    }
+
+      // Remote participants
+      lkRoom.remoteParticipants.forEach((p) => {
+        all.push({
+          identity: p.identity,
+          name: p.name ?? p.identity,
+          isMicEnabled: p.isMicrophoneEnabled,
+          isSpeaking: p.isSpeaking,
+          isLocal: false,
+        });
+      });
+
+      setLkParticipants(all);
+
+      // Collect subscribed remote audio tracks for rendering
+      const tracks: RemoteAudioTrack[] = [];
+      lkRoom.remoteParticipants.forEach((p) => {
+        p.getTrackPublications().forEach((pub) => {
+          if (
+            pub.track &&
+            pub.track.source === Track.Source.Microphone &&
+            pub.track instanceof RemoteAudioTrack
+          ) {
+            tracks.push(pub.track as RemoteAudioTrack);
+          }
+        });
+      });
+      setLkAudioTracks(tracks);
+    };
+
+    lkRoom
+      .on(RoomEvent.Connected, () => {
+        if (!cancelled) {
+          setLkStatus("connected");
+          syncParticipants();
+        }
+      })
+      .on(RoomEvent.Disconnected, () => {
+        if (!cancelled) {
+          setLkStatus("idle");
+          setLkParticipants([]);
+          setLkAudioTracks([]);
+        }
+      })
+      .on(RoomEvent.Reconnecting, () => {
+        if (!cancelled) setLkStatus("connecting");
+      })
+      .on(RoomEvent.Reconnected, () => {
+        if (!cancelled) {
+          setLkStatus("connected");
+          syncParticipants();
+        }
+      })
+      .on(RoomEvent.ParticipantConnected, syncParticipants)
+      .on(RoomEvent.ParticipantDisconnected, syncParticipants)
+      .on(RoomEvent.TrackSubscribed, syncParticipants)
+      .on(RoomEvent.TrackUnsubscribed, syncParticipants)
+      .on(RoomEvent.LocalTrackPublished, syncParticipants)
+      .on(RoomEvent.LocalTrackUnpublished, syncParticipants)
+      .on(RoomEvent.ActiveSpeakersChanged, syncParticipants);
+
+    setLkStatus("connecting");
+    setLkError(null);
+
+    getLiveKitToken(id)
+      .then(({ token, livekitUrl }) => {
+        if (cancelled) return;
+        return lkRoom.connect(livekitUrl, token, {
+          autoSubscribe: true,
+        });
+      })
+      .then(() => {
+        if (cancelled) return;
+        // Start with mic muted — user explicitly unmutes via the control bar
+        return lkRoom.localParticipant.setMicrophoneEnabled(false);
+      })
+      .then(() => {
+        if (!cancelled) syncParticipants();
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setLkStatus("error");
+          setLkError(
+            err instanceof Error
+              ? err.message
+              : "Failed to connect to live audio.",
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      lkRoom.disconnect();
+      lkRoomRef.current = null;
+    };
+  }, [id, userId]); // isSupabaseConfigured is a module constant — not needed in deps
+
+  // ---------------------------------------------------------------------------
+  // Mock-only tiles (never used when Supabase is configured)
+  // ---------------------------------------------------------------------------
+
+  const tiles: Tile[] = useMemo(() => {
+    if (isSupabaseConfigured) return [];
     const pool = users.concat(users).slice(0, 8);
     return pool.map((u, i) => ({
       id: `${u.id}-${i}`,
@@ -133,8 +313,7 @@ const LiveRoom = () => {
   // Raised hands: mock-only
   const raisedHands = isSupabaseConfigured ? [] : [users[4], users[5]];
 
-  // Audience count: in Supabase mode use the DB attendee_count (no mock default).
-  // In mock mode fall back to 100 minus speakers for demo plausibility.
+  // Audience count
   const audienceCount = isSupabaseConfigured
     ? (room?.attendees ?? 0)
     : (room?.attendees ?? 100) - tiles.filter((t) => t.isSpeaker).length;
@@ -193,12 +372,95 @@ const LiveRoom = () => {
     setChatText("");
   };
 
+  const toggleMic = async () => {
+    const nextMuted = !muted;
+    setMuted(nextMuted);
+    if (
+      isSupabaseConfigured &&
+      lkRoomRef.current?.state === ConnectionState.Connected
+    ) {
+      try {
+        await lkRoomRef.current.localParticipant.setMicrophoneEnabled(!nextMuted);
+      } catch {
+        // revert UI if LiveKit call fails
+        setMuted(muted);
+      }
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Stage content — Supabase mode uses LiveKit state; mock mode uses tile list
+  // ---------------------------------------------------------------------------
+
+  const supabaseStage = (() => {
+    if (lkStatus === "connecting") {
+      return (
+        <div className="rounded-3xl border border-dashed border-border bg-card/40 p-12 flex flex-col items-center justify-center text-center gap-3">
+          <Loader2 className="h-8 w-8 text-muted-foreground/40 animate-spin" />
+          <p className="font-display text-lg text-foreground">Connecting to live audio…</p>
+          <p className="text-sm text-muted-foreground max-w-xs">
+            Hang tight while we join the room.
+          </p>
+        </div>
+      );
+    }
+
+    if (lkStatus === "error") {
+      return (
+        <div className="rounded-3xl border border-dashed border-destructive/40 bg-destructive/5 p-12 flex flex-col items-center justify-center text-center gap-3">
+          <WifiOff className="h-8 w-8 text-destructive/60" />
+          <p className="font-display text-lg text-foreground">Could not connect</p>
+          <p className="text-sm text-muted-foreground max-w-sm">{lkError}</p>
+        </div>
+      );
+    }
+
+    if (lkStatus === "connected" && lkParticipants.length === 0) {
+      return (
+        <div className="rounded-3xl border border-dashed border-border bg-card/40 p-12 flex flex-col items-center justify-center text-center gap-3">
+          <Mic className="h-8 w-8 text-muted-foreground/40" />
+          <p className="font-display text-lg text-foreground">You're the first one here</p>
+          <p className="text-sm text-muted-foreground max-w-xs">
+            Others will appear here when they join. Unmute to speak.
+          </p>
+        </div>
+      );
+    }
+
+    if (lkStatus === "connected" && lkParticipants.length > 0) {
+      return (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+          {lkParticipants.map((p, idx) => (
+            <LKParticipantTile key={p.identity} participant={p} idx={idx} />
+          ))}
+        </div>
+      );
+    }
+
+    // idle / disconnected — show neutral placeholder
+    return (
+      <div className="rounded-3xl border border-dashed border-border bg-card/40 p-12 flex flex-col items-center justify-center text-center gap-3">
+        <Mic className="h-8 w-8 text-muted-foreground/40" />
+        <p className="font-display text-lg text-foreground">No live participants yet</p>
+        <p className="text-sm text-muted-foreground max-w-xs">
+          Live audio will connect here once room audio is enabled.
+        </p>
+      </div>
+    );
+  })();
+
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
 
   return (
     <div className="fixed inset-0 z-50 bg-gradient-to-b from-background to-cream/40 flex flex-col">
+      {/* Hidden audio renderers for remote participant tracks */}
+      {isSupabaseConfigured &&
+        lkAudioTracks.map((track) => (
+          <AudioTrackRenderer key={track.sid} track={track} />
+        ))}
+
       {/* Top bar */}
       <header className="h-16 border-b border-border bg-background/80 backdrop-blur flex items-center justify-between px-4 md:px-6 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
@@ -230,16 +492,31 @@ const LiveRoom = () => {
       <div className="flex-1 grid lg:grid-cols-[1fr_360px] overflow-hidden">
         {/* Stage */}
         <section className="overflow-y-auto p-5 md:p-8">
-          {tiles.length > 0 && (
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-xs font-medium uppercase tracking-widest text-clay">
-                On stage · {tiles.filter((t) => t.isSpeaker).length}
-              </p>
-              <p className="text-xs text-muted-foreground">{audienceCount}+ listening</p>
-            </div>
+          {/* Stage header — only shown when there are real participants */}
+          {isSupabaseConfigured ? (
+            lkStatus === "connected" && lkParticipants.length > 0 ? (
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-xs font-medium uppercase tracking-widest text-clay">
+                  On stage · {lkParticipants.length}
+                </p>
+                <p className="text-xs text-muted-foreground">{audienceCount}+ listening</p>
+              </div>
+            ) : null
+          ) : (
+            tiles.length > 0 && (
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-xs font-medium uppercase tracking-widest text-clay">
+                  On stage · {tiles.filter((t) => t.isSpeaker).length}
+                </p>
+                <p className="text-xs text-muted-foreground">{audienceCount}+ listening</p>
+              </div>
+            )
           )}
 
-          {tiles.length === 0 ? (
+          {/* Stage body */}
+          {isSupabaseConfigured ? (
+            supabaseStage
+          ) : tiles.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-border bg-card/40 p-12 flex flex-col items-center justify-center text-center gap-3">
               <Mic className="h-8 w-8 text-muted-foreground/40" />
               <p className="font-display text-lg text-foreground">No live participants yet</p>
@@ -337,7 +614,7 @@ const LiveRoom = () => {
       {/* Controls */}
       <footer className="border-t border-border bg-card/95 backdrop-blur shrink-0">
         <div className="flex items-center justify-center gap-2 md:gap-3 px-3 py-3 md:py-4 overflow-x-auto">
-          <ControlBtn active={!muted} onClick={() => setMuted(!muted)} label={muted ? "Unmute" : "Mute"}>
+          <ControlBtn active={!muted} onClick={toggleMic} label={muted ? "Unmute" : "Mute"}>
             {muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
           </ControlBtn>
           <ControlBtn active={video} onClick={() => setVideo(!video)} label={video ? "Stop video" : "Video"}>
@@ -456,7 +733,55 @@ const LiveRoom = () => {
 };
 
 // ---------------------------------------------------------------------------
-// Sub-components
+// LKParticipantTile — real participant from LiveKit room state
+// ---------------------------------------------------------------------------
+
+const LKParticipantTile = ({
+  participant,
+  idx,
+}: {
+  participant: LKParticipant;
+  idx: number;
+}) => {
+  const avatar = avatarFor(participant.name || participant.identity, idx);
+  return (
+    <div
+      className={cn(
+        "relative rounded-2xl border bg-card p-4 flex flex-col items-center justify-center text-center transition-all aspect-[4/5]",
+        participant.isSpeaking
+          ? "border-clay shadow-[0_0_0_3px_hsl(var(--clay)/0.25)]"
+          : "border-border shadow-soft",
+      )}
+    >
+      {participant.isLocal && (
+        <span className="absolute top-2 left-2 rounded-full bg-primary/10 text-primary px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider">
+          You
+        </span>
+      )}
+      <span className="absolute top-2 right-2 inline-flex items-center justify-center h-6 w-6 rounded-full bg-background/80 border border-border">
+        {participant.isMicEnabled ? (
+          <Mic className="h-3 w-3 text-olive" />
+        ) : (
+          <MicOff className="h-3 w-3 text-muted-foreground" />
+        )}
+      </span>
+
+      <div className="relative">
+        <UserAvatar user={avatar} size="xl" />
+        {participant.isSpeaking && (
+          <span className="absolute inset-0 rounded-full ring-4 ring-clay/40 animate-pulse" aria-hidden />
+        )}
+      </div>
+
+      <p className="mt-3 text-sm font-medium text-foreground truncate max-w-full">
+        {participant.name || participant.identity}
+      </p>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// ParticipantTile — mock-only, used when Supabase is not configured
 // ---------------------------------------------------------------------------
 
 const ParticipantTile = ({ tile }: { tile: Tile }) => {
@@ -499,6 +824,10 @@ const ParticipantTile = ({ tile }: { tile: Tile }) => {
     </div>
   );
 };
+
+// ---------------------------------------------------------------------------
+// ControlBtn
+// ---------------------------------------------------------------------------
 
 interface ControlBtnProps {
   children: React.ReactNode;

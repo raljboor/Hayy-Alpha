@@ -183,12 +183,20 @@ function toDbInsert(roomData: RoomInsertData): Record<string, unknown> {
 export async function createRoom(roomData: RoomInsertData): Promise<MockRoom> {
   if (isSupabaseConfigured && supabase) {
     const insert = toDbInsert(roomData);
+    if (import.meta.env.DEV) {
+      console.debug("[createRoom] insert payload", insert);
+    }
     const { data, error } = await supabase
       .from("rooms")
       .insert(insert)
       .select()
       .single();
-    if (error) throw new Error(error.message);
+    if (error) {
+      if (import.meta.env.DEV) {
+        console.error("[createRoom] Supabase error", { code: error.code, message: error.message, details: error.details, hint: error.hint });
+      }
+      throw new Error(error.message);
+    }
     return adaptRoomFromDb(data as DbRoom);
   }
   // Mock: not persisted between renders

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { getUser, users } from "@/lib/mockData";
 import { getRoomById, leaveRoom } from "@/lib/api/rooms";
+import { isSupabaseConfigured } from "@/lib/supabaseClient";
 import { useAsync } from "@/lib/useAsync";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -50,12 +51,17 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-const sampleQuestions = [
-  { id: "q1", userId: "u1", text: "How do referrals actually work?", upvotes: 24 },
-  { id: "q2", userId: "u5", text: "What makes someone referral-ready?", upvotes: 18 },
-  { id: "q3", userId: "u3", text: "Should I message before or after applying?", upvotes: 12 },
-  { id: "q4", userId: "u4", text: "How do I follow up without being annoying?", upvotes: 9 },
-];
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+type Question = {
+  id: string;
+  userId: string;
+  displayName: string;
+  text: string;
+  upvotes: number;
+};
 
 type Tile = {
   id: string;
@@ -67,10 +73,25 @@ type Tile = {
   muted?: boolean;
 };
 
+// ---------------------------------------------------------------------------
+// Mock-only fixtures (never used when Supabase is configured)
+// ---------------------------------------------------------------------------
+
+const MOCK_QUESTIONS: Question[] = [
+  { id: "q1", userId: "u1", displayName: getUser("u1")?.name ?? "Participant", text: "How do referrals actually work?", upvotes: 24 },
+  { id: "q2", userId: "u5", displayName: getUser("u5")?.name ?? "Participant", text: "What makes someone referral-ready?", upvotes: 18 },
+  { id: "q3", userId: "u3", displayName: getUser("u3")?.name ?? "Participant", text: "Should I message before or after applying?", upvotes: 12 },
+  { id: "q4", userId: "u4", displayName: getUser("u4")?.name ?? "Participant", text: "How do I follow up without being annoying?", upvotes: 9 },
+];
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
 const LiveRoom = () => {
   const { id = "" } = useParams();
   const navigate = useNavigate();
-  const { userId } = useCurrentUser();
+  const { userId, profile } = useCurrentUser();
   const { data: room, loading } = useAsync(() => getRoomById(id), [id]);
 
   const [muted, setMuted] = useState(true);
@@ -80,12 +101,23 @@ const LiveRoom = () => {
   const [questionOpen, setQuestionOpen] = useState(false);
   const [questionText, setQuestionText] = useState("");
   const [chatText, setChatText] = useState("");
-  const [questions, setQuestions] = useState(sampleQuestions);
 
-  // TODO (Phase 7 realtime): replace mock tiles with Supabase Realtime presence.
-  // Subscribe to supabase.channel(`room:${id}`).on('presence', ...) to get
-  // the live participant list and speaking state.
+  // In Supabase mode: always start with no questions — real questions will come
+  // from Realtime in a future phase. In mock mode: use the fixture questions.
+  const [questions, setQuestions] = useState<Question[]>(
+    isSupabaseConfigured ? [] : MOCK_QUESTIONS,
+  );
+
+  // In Supabase mode: no mock participant tiles. Real presence will come from
+  // LiveKit room connection. Suppressing mock tiles prevents fake people from
+  // appearing in production.
   const tiles: Tile[] = useMemo(() => {
+    if (isSupabaseConfigured) {
+      if (import.meta.env.DEV) {
+        console.warn("[LiveRoom] Supabase configured — mock participant tiles suppressed. Real presence will connect via LiveKit.");
+      }
+      return [];
+    }
     const pool = users.concat(users).slice(0, 8);
     return pool.map((u, i) => ({
       id: `${u.id}-${i}`,
@@ -98,8 +130,18 @@ const LiveRoom = () => {
     }));
   }, []);
 
-  const raisedHands = [users[4], users[5]];
-  const audienceCount = (room?.attendees ?? 100) - tiles.filter((t) => t.isSpeaker).length;
+  // Raised hands: mock-only
+  const raisedHands = isSupabaseConfigured ? [] : [users[4], users[5]];
+
+  // Audience count: in Supabase mode use the DB attendee_count (no mock default).
+  // In mock mode fall back to 100 minus speakers for demo plausibility.
+  const audienceCount = isSupabaseConfigured
+    ? (room?.attendees ?? 0)
+    : (room?.attendees ?? 100) - tiles.filter((t) => t.isSpeaker).length;
+
+  // ---------------------------------------------------------------------------
+  // Loading / not found
+  // ---------------------------------------------------------------------------
 
   if (loading) {
     return (
@@ -117,6 +159,10 @@ const LiveRoom = () => {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // Actions
+  // ---------------------------------------------------------------------------
+
   const submitReferral = (e: React.FormEvent) => {
     e.preventDefault();
     setReferralOpen(false);
@@ -126,8 +172,9 @@ const LiveRoom = () => {
   const submitQuestion = (e: React.FormEvent) => {
     e.preventDefault();
     if (!questionText.trim()) return;
+    const displayName = profile?.full_name ?? "You";
     setQuestions([
-      { id: `q${Date.now()}`, userId: users[0].id, text: questionText.trim(), upvotes: 1 },
+      { id: `q${Date.now()}`, userId: userId ?? "", displayName, text: questionText.trim(), upvotes: 1 },
       ...questions,
     ]);
     setQuestionText("");
@@ -138,12 +185,17 @@ const LiveRoom = () => {
   const sendChat = (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatText.trim()) return;
+    const displayName = profile?.full_name ?? "You";
     setQuestions([
-      { id: `q${Date.now()}`, userId: users[0].id, text: chatText.trim(), upvotes: 1 },
+      { id: `q${Date.now()}`, userId: userId ?? "", displayName, text: chatText.trim(), upvotes: 1 },
       ...questions,
     ]);
     setChatText("");
   };
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
 
   return (
     <div className="fixed inset-0 z-50 bg-gradient-to-b from-background to-cream/40 flex flex-col">
@@ -165,7 +217,6 @@ const LiveRoom = () => {
           variant="ghost"
           size="sm"
           onClick={async () => {
-            // TODO (Phase 7 realtime): disconnect from presence channel here
             if (userId) {
               await leaveRoom(room.id, userId).catch(() => {});
             }
@@ -179,49 +230,63 @@ const LiveRoom = () => {
       <div className="flex-1 grid lg:grid-cols-[1fr_360px] overflow-hidden">
         {/* Stage */}
         <section className="overflow-y-auto p-5 md:p-8">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-xs font-medium uppercase tracking-widest text-clay">
-              On stage · {tiles.filter((t) => t.isSpeaker).length}
-            </p>
-            <p className="text-xs text-muted-foreground">{audienceCount}+ listening</p>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            {tiles.map((t) => (
-              <ParticipantTile key={t.id} tile={t} />
-            ))}
-          </div>
-
-          {/* Raised hand queue (mobile/inline) */}
-          <div className="mt-10 rounded-3xl bg-card border border-border p-5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Hand className="h-4 w-4 text-clay" />
-                <h3 className="font-display text-base font-semibold text-foreground">Raised hand queue</h3>
-              </div>
-              <span className="text-xs text-muted-foreground">{raisedHands.length} waiting</span>
+          {tiles.length > 0 && (
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-xs font-medium uppercase tracking-widest text-clay">
+                On stage · {tiles.filter((t) => t.isSpeaker).length}
+              </p>
+              <p className="text-xs text-muted-foreground">{audienceCount}+ listening</p>
             </div>
-            <ul className="mt-4 space-y-3">
-              {raisedHands.map((u) => (
-                <li key={u.id} className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <UserAvatar user={u} size="sm" />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{u.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{u.role}</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="soft">Bring up</Button>
-                    <Button size="sm" variant="ghost">Skip</Button>
-                  </div>
-                </li>
+          )}
+
+          {tiles.length === 0 ? (
+            <div className="rounded-3xl border border-dashed border-border bg-card/40 p-12 flex flex-col items-center justify-center text-center gap-3">
+              <Mic className="h-8 w-8 text-muted-foreground/40" />
+              <p className="font-display text-lg text-foreground">No live participants yet</p>
+              <p className="text-sm text-muted-foreground max-w-xs">
+                Live audio will connect here once room audio is enabled.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {tiles.map((t) => (
+                <ParticipantTile key={t.id} tile={t} />
               ))}
-            </ul>
-          </div>
+            </div>
+          )}
+
+          {/* Raised hand queue — mock mode only */}
+          {raisedHands.length > 0 && (
+            <div className="mt-10 rounded-3xl bg-card border border-border p-5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Hand className="h-4 w-4 text-clay" />
+                  <h3 className="font-display text-base font-semibold text-foreground">Raised hand queue</h3>
+                </div>
+                <span className="text-xs text-muted-foreground">{raisedHands.length} waiting</span>
+              </div>
+              <ul className="mt-4 space-y-3">
+                {raisedHands.map((u) => (
+                  <li key={u.id} className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <UserAvatar user={u} size="sm" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{u.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{u.role}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="soft">Bring up</Button>
+                      <Button size="sm" variant="ghost">Skip</Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
 
-        {/* Right panel */}
+        {/* Right panel — questions */}
         <aside className="hidden lg:flex flex-col border-l border-border bg-cream/60">
           <div className="p-4 border-b border-border flex items-center gap-2">
             <MessageSquareQuote className="h-4 w-4 text-clay" />
@@ -230,25 +295,31 @@ const LiveRoom = () => {
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {questions.map((q) => {
-              const u = getUser(q.userId);
-              if (!u) return null;
-              return (
-                <div key={q.id} className="rounded-2xl bg-card border border-border p-3">
-                  <div className="flex items-start gap-2.5">
-                    <UserAvatar user={u} size="sm" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-medium text-foreground">{u.name}</p>
-                      <p className="text-sm text-foreground/85 mt-0.5">{q.text}</p>
-                      <div className="mt-2 flex items-center justify-between">
-                        <button className="text-[11px] text-muted-foreground hover:text-clay">↑ {q.upvotes} upvotes</button>
-                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">In queue</span>
+            {questions.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">No questions yet.</p>
+            ) : (
+              questions.map((q) => {
+                const initials = q.displayName.trim().split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "?";
+                return (
+                  <div key={q.id} className="rounded-2xl bg-card border border-border p-3">
+                    <div className="flex items-start gap-2.5">
+                      <UserAvatar
+                        user={{ name: q.displayName, initials, avatarColor: "bg-primary" }}
+                        size="sm"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium text-foreground">{q.displayName}</p>
+                        <p className="text-sm text-foreground/85 mt-0.5">{q.text}</p>
+                        <div className="mt-2 flex items-center justify-between">
+                          <button className="text-[11px] text-muted-foreground hover:text-clay">↑ {q.upvotes} upvotes</button>
+                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">In queue</span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
 
           <form onSubmit={sendChat} className="p-3 border-t border-border flex gap-2 bg-background/60">
@@ -318,16 +389,22 @@ const LiveRoom = () => {
           <form onSubmit={submitReferral} className="space-y-4 mt-2">
             <div className="space-y-2">
               <Label>Select host</Label>
-              <Select defaultValue={tiles[0].user?.id}>
-                <SelectTrigger className="bg-cream"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {tiles.filter((t) => t.isSpeaker).map((t) => (
-                    <SelectItem key={t.id} value={t.user!.id}>
-                      {t.user!.name} — {t.user!.role}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {tiles.length > 0 ? (
+                <Select defaultValue={tiles[0]?.user?.id}>
+                  <SelectTrigger className="bg-cream"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {tiles.filter((t) => t.isSpeaker).map((t) => (
+                      <SelectItem key={t.id} value={t.user!.id}>
+                        {t.user!.name} — {t.user!.role}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <p className="rounded-xl border border-border bg-cream px-3 py-2 text-sm text-muted-foreground">
+                  Room host
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Request type</Label>
@@ -377,6 +454,10 @@ const LiveRoom = () => {
     </div>
   );
 };
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
 
 const ParticipantTile = ({ tile }: { tile: Tile }) => {
   const u = tile.user!;

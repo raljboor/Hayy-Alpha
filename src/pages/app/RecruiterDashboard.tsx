@@ -80,7 +80,7 @@ const performanceRooms = [
 // ---------------------------------------------------------------------------
 
 const RecruiterDashboard = () => {
-  const { userId, profile } = useCurrentUser();
+  const { userId, profile, loading: profileLoading } = useCurrentUser();
 
   const {
     data: apiCandidates,
@@ -97,6 +97,7 @@ const RecruiterDashboard = () => {
   const {
     data: apiRooms,
     loading: roomsLoading,
+    refetch: refetchRooms,
   } = useAsync(() => getRooms(), []);
 
   // Local pipeline state — seeded from API result
@@ -152,10 +153,15 @@ const RecruiterDashboard = () => {
     [pipeline, displayRooms.length],
   );
 
-  // Recruiters can create hiring rooms; all other roles see the form disabled.
-  const isRecruiter = isMockMode
+  // isRecruiter:
+  //   undefined  — profile still loading (don't disable the form yet)
+  //   true       — confirmed recruiter or admin
+  //   false      — confirmed non-recruiter
+  const isRecruiter: boolean | undefined = isMockMode
     ? true
-    : profile?.role_type === "recruiter" || profile?.role_type === "admin";
+    : profileLoading || profile === null
+      ? undefined
+      : profile.role_type === "recruiter" || profile.role_type === "admin";
 
   // ---------------------------------------------------------------------------
   // Actions
@@ -167,29 +173,45 @@ const RecruiterDashboard = () => {
     const title = String(form.get("title") ?? "").trim();
     if (!title) return;
 
+    const payload = {
+      title,
+      description: String(form.get("desc") ?? ""),
+      hostId: userId ?? undefined,
+      startsAt: date?.toISOString() ?? new Date(Date.now() + 86400000).toISOString(),
+      room_type: "hiring" as const,
+      attendees: 0,
+      speakers: 0,
+      tags: [] as string[],
+      company: "",
+      category: "Tech" as const,
+      coverColor: "bg-primary",
+      durationMin: 60,
+      access: (String(form.get("visibility") ?? "open")) as "open" | "waitlist" | "invite-only",
+    };
+
+    if (import.meta.env.DEV) {
+      console.debug("[RecruiterDashboard] createRoom payload", {
+        userId,
+        role_type: profile?.role_type,
+        room_type: payload.room_type,
+        hostId: payload.hostId,
+        title: payload.title,
+      });
+    }
+
     setCreatingRoom(true);
     try {
-      await createRoom({
-        title,
-        description: String(form.get("desc") ?? ""),
-        hostId: userId ?? undefined,
-        startsAt: date?.toISOString() ?? new Date(Date.now() + 86400000).toISOString(),
-        status: "open",
-        room_type: "hiring",
-        attendees: 0,
-        speakers: 0,
-        tags: [],
-        company: "",
-        category: "Tech",
-        coverColor: "bg-primary",
-        durationMin: 60,
-        access: (String(form.get("visibility") ?? "open")) as "open" | "waitlist" | "invite-only",
-      });
+      await createRoom(payload);
       e.currentTarget.reset();
       setDate(undefined);
+      refetchRooms();
       toast.success("Hiring room created", { description: "Candidates will be notified gently." });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't create room — please try again.");
+      const msg = err instanceof Error ? err.message : "Couldn't create room — please try again.";
+      if (import.meta.env.DEV) {
+        console.error("[RecruiterDashboard] createRoom error", msg);
+      }
+      toast.error(msg);
     } finally {
       setCreatingRoom(false);
     }
@@ -225,7 +247,7 @@ const RecruiterDashboard = () => {
           </p>
         </div>
         <Button variant="hero" size="lg" asChild>
-          <a href="#create-room"><Plus className="h-4 w-4" />Create Q&A room</a>
+          <a href="#create-room"><Plus className="h-4 w-4" />Create hiring room</a>
         </Button>
       </header>
 

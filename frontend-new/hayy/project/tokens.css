@@ -1,0 +1,233 @@
+/* Hayy redesign tokens — palette directions × type pairings × density.
+   All driven via CSS vars on the artboard root so Tweaks can swap them live. */
+
+:root {
+  /* === Direction A: Warm (current Hayy DNA, evolved) ============ */
+  --warm-bg: hsl(36 32% 96%);
+  --warm-paper: hsl(36 42% 98%);
+  --warm-ink: hsl(20 25% 13%);
+  --warm-ink-soft: hsl(20 14% 38%);
+  --warm-ink-mute: hsl(20 10% 55%);
+  --warm-line: hsl(30 18% 86%);
+  --warm-line-soft: hsl(30 14% 91%);
+  --warm-clay: hsl(12 58% 34%);     /* primary */
+  --warm-clay-2: hsl(18 62% 52%);   /* hover/secondary clay */
+  --warm-olive: hsl(75 22% 38%);
+  --warm-cream: hsl(38 50% 94%);
+  --warm-sand: hsl(32 32% 88%);
+  --warm-live: hsl(8 70% 52%);      /* live red dot */
+  --warm-spotlight: hsl(42 88% 60%);
+
+  /* === Direction B: Dusk (cooler, deeper, late-evening) ========= */
+  --dusk-bg: hsl(228 20% 10%);
+  --dusk-paper: hsl(228 18% 13%);
+  --dusk-ink: hsl(36 30% 95%);
+  --dusk-ink-soft: hsl(228 12% 70%);
+  --dusk-ink-mute: hsl(228 10% 55%);
+  --dusk-line: hsl(228 14% 22%);
+  --dusk-line-soft: hsl(228 14% 17%);
+  --dusk-clay: hsl(18 78% 62%);
+  --dusk-clay-2: hsl(28 88% 68%);
+  --dusk-olive: hsl(75 30% 60%);
+  --dusk-cream: hsl(228 16% 16%);
+  --dusk-sand: hsl(228 14% 20%);
+  --dusk-live: hsl(8 80% 60%);
+  --dusk-spotlight: hsl(42 92% 64%);
+
+  /* default = warm */
+  --bg: var(--warm-bg);
+  --paper: var(--warm-paper);
+  --ink: var(--warm-ink);
+  --ink-soft: var(--warm-ink-soft);
+  --ink-mute: var(--warm-ink-mute);
+  --line: var(--warm-line);
+  --line-soft: var(--warm-line-soft);
+  --clay: var(--warm-clay);
+  --clay-2: var(--warm-clay-2);
+  --olive: var(--warm-olive);
+  --cream: var(--warm-cream);
+  --sand: var(--warm-sand);
+  --live: var(--warm-live);
+  --spotlight: var(--warm-spotlight);
+
+  --radius-xs: 8px;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --radius-xl: 28px;
+  --radius-pill: 999px;
+
+  --shadow-soft: 0 2px 10px -4px rgba(40,28,18,.10), 0 1px 2px rgba(40,28,18,.04);
+  --shadow-warm: 0 18px 40px -16px rgba(80,30,12,.22), 0 4px 12px -6px rgba(80,30,12,.12);
+  --shadow-glow: 0 24px 80px -20px rgba(196,80,40,.35);
+
+  --display: 'Fraunces', 'Cormorant Garamond', Georgia, serif;
+  --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Density */
+  --d-1: 4px;
+  --d-2: 8px;
+  --d-3: 12px;
+  --d-4: 16px;
+  --d-5: 20px;
+  --d-6: 24px;
+  --d-8: 32px;
+  --d-10: 40px;
+  --d-12: 48px;
+}
+
+[data-palette="dusk"] {
+  --bg: var(--dusk-bg);
+  --paper: var(--dusk-paper);
+  --ink: var(--dusk-ink);
+  --ink-soft: var(--dusk-ink-soft);
+  --ink-mute: var(--dusk-ink-mute);
+  --line: var(--dusk-line);
+  --line-soft: var(--dusk-line-soft);
+  --clay: var(--dusk-clay);
+  --clay-2: var(--dusk-clay-2);
+  --olive: var(--dusk-olive);
+  --cream: var(--dusk-cream);
+  --sand: var(--dusk-sand);
+  --live: var(--dusk-live);
+  --spotlight: var(--dusk-spotlight);
+}
+
+[data-density="compact"] {
+  --d-1: 3px; --d-2: 6px; --d-3: 9px; --d-4: 12px;
+  --d-5: 16px; --d-6: 18px; --d-8: 24px; --d-10: 30px; --d-12: 36px;
+}
+
+/* Type pairings */
+[data-type="serif-mono"] {
+  --display: 'Fraunces', Georgia, serif;
+  --sans: 'Inter', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+[data-type="grotesk"] {
+  --display: 'Instrument Serif', 'Fraunces', Georgia, serif;
+  --sans: 'Inter Tight', 'Inter', system-ui, sans-serif;
+}
+[data-type="all-sans"] {
+  --display: 'Inter Tight', 'Inter', system-ui, sans-serif;
+  --sans: 'Inter', system-ui, sans-serif;
+}
+
+/* === Hayy primitive utility classes (artboard-scoped) ============ */
+.hy {
+  font-family: var(--sans);
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "ss01", "cv11";
+}
+.hy * { box-sizing: border-box; }
+.hy h1, .hy h2, .hy h3, .hy h4, .hy h5 {
+  font-family: var(--display);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  margin: 0;
+  line-height: 1.05;
+  text-wrap: balance;
+}
+.hy p { margin: 0; line-height: 1.5; text-wrap: pretty; }
+.hy .mono { font-family: var(--mono); letter-spacing: -0.01em; }
+.hy .display-italic { font-style: italic; color: var(--clay); }
+
+/* Buttons */
+.hy-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 18px; border-radius: var(--radius-pill);
+  font-family: var(--sans); font-weight: 500; font-size: 14px;
+  border: 1px solid transparent; cursor: pointer; line-height: 1;
+  transition: transform .15s, box-shadow .15s, background .15s;
+}
+.hy-btn-primary {
+  background: var(--clay); color: var(--paper);
+  box-shadow: var(--shadow-soft);
+}
+.hy-btn-primary:hover { background: var(--clay-2); }
+.hy-btn-soft {
+  background: var(--paper); color: var(--ink); border-color: var(--line);
+}
+.hy-btn-ghost { background: transparent; color: var(--ink-soft); }
+.hy-btn-lg { padding: 14px 22px; font-size: 15px; }
+.hy-btn-xl { padding: 16px 26px; font-size: 16px; }
+
+/* Pill / chip */
+.hy-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: var(--radius-pill);
+  background: var(--paper); color: var(--ink-soft);
+  font-size: 11px; font-weight: 500; line-height: 1;
+  border: 1px solid var(--line);
+  text-transform: uppercase; letter-spacing: .06em;
+}
+.hy-pill-clay { background: var(--clay); color: var(--paper); border-color: transparent; }
+.hy-pill-live {
+  background: var(--live); color: white; border-color: transparent;
+  letter-spacing: .08em;
+}
+
+/* Card */
+.hy-card {
+  background: var(--paper); border: 1px solid var(--line);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-soft);
+}
+
+/* Live dot */
+.hy-livedot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--live); box-shadow: 0 0 0 0 var(--live);
+  animation: hy-pulse 1.6s ease-out infinite;
+  flex: none;
+}
+@keyframes hy-pulse {
+  0% { box-shadow: 0 0 0 0 hsl(0 0% 0% / .0); }
+  50% { box-shadow: 0 0 0 6px hsl(8 80% 55% / .25); }
+  100% { box-shadow: 0 0 0 12px hsl(8 80% 55% / 0); }
+}
+
+/* Avatar placeholder ring */
+.hy-avatar {
+  border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 600; color: var(--paper); flex: none;
+  background: var(--clay);
+  font-family: var(--sans); letter-spacing: -0.02em;
+}
+.hy-avatar.olive { background: var(--olive); }
+.hy-avatar.sand  { background: var(--sand); color: var(--ink); }
+.hy-avatar.dark  { background: var(--ink); color: var(--paper); }
+
+/* Image placeholder (subtle stripes) */
+.hy-img-ph {
+  background:
+    repeating-linear-gradient(
+      45deg,
+      hsl(0 0% 0% / .04) 0 8px,
+      transparent 8px 16px
+    ),
+    var(--sand);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--ink-mute); font-family: var(--mono); font-size: 11px;
+  letter-spacing: .04em;
+}
+
+/* Subtle warm hero gradient */
+.hy-bg-hero {
+  background:
+    radial-gradient(ellipse at 80% 0%, hsl(28 55% 86% / .55), transparent 55%),
+    radial-gradient(ellipse at 0% 100%, hsl(12 50% 80% / .35), transparent 55%),
+    var(--bg);
+}
+[data-palette="dusk"] .hy-bg-hero {
+  background:
+    radial-gradient(ellipse at 80% 0%, hsl(18 70% 30% / .35), transparent 55%),
+    radial-gradient(ellipse at 0% 100%, hsl(228 40% 22% / .6), transparent 55%),
+    var(--bg);
+}
+
+/* Scrollbar hide inside artboards */
+.hy ::-webkit-scrollbar { display: none; }
+.hy { scrollbar-width: none; }

@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hayy — Visual Redesign Exploration</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="tokens.css" />
+  <style>
+    html, body, #root { height: 100%; margin: 0; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #f0eee9; }
+  </style>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" src="design-canvas.jsx"></script>
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+  <script type="text/babel" src="components/primitives.jsx"></script>
+  <script type="text/babel" src="components/hero.jsx"></script>
+  <script type="text/babel" src="components/dashboard.jsx"></script>
+  <script type="text/babel" src="components/liveroom.jsx"></script>
+  <script type="text/babel" src="components/more-screens.jsx"></script>
+  <script type="text/babel" src="components/extra-screens.jsx"></script>
+  <script type="text/babel" src="components/profile-redesign.jsx"></script>
+  <script type="text/babel" src="components/workflow-screens.jsx"></script>
+
+  <script type="text/babel">
+    const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "palette": "dusk",
+      "type": "serif-mono",
+      "density": "cozy"
+    }/*EDITMODE-END*/;
+
+    const Frame = ({ children, palette, type, density, style }) => (
+      <div data-palette={palette} data-type={type} data-density={density}
+        style={{ width: "100%", height: "100%", overflow: "hidden", borderRadius: 12, ...style }}>
+        {children}
+      </div>
+    );
+
+    function App() {
+      const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+      const palette = tweaks.palette, type = tweaks.type, density = tweaks.density;
+
+      const wrap = (el) => <Frame palette={palette} type={type} density={density}>{el}</Frame>;
+
+      return (
+        <>
+          <DesignCanvas>
+
+            <DCSection id="hero" title="Landing — Hero ✓ chosen"
+              subtitle="Direction B (Roster) — type-led with tonight's stage as social proof.">
+              <DCArtboard id="hero-b-desk" label="Hero · Desktop" width={1200} height={760}>
+                {wrap(<HeroB device="desktop" />)}
+              </DCArtboard>
+              <DCArtboard id="hero-b-mob" label="Hero · Mobile" width={390} height={760}>
+                {wrap(<HeroB device="mobile" />)}
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="dash" title="App — Dashboard ✓ chosen"
+              subtitle="Direction A (Today brief) — focused, single primary action.">
+              <DCArtboard id="dash-a-desk" label="Dashboard · Desktop" width={1280} height={820}>
+                {wrap(<DashboardA device="desktop" />)}
+              </DCArtboard>
+              <DCArtboard id="dash-a-mob" label="Dashboard · Mobile" width={390} height={820}>
+                {wrap(<DashboardA device="mobile" />)}
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="live" title="Live Room ✓ chosen"
+              subtitle="Direction B (Circle) — concentric stage, host in center, listeners on the outer ring.">
+              <DCArtboard id="live-b-desk" label="Live Room · Desktop" width={1280} height={820}>
+                {wrap(<LiveRoomB device="desktop" />)}
+              </DCArtboard>
+              <DCArtboard id="live-b-mob" label="Live Room · Mobile" width={390} height={820}>
+                {wrap(<LiveRoomB device="mobile" />)}
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="rooms" title="Rooms list — new"
+              subtitle="Editorial schedule with a live rail and weekly grid.">
+              <DCArtboard id="rooms-desk" label="Rooms · Desktop" width={1280} height={920}>
+                {wrap(<RoomsList device="desktop" />)}
+              </DCArtboard>
+              <DCArtboard id="rooms-mob" label="Rooms · Mobile" width={390} height={820}>
+                {wrap(<RoomsList device="mobile" />)}
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="ref" title="Referrals — new"
+              subtitle="Pipeline with status lanes — Pending, In conversation, Referred.">
+              <DCArtboard id="ref-desk" label="Referrals · Desktop" width={1280} height={820}>
+                {wrap(<Referrals device="desktop" />)}
+              </DCArtboard>
+              <DCArtboard id="ref-mob" label="Referrals · Mobile" width={390} height={820}>
+                {wrap(<Referrals device="mobile" />)}
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="prof" title="Profile — chosen direction (Roster)"
+              subtitle="Two views of the same profile: the visitor view (someone landing on Amira's page) and the owner view (Amira herself). Same scaffold, different chrome.">
+              <DCArtboard id="prof-viewer-desk" label="Viewer · Desktop" width={1280} height={1500}>
+                {wrap(<ProfileRoster device="desktop" mode="viewer" />)}
+              </DCArtboard>
+              <DCArtboard id="prof-viewer-mob" label="Viewer · Mobile" width={390} height={1700}>
+                {wrap(<ProfileRoster device="mobile" mode="viewer" />)}
+              </DCArtboard>
+              <DCArtboard id="prof-owner-desk" label="Owner · Desktop" width={1280} height={1500}>
+                {wrap(<ProfileRoster device="desktop" mode="owner" />)}
+              </DCArtboard>
+              <DCArtboard id="prof-owner-mob" label="Owner · Mobile" width={390} height={1700}>
+                {wrap(<ProfileRoster device="mobile" mode="owner" />)}
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="booking" title="Booking flow — new"
+              subtitle="What 'Book a chat' opens into. No pricing language, just slot picking with timezone awareness.">
+              <DCArtboard id="book-desk" label="Booking · Desktop" width={1280} height={820}>
+                {wrap(<BookingFlow device="desktop" />)}
+              </DCArtboard>
+              <DCArtboard id="book-mob" label="Booking · Mobile" width={390} height={920}>
+                {wrap(<BookingFlow device="mobile" />)}
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="refdetail" title="Referral detail — new"
+              subtitle="Drilling into a card from the Referrals pipeline — the timeline of what's happened, who's seen what, and the next step.">
+              <DCArtboard id="refd-desk" label="Referral detail · Desktop" width={1280} height={1100}>
+                {wrap(<ReferralDetail device="desktop" />)}
+              </DCArtboard>
+              <DCArtboard id="refd-mob" label="Referral detail · Mobile" width={390} height={1500}>
+                {wrap(<ReferralDetail device="mobile" />)}
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="conn" title="Connections — new"
+              subtitle="What you land on when tapping any '4 mutual' pill. Lanes by how you met, not flat alphabetical.">
+              <DCArtboard id="conn-desk" label="Connections · Desktop" width={1280} height={920}>
+                {wrap(<Connections device="desktop" />)}
+              </DCArtboard>
+              <DCArtboard id="conn-mob" label="Connections · Mobile" width={390} height={920}>
+                {wrap(<Connections device="mobile" />)}
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="green" title="Green room — new"
+              subtitle="The 'are you sure?' pause between tapping Join and being live in a room. Mic check + role + who you'll see inside.">
+              <DCArtboard id="green-desk" label="Green room · Desktop" width={1280} height={820}>
+                {wrap(<GreenRoom device="desktop" />)}
+              </DCArtboard>
+              <DCArtboard id="green-mob" label="Green room · Mobile" width={390} height={820}>
+                {wrap(<GreenRoom device="mobile" />)}
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="share" title="Share sheet — new"
+              subtitle="What 'Share profile' opens. Modal/bottom-sheet with explicit privacy reassurance.">
+              <DCArtboard id="share-desk" label="Share · Desktop modal" width={900} height={620}>
+                {wrap(<ShareSheet device="desktop" />)}
+              </DCArtboard>
+              <DCArtboard id="share-mob" label="Share · Mobile sheet" width={390} height={620}>
+                {wrap(<ShareSheet device="mobile" />)}
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="onb" title="Onboarding — new"
+              subtitle="A single warm step at a time, with a live preview of where you'd fit.">
+              <DCArtboard id="onb-desk" label="Onboarding · Desktop" width={1200} height={820}>
+                {wrap(<Onboarding device="desktop" />)}
+              </DCArtboard>
+              <DCArtboard id="onb-mob" label="Onboarding · Mobile" width={390} height={820}>
+                {wrap(<Onboarding device="mobile" />)}
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="auth" title="Auth — new"
+              subtitle="Editorial split: brand on the left, sign-in on the right. Single screen handles email + magic link + OAuth.">
+              <DCArtboard id="auth-desk" label="Sign in · Desktop" width={1280} height={820}>
+                {wrap(<Auth device="desktop" />)}
+              </DCArtboard>
+              <DCArtboard id="auth-mob" label="Sign in · Mobile" width={390} height={820}>
+                {wrap(<Auth device="mobile" />)}
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="notif" title="Notifications — new"
+              subtitle="Editorial inbox grouped by day. Each item earns its place: who, what, and the one action you'd take.">
+              <DCArtboard id="notif-desk" label="Notifications · Desktop" width={1280} height={920}>
+                {wrap(<Notifications device="desktop" />)}
+              </DCArtboard>
+              <DCArtboard id="notif-mob" label="Notifications · Mobile" width={390} height={900}>
+                {wrap(<Notifications device="mobile" />)}
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="msg" title="Messages / DM — new"
+              subtitle="Conversation list + open thread. Threads carry the referral context they came from — never just floating chat.">
+              <DCArtboard id="msg-desk" label="DM · Desktop" width={1280} height={820}>
+                {wrap(<Messages device="desktop" />)}
+              </DCArtboard>
+              <DCArtboard id="msg-mob" label="DM · Mobile" width={390} height={820}>
+                {wrap(<Messages device="mobile" />)}
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="search" title="Search / Discover — new"
+              subtitle="Natural-sentence search across people, rooms, and topics. Editorial three-lane layout.">
+              <DCArtboard id="search-desk" label="Search · Desktop" width={1280} height={920}>
+                {wrap(<Search device="desktop" />)}
+              </DCArtboard>
+              <DCArtboard id="search-mob" label="Search · Mobile" width={390} height={920}>
+                {wrap(<Search device="mobile" />)}
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="sched" title="Schedule a Room — new"
+              subtitle="Form on the left, live preview card on the right. Choosing format and tags shows estimated reach.">
+              <DCArtboard id="sched-desk" label="Schedule · Desktop" width={1280} height={920}>
+                {wrap(<ScheduleRoom device="desktop" />)}
+              </DCArtboard>
+              <DCArtboard id="sched-mob" label="Schedule · Mobile" width={390} height={1100}>
+                {wrap(<ScheduleRoom device="mobile" />)}
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="recap" title="Post-room Recap — new"
+              subtitle="Three saved clips + follow-ups (the actual outcomes) + replay. The thing that earns retention.">
+              <DCArtboard id="recap-desk" label="Recap · Desktop" width={1280} height={920}>
+                {wrap(<RoomRecap device="desktop" />)}
+              </DCArtboard>
+              <DCArtboard id="recap-mob" label="Recap · Mobile" width={390} height={1100}>
+                {wrap(<RoomRecap device="mobile" />)}
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="refer" title="Refer someone — new"
+              subtitle="Compose-a-warm-intro flow. Note + attachment, with a privacy reminder and alternative warm paths.">
+              <DCArtboard id="refer-desk" label="Refer · Desktop" width={1280} height={920}>
+                {wrap(<ReferCompose device="desktop" />)}
+              </DCArtboard>
+              <DCArtboard id="refer-mob" label="Refer · Mobile" width={390} height={1100}>
+                {wrap(<ReferCompose device="mobile" />)}
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="prof-edit" title="Profile edit — new"
+              subtitle="Settings counterpart to the public profile. Sectioned (Identity / Story / What you'll help with) with toggles.">
+              <DCArtboard id="prof-edit-desk" label="Profile edit · Desktop" width={1280} height={1200}>
+                {wrap(<ProfileEdit device="desktop" />)}
+              </DCArtboard>
+              <DCArtboard id="prof-edit-mob" label="Profile edit · Mobile" width={390} height={1300}>
+                {wrap(<ProfileEdit device="mobile" />)}
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="settings" title="Settings — new"
+              subtitle="Tabbed settings, with the Notifications tab shown — the matrix where the 'never push without consent' rule lives.">
+              <DCArtboard id="settings-desk" label="Settings · Desktop" width={1280} height={920}>
+                {wrap(<Settings device="desktop" />)}
+              </DCArtboard>
+              <DCArtboard id="settings-mob" label="Settings · Mobile" width={390} height={1000}>
+                {wrap(<Settings device="mobile" />)}
+              </DCArtboard>
+            </DCSection>
+
+            <DCPostIt x={40} y={40} w={300}>
+              <b>Hayy — visual redesign exploration.</b><br /><br />
+              Three high-impact surfaces × two directions × desktop + mobile.<br /><br />
+              <b>Tweak</b> the palette, type, and density from the panel — they apply live to every artboard.<br /><br />
+              <b>Visual mockups only.</b> No backend, API, auth, schema, or routes touched. Translation into the real Hayy-Alpha codebase is a separate task under your protected-files contract.
+            </DCPostIt>
+
+          </DesignCanvas>
+
+          <TweaksPanel title="Tweaks">
+            <TweakSection title="Palette">
+              <TweakRadio label="Mood"
+                value={palette}
+                onChange={(v) => setTweak("palette", v)}
+                options={[
+                  { value: "warm", label: "Warm" },
+                  { value: "dusk", label: "Dusk (dark)" },
+                ]} />
+            </TweakSection>
+            <TweakSection title="Typography">
+              <TweakRadio label="Pairing"
+                value={type}
+                onChange={(v) => setTweak("type", v)}
+                options={[
+                  { value: "serif-mono", label: "Fraunces + Inter" },
+                  { value: "grotesk", label: "Instrument + Tight" },
+                  { value: "all-sans", label: "All sans" },
+                ]} />
+            </TweakSection>
+            <TweakSection title="Density">
+              <TweakRadio label="Spacing"
+                value={density}
+                onChange={(v) => setTweak("density", v)}
+                options={[
+                  { value: "cozy", label: "Cozy" },
+                  { value: "compact", label: "Compact" },
+                ]} />
+            </TweakSection>
+          </TweaksPanel>
+        </>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>

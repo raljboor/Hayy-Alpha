@@ -32,29 +32,60 @@ export const JoinSection = () => {
   };
 
   return (
-    <section id="join" className="py-20 md:py-28 bg-gradient-warm">
+    <section id="join" className="py-12 md:py-16" style={{ background: "var(--cream)" }}>
       <div className="container">
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-start">
           <div>
-            <span className="text-xs font-medium uppercase tracking-widest text-clay mb-3 block">Founding community</span>
-            <h2 className="font-display text-4xl sm:text-5xl font-medium text-foreground leading-tight mb-5">
-              Be part of the <span className="italic text-primary">first Hayy rooms.</span>
+            <span
+              style={{
+                fontFamily: "monospace",
+                fontSize: 11,
+                letterSpacing: ".1em",
+                textTransform: "uppercase",
+                color: "var(--clay)",
+                display: "block",
+                marginBottom: 12,
+              }}
+            >
+              Founding community
+            </span>
+            <h2
+              className="font-display font-medium"
+              style={{
+                fontSize: "clamp(32px, 4vw, 48px)",
+                letterSpacing: "-0.03em",
+                lineHeight: 1.08,
+                color: "var(--ink)",
+                marginBottom: 20,
+              }}
+            >
+              Be part of the{" "}
+              <span style={{ fontStyle: "italic", color: "var(--clay)" }}>first Hayy rooms.</span>
             </h2>
-            <p className="text-lg text-muted-foreground leading-relaxed mb-10">
+            <p style={{ fontSize: 17, color: "var(--ink-soft)", lineHeight: 1.7, marginBottom: 40 }}>
               Join as a job seeker, referral host, recruiter, employer, or community partner.
             </p>
 
             <div className="space-y-4">
               {testimonials.map((t) => (
-                <div key={t} className="rounded-2xl bg-card/70 backdrop-blur border border-border/60 p-5">
-                  <Quote className="h-4 w-4 text-clay mb-2" />
-                  <p className="font-display text-lg text-foreground italic leading-snug">"{t}"</p>
+                <div
+                  key={t}
+                  className="rounded-2xl p-5"
+                  style={{ background: "var(--paper)", border: "1px solid var(--line)" }}
+                >
+                  <Quote className="h-4 w-4 mb-2" style={{ color: "var(--clay)" }} />
+                  <p className="font-display text-lg italic leading-snug" style={{ color: "var(--ink)" }}>
+                    "{t}"
+                  </p>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="rounded-3xl bg-card border border-border p-7 sm:p-9 shadow-warm">
+          <div
+            className="rounded-3xl p-7 sm:p-9 shadow-warm"
+            style={{ background: "var(--paper)", border: "1px solid var(--line)" }}
+          >
             <form onSubmit={onSubmit} className="space-y-5">
               <div className="space-y-2">
                 <Label htmlFor="name">Full name</Label>
@@ -85,7 +116,7 @@ export const JoinSection = () => {
               <Button type="submit" variant="hero" size="lg" className="w-full">
                 Request founding access
               </Button>
-              <p className="text-xs text-center text-muted-foreground">
+              <p className="text-xs text-center" style={{ color: "var(--ink-mute)" }}>
                 We're hand-picking the first cohort. No spam, ever.
               </p>
             </form>

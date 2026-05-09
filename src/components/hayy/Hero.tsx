@@ -32,26 +32,19 @@ export const Hero = () => {
       style={{
         position: "relative",
         background: "var(--bg)",
-        minHeight: "calc(100vh - 64px)",
         display: "flex",
         flexDirection: "column",
         justifyContent: "center",
-        padding: "56px 56px 40px",
+        padding: "80px 56px 80px",
         overflow: "hidden",
       }}
       className="hy-hero-section"
     >
-      {/* Keyframes injected once per render — lightweight */}
       <style>{`
-        @keyframes hy-pulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50%       { opacity: 0.35; transform: scale(1.6); }
-        }
-        .hy-livedot { animation: hy-pulse 1.6s ease-in-out infinite; }
         @media (max-width: 768px) {
-          .hy-hero-section { padding: 40px 20px 32px !important; min-height: auto !important; }
+          .hy-hero-section { padding: 48px 20px 48px !important; }
           .hy-hero-h1      { font-size: clamp(40px, 11vw, 72px) !important; }
-          .hy-hero-btns    { flex-direction: column !important; }
+          .hy-hero-btns    { flex-direction: column !important; margin-top: 16px !important; }
         }
       `}</style>
 
@@ -61,7 +54,7 @@ export const Hero = () => {
           display: "flex",
           alignItems: "center",
           gap: 8,
-          marginBottom: 28,
+          marginBottom: 18,
         }}
       >
         <span
@@ -128,7 +121,7 @@ export const Hero = () => {
           display: "flex",
           flexWrap: "wrap",
           gap: 12,
-          marginTop: 36,
+          marginTop: 24,
         }}
       >
         <Link
@@ -181,7 +174,7 @@ export const Hero = () => {
         style={{
           flexDirection: "column",
           gap: 12,
-          marginTop: 56,
+          marginTop: 36,
         }}
       >
         <p
@@ -235,7 +228,7 @@ export const Hero = () => {
         style={{
           position: "absolute",
           right: 56,
-          bottom: 40,
+          bottom: 24,
           flexDirection: "row",
           gap: 32,
           alignItems: "flex-end",

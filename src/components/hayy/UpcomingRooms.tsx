@@ -6,7 +6,8 @@ import { useAuthContext } from "@/context/AuthContext";
 const rooms = [
   {
     tag: "Founding Room",
-    tagStyle: "bg-clay text-clay-foreground",
+    tagBg: "var(--clay)",
+    tagColor: "var(--paper)",
     title: "How to Get Referred Into Corporate Roles in Canada",
     host: "Hayy Community",
     date: "Thursday · 7:00 PM EST",
@@ -16,7 +17,8 @@ const rooms = [
   },
   {
     tag: "Operations",
-    tagStyle: "bg-olive/15 text-olive",
+    tagBg: "hsl(75 22% 38% / 0.15)",
+    tagColor: "var(--olive)",
     title: "Breaking Into Amazon, Logistics & Program Management",
     host: "Ops Professionals",
     date: "Next week",
@@ -26,7 +28,8 @@ const rooms = [
   },
   {
     tag: "Newcomers",
-    tagStyle: "bg-primary/10 text-primary",
+    tagBg: "hsl(12 58% 34% / 0.1)",
+    tagColor: "var(--clay)",
     title: "Career Access for International Professionals",
     host: "Referral Hosts",
     date: "Coming soon",
@@ -41,38 +44,71 @@ export const UpcomingRooms = () => {
   const viewAllTo = isAuthenticated ? "/app/rooms" : "/signup";
 
   return (
-    <section id="rooms" className="py-20 md:py-28">
+    <section id="rooms" className="py-12 md:py-16" style={{ background: "var(--bg)" }}>
       <div className="container">
-        <div className="max-w-2xl mb-14 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
+        <div className="max-w-2xl mb-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
           <div>
-            <span className="text-xs font-medium uppercase tracking-widest text-clay mb-3 block">Upcoming rooms</span>
-            <h2 className="font-display text-4xl sm:text-5xl font-medium text-foreground leading-tight">
-              Start with focused <span className="italic text-primary">career conversations.</span>
+            <span
+              style={{
+                fontFamily: "monospace",
+                fontSize: 11,
+                letterSpacing: ".1em",
+                textTransform: "uppercase",
+                color: "var(--clay)",
+                display: "block",
+                marginBottom: 12,
+              }}
+            >
+              Upcoming rooms
+            </span>
+            <h2
+              className="font-display font-medium"
+              style={{
+                fontSize: "clamp(32px, 4vw, 48px)",
+                letterSpacing: "-0.03em",
+                lineHeight: 1.08,
+                color: "var(--ink)",
+              }}
+            >
+              Start with focused{" "}
+              <span style={{ fontStyle: "italic", color: "var(--clay)" }}>career conversations.</span>
             </h2>
           </div>
         </div>
 
         <div className="grid md:grid-cols-3 gap-5">
           {rooms.map((r) => (
-            <div key={r.title} className="group rounded-3xl bg-card border border-border p-7 flex flex-col hover:shadow-warm transition-all">
+            <div
+              key={r.title}
+              className="group rounded-3xl p-7 flex flex-col hover:shadow-warm transition-all"
+              style={{ background: "var(--paper)", border: "1px solid var(--line)" }}
+            >
               <div className="flex items-center justify-between mb-5">
-                <span className={`inline-block text-xs font-medium px-3 py-1 rounded-full ${r.tagStyle}`}>
+                <span
+                  className="inline-block text-xs font-medium px-3 py-1 rounded-full"
+                  style={{ background: r.tagBg, color: r.tagColor }}
+                >
                   {r.tag}
                 </span>
-                <ArrowUpRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-foreground transition-colors" />
+                <ArrowUpRight className="h-4 w-4 transition-colors" style={{ color: "var(--ink-mute)" }} />
               </div>
-              <h3 className="font-display text-xl font-semibold text-foreground leading-snug mb-2 min-h-[3.5rem]">
+              <h3
+                className="font-display font-semibold leading-snug mb-2 min-h-[3.5rem]"
+                style={{ fontSize: 19, color: "var(--ink)" }}
+              >
                 {r.title}
               </h3>
-              <p className="text-sm text-muted-foreground mb-5">Hosted by {r.host}</p>
+              <p style={{ fontSize: 14, color: "var(--ink-soft)", marginBottom: 20 }}>
+                Hosted by {r.host}
+              </p>
 
-              <div className="space-y-2.5 text-sm text-muted-foreground mb-6 flex-1">
+              <div className="space-y-2.5 flex-1 mb-6" style={{ fontSize: 14, color: "var(--ink-soft)" }}>
                 <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-clay" />
+                  <Calendar className="h-4 w-4" style={{ color: "var(--clay)" }} />
                   {r.date}
                 </div>
                 <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-clay" />
+                  <Users className="h-4 w-4" style={{ color: "var(--clay)" }} />
                   {r.attendees}
                 </div>
               </div>

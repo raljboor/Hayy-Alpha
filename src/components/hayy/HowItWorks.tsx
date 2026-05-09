@@ -9,26 +9,64 @@ const steps = [
 
 export const HowItWorks = () => {
   return (
-    <section id="how-it-works" className="py-20 md:py-28 bg-cream">
+    <section id="how-it-works" className="py-12 md:py-16" style={{ background: "var(--cream)" }}>
       <div className="container">
-        <div className="max-w-2xl mb-14">
-          <span className="text-xs font-medium uppercase tracking-widest text-clay mb-3 block">How it works</span>
-          <h2 className="font-display text-4xl sm:text-5xl font-medium text-foreground leading-tight">
-            From room to referral <span className="italic text-primary">in four steps.</span>
+        <div className="max-w-2xl mb-8">
+          <span
+            style={{
+              fontFamily: "monospace",
+              fontSize: 11,
+              letterSpacing: ".1em",
+              textTransform: "uppercase",
+              color: "var(--clay)",
+              display: "block",
+              marginBottom: 12,
+            }}
+          >
+            How it works
+          </span>
+          <h2
+            className="font-display font-medium"
+            style={{
+              fontSize: "clamp(32px, 4vw, 48px)",
+              letterSpacing: "-0.03em",
+              lineHeight: 1.08,
+              color: "var(--ink)",
+            }}
+          >
+            From room to referral{" "}
+            <span style={{ fontStyle: "italic", color: "var(--clay)" }}>in four steps.</span>
           </h2>
         </div>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {steps.map((s) => (
-            <div key={s.n} className="group rounded-3xl bg-card border border-border p-7 hover:shadow-warm transition-all hover:-translate-y-1">
+            <div
+              key={s.n}
+              className="group rounded-3xl p-7 hover:-translate-y-1 transition-all hover:shadow-warm"
+              style={{ background: "var(--paper)", border: "1px solid var(--line)" }}
+            >
               <div className="flex items-start justify-between mb-6">
-                <span className="h-12 w-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                <span
+                  className="h-12 w-12 rounded-2xl flex items-center justify-center group-hover:bg-primary group-hover:text-primary-foreground transition-colors"
+                  style={{ background: "hsl(12 58% 34% / 0.1)", color: "var(--clay)" }}
+                >
                   <s.icon className="h-5 w-5" />
                 </span>
-                <span className="font-display text-2xl text-muted-foreground/60">{s.n}</span>
+                <span
+                  className="font-display text-2xl"
+                  style={{ color: "var(--ink-mute)", opacity: 0.6 }}
+                >
+                  {s.n}
+                </span>
               </div>
-              <h3 className="font-display text-xl font-semibold text-foreground mb-2">{s.title}</h3>
-              <p className="text-sm text-muted-foreground leading-relaxed">{s.desc}</p>
+              <h3
+                className="font-display font-semibold mb-2"
+                style={{ fontSize: 19, color: "var(--ink)" }}
+              >
+                {s.title}
+              </h3>
+              <p style={{ fontSize: 15, color: "var(--ink-soft)", lineHeight: 1.6 }}>{s.desc}</p>
             </div>
           ))}
         </div>

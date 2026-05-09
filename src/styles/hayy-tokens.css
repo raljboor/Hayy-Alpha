@@ -43,6 +43,7 @@
 }
 
 [data-palette="dusk"] {
+  /* Design-system vars (full hsl values — used by inline style={{ ... }}) */
   --bg: hsl(228 20% 10%);
   --paper: hsl(228 18% 13%);
   --ink: hsl(36 30% 95%);
@@ -57,6 +58,25 @@
   --sand: hsl(228 14% 20%);
   --live: hsl(8 80% 60%);
   --spotlight: hsl(42 92% 64%);
+
+  /* Tailwind-compat overrides (raw HSL tuples — used by hsl(var(--...)) in Tailwind classes) */
+  --background: 228 20% 10%;
+  --foreground: 36 30% 95%;
+  --card: 228 18% 13%;
+  --card-foreground: 36 30% 95%;
+  --popover: 228 18% 13%;
+  --popover-foreground: 36 30% 95%;
+  --primary: 18 78% 62%;
+  --primary-foreground: 228 20% 10%;
+  --secondary: 228 14% 18%;
+  --secondary-foreground: 36 30% 95%;
+  --muted: 228 14% 18%;
+  --muted-foreground: 228 12% 65%;
+  --accent: 75 30% 60%;
+  --accent-foreground: 228 20% 10%;
+  --border: 228 14% 22%;
+  --input: 228 14% 22%;
+  --ring: 18 78% 62%;
 }
 
 /* ── Utility classes used by design system components ── */

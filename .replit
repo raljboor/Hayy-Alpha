@@ -1,0 +1,6 @@
+run = "npm run dev"
+language = "nodejs"
+
+[[ports]]
+localPort = 8080
+externalPort = 80

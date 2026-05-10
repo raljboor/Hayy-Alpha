@@ -1,164 +1,320 @@
-import { useState } from "react";
+/**
+ * Login screen — ported from the redesign Auth mock
+ * (frontend-new/hayy/project/components/extra-screens.jsx → Auth).
+ *
+ * Wraps with .hy so the redesign CSS vars resolve. AuthLayout owns the
+ * outer chrome (gradient bg + Hayy logo header + back-to-home footer),
+ * so the redesign's internal logo is intentionally omitted here.
+ */
+import { useState, type CSSProperties, type FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Mic, Handshake, Coffee, Sparkles, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Avatar, Btn, I } from "@/components/ui/primitives";
 import { loginUser } from "@/lib/api/auth";
 
-const features = [
-  { icon: Mic, title: "Live career rooms", desc: "Drop into honest conversations with people inside your target companies." },
-  { icon: Handshake, title: "Referral tracking", desc: "See every warm intro, request, and follow-up in one warm place." },
-  { icon: Coffee, title: "Warm introductions", desc: "Build real relationships before the application stage." },
-];
+interface LocationState {
+  from?: string;
+}
+
+const inputStyle: CSSProperties = {
+  padding: "12px 14px",
+  borderRadius: 12,
+  border: "1px solid var(--line)",
+  background: "var(--paper)",
+  fontSize: 14,
+  color: "var(--ink)",
+  width: "100%",
+  outline: "none",
+  fontFamily: "var(--sans)",
+};
+
+const fieldLabelStyle: CSSProperties = {
+  fontFamily: "var(--mono)",
+  fontSize: 10,
+  color: "var(--ink-mute)",
+  letterSpacing: ".1em",
+  textTransform: "uppercase",
+};
 
 const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const loginMutation = useMutation({
+    mutationFn: (vars: { email: string; password: string }) => loginUser(vars),
+    onSuccess: (result) => {
+      if (result.error) {
+        setErrorMsg(result.error.message);
+        toast.error("Couldn't log you in", { description: result.error.message });
+        return;
+      }
+      toast.success("Welcome back to Hayy");
+      const from = (location.state as LocationState | null)?.from;
+      navigate(from && from.startsWith("/app") ? from : "/app/dashboard");
+    },
+    onError: (error: Error) => {
+      const message = error.message || "Something went wrong, please try again.";
+      setErrorMsg(message);
+      toast.error("Couldn't log you in", { description: message });
+    },
+  });
+
+  const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setErrorMsg(null);
-    setSubmitting(true);
     const form = new FormData(e.currentTarget);
-    const { error } = await loginUser({
+    loginMutation.mutate({
       email: String(form.get("email") ?? ""),
       password: String(form.get("password") ?? ""),
     });
-    setSubmitting(false);
-    if (error) {
-      setErrorMsg(error.message);
-      toast.error("Couldn't log you in", { description: error.message });
-      return;
-    }
-    toast.success("Welcome back to Hayy");
-    const from = (location.state as { from?: string } | null)?.from;
-    navigate(from && from.startsWith("/app") ? from : "/app/dashboard");
   };
 
+  const showComingSoon = (label: string) =>
+    toast(label, { description: "We'll let you know when this is ready." });
+
+  const submitting = loginMutation.isPending;
+
   return (
-    <div className="w-full max-w-5xl grid lg:grid-cols-[1.05fr_1fr] gap-6 lg:gap-8 items-stretch">
-      {/* Side panel — desktop only */}
-      <aside className="hidden lg:flex relative rounded-3xl bg-primary text-primary-foreground p-10 overflow-hidden shadow-warm">
-        <div className="absolute -top-16 -right-16 h-64 w-64 rounded-full bg-clay/30 blur-3xl" />
-        <div className="absolute -bottom-20 -left-10 h-72 w-72 rounded-full bg-olive/20 blur-3xl" />
+    <div
+      className="hy hy-bg-hero"
+      style={{
+        width: "100%",
+        display: "flex",
+        overflow: "hidden",
+        borderRadius: "var(--radius-xl)",
+        border: "1px solid var(--line-soft)",
+        boxShadow: "var(--shadow-warm)",
+        minHeight: 640,
+      }}
+    >
+      {/* Editorial side panel — desktop only */}
+      <aside
+        className="hidden lg:flex"
+        style={{
+          width: "44%",
+          padding: "48px 56px",
+          flexDirection: "column",
+          justifyContent: "space-between",
+          borderRight: "1px solid var(--line-soft)",
+          gap: 32,
+        }}
+      >
+        <div>
+          <p
+            className="mono"
+            style={{
+              fontSize: 11,
+              color: "var(--clay)",
+              letterSpacing: ".12em",
+              textTransform: "uppercase",
+              fontWeight: 600,
+            }}
+          >
+            An invite-only network
+          </p>
+          <h1 style={{ fontSize: 56, marginTop: 14, lineHeight: 1.0 }}>
+            Where the next <span className="display-italic">conversation</span>
+            <br />
+            becomes the next chapter.
+          </h1>
+          <p
+            style={{
+              marginTop: 18,
+              fontSize: 16,
+              color: "var(--ink-soft)",
+              lineHeight: 1.6,
+              maxWidth: 440,
+            }}
+          >
+            Hayy connects newcomers and operators in MENA &amp; North America through small,
+            honest rooms. Members refer 8× more often than they apply.
+          </p>
+        </div>
 
-        <div className="relative flex flex-col justify-between w-full">
-          <div>
-            <span className="inline-flex items-center gap-2 rounded-full bg-card/15 backdrop-blur px-3 py-1.5 text-xs font-medium">
-              <Sparkles className="h-3.5 w-3.5" />
-              Founding community
-            </span>
-            <h2 className="font-display text-4xl xl:text-5xl font-medium leading-[1.1] mt-6">
-              Where careers <br />
-              <span className="italic text-clay-foreground/95">come alive.</span>
-            </h2>
-            <p className="mt-4 text-primary-foreground/80 max-w-sm">
-              Real people. Real referrals. Real growth — every time you log in.
-            </p>
-          </div>
-
-          <ul className="mt-10 space-y-5">
-            {features.map((f) => (
-              <li key={f.title} className="flex items-start gap-4">
-                <span className="h-10 w-10 rounded-2xl bg-card/15 backdrop-blur flex items-center justify-center shrink-0">
-                  <f.icon className="h-4 w-4" />
-                </span>
-                <div>
-                  <p className="font-display text-lg font-semibold leading-tight">{f.title}</p>
-                  <p className="text-sm text-primary-foreground/75 mt-0.5 leading-relaxed">{f.desc}</p>
-                </div>
-              </li>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ display: "flex" }}>
+            {(
+              [
+                { name: "Maya N", tone: "clay" as const },
+                { name: "Rashid K", tone: "olive" as const },
+                { name: "Layla P", tone: "sand" as const },
+                { name: "Sara M", tone: "dark" as const },
+              ]
+            ).map((p, i) => (
+              <span
+                key={p.name}
+                style={{
+                  marginLeft: i === 0 ? 0 : -10,
+                  border: "2px solid var(--paper)",
+                  borderRadius: 999,
+                  display: "inline-flex",
+                }}
+              >
+                <Avatar name={p.name} size={36} tone={p.tone} />
+              </span>
             ))}
-          </ul>
-
-          <figure className="mt-10 rounded-2xl bg-card/10 backdrop-blur border border-card/15 p-5">
-            <p className="font-display italic text-base leading-snug">
-              "I finally understood how referrals actually work."
-            </p>
-            <figcaption className="mt-3 text-xs text-primary-foreground/70">— Amira, founding member</figcaption>
-          </figure>
+          </div>
+          <p style={{ fontSize: 13, color: "var(--ink-soft)", margin: 0 }}>
+            <span style={{ color: "var(--ink)", fontWeight: 500 }}>A founding cohort</span> of
+            newcomers, hosts &amp; operators.
+          </p>
         </div>
       </aside>
 
-      {/* Auth card */}
-      <div className="bg-card rounded-3xl border border-border shadow-warm p-7 sm:p-9">
-        <div className="max-w-sm mx-auto">
-          <h1 className="font-display text-3xl sm:text-4xl font-medium text-foreground leading-tight">
-            Welcome back.
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Log in to manage rooms, referrals, and follow-ups.
-          </p>
+      {/* Form panel */}
+      <main
+        style={{
+          flex: 1,
+          padding: "56px 64px",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          gap: 22,
+        }}
+      >
+        <div style={{ maxWidth: 420, width: "100%", display: "flex", flexDirection: "column", gap: 18 }}>
+          <div>
+            <p
+              className="mono"
+              style={{
+                fontSize: 11,
+                color: "var(--clay)",
+                letterSpacing: ".12em",
+                textTransform: "uppercase",
+                fontWeight: 600,
+              }}
+            >
+              Welcome back
+            </p>
+            <h2 style={{ fontSize: 38, marginTop: 8, lineHeight: 1.1 }}>
+              Sign in to <span className="display-italic">Hayy.</span>
+            </h2>
+          </div>
 
-          <form onSubmit={onSubmit} className="mt-7 space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
+          <form onSubmit={onSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={fieldLabelStyle}>Email</span>
+              <input
                 name="email"
                 type="email"
                 required
+                autoComplete="email"
                 placeholder="you@hayy.community"
-                className="h-12 rounded-xl bg-cream border-border"
                 disabled={submitting}
+                style={{ ...inputStyle, fontFamily: "var(--mono)" }}
               />
-            </div>
+            </label>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
-                <button
-                  type="button"
-                  onClick={() => toast("Password reset coming soon", { description: "We'll email you a secure link." })}
-                  className="text-xs font-medium text-primary hover:underline"
-                >
-                  Forgot password?
-                </button>
-              </div>
-              <Input
-                id="password"
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={fieldLabelStyle}>Password</span>
+              <input
                 name="password"
                 type="password"
                 required
+                autoComplete="current-password"
                 placeholder="••••••••"
-                className="h-12 rounded-xl bg-cream border-border"
                 disabled={submitting}
+                style={inputStyle}
               />
+            </label>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
+              <button
+                type="button"
+                onClick={() => showComingSoon("Password reset coming soon")}
+                style={{
+                  fontSize: 13,
+                  color: "var(--clay)",
+                  fontWeight: 500,
+                  background: "transparent",
+                  border: "none",
+                  padding: 0,
+                  cursor: "pointer",
+                  fontFamily: "var(--sans)",
+                }}
+              >
+                Forgot?
+              </button>
             </div>
 
             {errorMsg && (
-              <p className="text-sm text-destructive rounded-xl bg-destructive/10 px-4 py-2.5">
+              <p
+                style={{
+                  fontSize: 13,
+                  color: "white",
+                  background: "var(--live)",
+                  borderRadius: 12,
+                  padding: "10px 14px",
+                  margin: 0,
+                }}
+              >
                 {errorMsg}
               </p>
             )}
 
-            <Button type="submit" variant="hero" size="lg" className="w-full mt-2" disabled={submitting}>
-              {submitting ? (
-                <><Loader2 className="h-4 w-4 animate-spin" />Logging in…</>
-              ) : (
-                "Log in"
-              )}
-            </Button>
+            <Btn
+              kind="primary"
+              size="lg"
+              type="submit"
+              iconRight={I.arrow}
+              disabled={submitting}
+              style={{ justifyContent: "center", width: "100%" }}
+            >
+              {submitting ? "Signing you in…" : "Continue"}
+            </Btn>
           </form>
 
-          <div className="mt-6 flex items-center gap-3">
-            <span className="h-px flex-1 bg-border" />
-            <span className="text-[11px] uppercase tracking-widest text-muted-foreground">or</span>
-            <span className="h-px flex-1 bg-border" />
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              color: "var(--ink-mute)",
+              fontSize: 11,
+            }}
+          >
+            <span style={{ flex: 1, height: 1, background: "var(--line)" }} />
+            <span
+              className="mono"
+              style={{ letterSpacing: ".12em", textTransform: "uppercase" }}
+            >
+              or
+            </span>
+            <span style={{ flex: 1, height: 1, background: "var(--line)" }} />
           </div>
 
-          <p className="mt-6 text-sm text-center text-muted-foreground">
-            Need an account?{" "}
-            <Link to="/signup" className="text-primary font-medium hover:underline">
-              Join Hayy
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <Btn
+              kind="soft"
+              size="lg"
+              onClick={() => showComingSoon("Google sign-in coming soon")}
+              style={{ justifyContent: "center", width: "100%" }}
+            >
+              Continue with Google
+            </Btn>
+            <Btn
+              kind="soft"
+              size="lg"
+              onClick={() => showComingSoon("Magic-link sign-in coming soon")}
+              style={{ justifyContent: "center", width: "100%" }}
+            >
+              Use a magic link
+            </Btn>
+          </div>
+
+          <p style={{ fontSize: 13, color: "var(--ink-soft)", textAlign: "center", marginTop: 4 }}>
+            New here?{" "}
+            <Link
+              to="/signup"
+              style={{ color: "var(--clay)", fontWeight: 500, textDecoration: "none" }}
+            >
+              Request an invite →
             </Link>
           </p>
         </div>
-      </div>
+      </main>
     </div>
   );
 };

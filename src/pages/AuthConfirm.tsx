@@ -31,7 +31,7 @@ const AuthConfirm = () => {
 
       try {
         // exchangeCodeForSession accepts the full URL containing the ?code= param.
-        const { error } = await supabase.auth.exchangeCodeForSession(
+        const { data, error } = await supabase.auth.exchangeCodeForSession(
           window.location.href,
         );
 
@@ -42,8 +42,17 @@ const AuthConfirm = () => {
         }
 
         setStatus("success");
+        // After confirmation the user has a fresh profile (created by the
+        // handle_new_auth_user trigger) but hasn't filled it in yet — route
+        // them to onboarding, not dashboard. Pull role_type out of the auth
+        // metadata that signUp() set so Onboarding can pick the right flow
+        // synchronously without waiting for the profile query.
+        const roleFromMeta =
+          (data.session?.user.user_metadata?.role_type as string | undefined) ??
+          "job_seeker";
+        const onboardingHref = `/onboarding?role=${encodeURIComponent(roleFromMeta)}`;
         // Short pause so the user sees the success state before being redirected.
-        setTimeout(() => navigate("/app/dashboard", { replace: true }), 800);
+        setTimeout(() => navigate(onboardingHref, { replace: true }), 800);
       } catch (err) {
         setErrorMsg(err instanceof Error ? err.message : "Something went wrong.");
         setStatus("error");
@@ -71,7 +80,7 @@ const AuthConfirm = () => {
           ✓
         </span>
         <p className="font-display text-xl text-foreground">Email confirmed!</p>
-        <p className="text-muted-foreground text-sm">Taking you to your dashboard…</p>
+        <p className="text-muted-foreground text-sm">Setting up your founding profile…</p>
       </div>
     );
   }

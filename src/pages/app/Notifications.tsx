@@ -1,37 +1,52 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import {
-  Handshake,
-  MessageSquare,
-  Mic,
-  RefreshCw,
-  UserPlus,
-  CheckCheck,
-  Bell,
-} from "lucide-react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { EmptyState } from "@/components/hayy/EmptyState";
-import { ErrorState } from "@/components/hayy/ErrorState";
-import { getNotifications, markAllNotificationsRead, markNotificationRead } from "@/lib/api/notifications";
-import { useAsync } from "@/lib/useAsync";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { type Notification, type NotificationType } from "@/lib/inboxData";
-import { cn } from "@/lib/utils";
+/**
+ * Notifications — ported from the redesign Notifications mock
+ * (frontend-new/hayy/project/components/extra-screens.jsx → Notifications).
+ *
+ * Editorial inbox grouped by recency. Filter pills (All, Mentions, Referrals,
+ * Rooms, Messages). Real data via getNotifications + markAllNotificationsRead
+ * + markNotificationRead. Optimistic UI on read state; navigates to the
+ * related entity if one is attached.
+ */
 
-const iconFor: Record<NotificationType, { Icon: typeof Handshake; tone: string }> = {
-  "Referral accepted": { Icon: Handshake, tone: "bg-olive/15 text-olive" },
-  "New message": { Icon: MessageSquare, tone: "bg-clay/15 text-clay" },
-  "Room reminder": { Icon: Mic, tone: "bg-primary/10 text-primary" },
-  "Referral update": { Icon: RefreshCw, tone: "bg-clay/15 text-clay" },
-  "Host joined": { Icon: UserPlus, tone: "bg-secondary text-foreground" },
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Avatar, Btn, I, LiveTag, Pill } from "@/components/ui/primitives";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import {
+  getNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from "@/lib/api/notifications";
+import type { Notification, NotificationType } from "@/lib/inboxData";
+
+const FILTERS: { label: string; types?: NotificationType[] }[] = [
+  { label: "All" },
+  { label: "Referrals", types: ["Referral accepted", "Referral update"] },
+  { label: "Rooms", types: ["Room reminder"] },
+  { label: "Messages", types: ["New message"] },
+  { label: "Hosts", types: ["Host joined"] },
+];
+
+const sectionLabelStyle: CSSProperties = {
+  fontFamily: "var(--mono)",
+  fontSize: 11,
+  letterSpacing: ".12em",
+  color: "var(--clay)",
+  textTransform: "uppercase",
+  fontWeight: 600,
+  margin: 0,
 };
 
-/** Maps notification related_entity_type to a frontend route. */
-function routeForNotification(n: Notification & { related_entity_type?: string; related_entity_id?: string }): string | null {
+function routeForNotification(
+  n: Notification & { related_entity_type?: string; related_entity_id?: string },
+): string | null {
   if (!n.related_entity_type || !n.related_entity_id) return null;
-  if (n.related_entity_type === "referral_request" || n.related_entity_type === "referral_message") {
+  if (
+    n.related_entity_type === "referral_request" ||
+    n.related_entity_type === "referral_message"
+  ) {
     return `/app/referrals/${n.related_entity_id}`;
   }
   if (n.related_entity_type === "room") {
@@ -43,18 +58,29 @@ function routeForNotification(n: Notification & { related_entity_type?: string; 
 const Notifications = () => {
   const { userId } = useCurrentUser();
   const navigate = useNavigate();
-  const { data, loading, error, refetch } = useAsync(
-    () => getNotifications(userId ?? undefined),
-    [userId],
-  );
+  const [filter, setFilter] = useState<string>("All");
   const [items, setItems] = useState<Notification[]>([]);
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["notifications", userId],
+    queryFn: () => getNotifications(userId ?? undefined),
+    staleTime: 30_000,
+  });
 
   useEffect(() => {
     if (data) setItems(data);
   }, [data]);
 
-  const today = items.filter((n) => n.group === "Today");
-  const earlier = items.filter((n) => n.group === "Earlier");
+  const totalUnread = items.filter((n) => n.unread).length;
+
+  const filtered = useMemo(() => {
+    const def = FILTERS.find((f) => f.label === filter);
+    if (!def?.types) return items;
+    return items.filter((n) => def.types!.includes(n.type));
+  }, [items, filter]);
+
+  const today = filtered.filter((n) => n.group === "Today");
+  const earlier = filtered.filter((n) => n.group === "Earlier");
 
   const markAll = async () => {
     setItems((prev) => prev.map((n) => ({ ...n, unread: false })));
@@ -62,101 +88,266 @@ const Notifications = () => {
     toast.success("All caught up");
   };
 
-  const handleNotificationClick = async (n: Notification) => {
-    // Mark read optimistically
+  const handleClick = async (n: Notification) => {
     if (n.unread) {
-      setItems((prev) => prev.map((item) => item.id === n.id ? { ...item, unread: false } : item));
+      setItems((prev) =>
+        prev.map((it) => (it.id === n.id ? { ...it, unread: false } : it)),
+      );
       await markNotificationRead(n.id);
     }
-    // Navigate if we have a related entity
-    const route = routeForNotification(n as Notification & { related_entity_type?: string; related_entity_id?: string });
+    const route = routeForNotification(
+      n as Notification & { related_entity_type?: string; related_entity_id?: string },
+    );
     if (route) navigate(route);
   };
 
-  return (
-    <div className="w-full max-w-full space-y-6">
-      <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-        <div>
-          <p className="text-xs uppercase tracking-widest text-clay font-medium">Activity</p>
-          <h1 className="font-display text-[30px] sm:text-4xl text-foreground leading-tight mt-1">
-            Activity center
-          </h1>
-          <p className="text-muted-foreground mt-2 max-w-xl">
-            System updates, referral replies, room reminders, and host activity.
-          </p>
-        </div>
-        <Button variant="soft" size="sm" onClick={markAll} disabled={loading || !!error}>
-          <CheckCheck className="h-4 w-4" />
-          Mark all read
-        </Button>
-      </header>
+  const tones: ("clay" | "olive" | "sand" | "dark")[] = ["clay", "olive", "sand", "dark"];
+  const kindLabel: Record<NotificationType, string> = {
+    "Referral accepted": "Referral",
+    "Referral update": "Referral",
+    "New message": "Message",
+    "Room reminder": "Room",
+    "Host joined": "Host",
+  };
 
-      {loading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-20 w-full rounded-2xl" />
+  return (
+    <div
+      className="hy"
+      style={{
+        background: "var(--bg)",
+        color: "var(--ink)",
+        margin: "-24px -16px",
+        padding: "32px 16px",
+        minHeight: "calc(100vh - 64px)",
+      }}
+    >
+      <div
+        style={{
+          paddingBottom: 18,
+          borderBottom: "1px solid var(--line-soft)",
+          display: "flex",
+          flexDirection: "column",
+          gap: 14,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-end",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <p style={sectionLabelStyle}>Inbox</p>
+            <h1 style={{ fontSize: "clamp(28px, 4vw, 42px)", marginTop: 6, fontFamily: "var(--display)" }}>
+              {totalUnread > 0 ? (
+                <>
+                  <span style={{ color: "var(--clay)" }}>{totalUnread}</span> things{" "}
+                  <span className="display-italic">need you</span>.
+                </>
+              ) : (
+                <>You're all <span className="display-italic">caught up</span>.</>
+              )}
+            </h1>
+          </div>
+          <Btn kind="ghost" size="md" onClick={markAll} disabled={totalUnread === 0}>
+            Mark all read
+          </Btn>
+        </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {FILTERS.map((f) => (
+            <button
+              key={f.label}
+              type="button"
+              onClick={() => setFilter(f.label)}
+              style={{
+                padding: "6px 12px",
+                borderRadius: "var(--radius-pill)",
+                fontSize: 12,
+                fontWeight: 500,
+                background: filter === f.label ? "var(--ink)" : "transparent",
+                color: filter === f.label ? "var(--paper)" : "var(--ink-soft)",
+                border: `1px solid ${filter === f.label ? "var(--ink)" : "var(--line)"}`,
+                cursor: "pointer",
+                fontFamily: "var(--sans)",
+              }}
+            >
+              {f.label}
+            </button>
           ))}
         </div>
-      ) : error ? (
-        <ErrorState description="We couldn't load notifications right now." onRetry={refetch} />
-      ) : items.length === 0 ? (
-        <EmptyState icon={Bell} title="You're all caught up" description="New activity will land here." />
-      ) : (
-        <>
-          <Group title="Today" items={today} onClickItem={handleNotificationClick} />
-          <Group title="Earlier" items={earlier} onClickItem={handleNotificationClick} />
-        </>
-      )}
-    </div>
-  );
-};
+      </div>
 
-interface GroupProps {
-  title: string;
-  items: Notification[];
-  onClickItem: (n: Notification) => void;
-}
+      <div style={{ paddingTop: 8 }}>
+        {isLoading && (
+          <p
+            style={{
+              padding: "32px 0",
+              color: "var(--ink-mute)",
+              fontFamily: "var(--mono)",
+              fontSize: 12,
+              textAlign: "center",
+            }}
+          >
+            Loading notifications…
+          </p>
+        )}
+        {error && (
+          <p style={{ padding: 24, color: "var(--ink-soft)" }}>
+            Couldn't load notifications.
+          </p>
+        )}
 
-const Group = ({ title, items, onClickItem }: GroupProps) => {
-  if (!items.length) return null;
-  return (
-    <section className="space-y-3">
-      <p className="text-xs uppercase tracking-widest text-muted-foreground font-medium px-1">{title}</p>
-      <ul className="rounded-3xl bg-card border border-border divide-y divide-border overflow-hidden">
-        {items.map((n) => {
-          const { Icon, tone } = iconFor[n.type];
-          const clickable = !!(n as Notification & { related_entity_type?: string }).related_entity_type || n.unread;
-          return (
-            <li
-              key={n.id}
-              onClick={() => onClickItem(n)}
-              className={cn(
-                "p-4 sm:p-5 flex items-start gap-3 transition-colors",
-                n.unread && "bg-clay/5",
-                clickable && "cursor-pointer hover:bg-cream/60",
-              )}
+        {[
+          { label: "Today", date: new Date().toLocaleDateString(), items: today },
+          {
+            label: "Earlier",
+            date: "",
+            items: earlier,
+          },
+        ]
+          .filter((g) => g.items.length > 0)
+          .map((g) => (
+            <section
+              key={g.label}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "140px 1fr",
+                gap: 28,
+                paddingTop: 16,
+                paddingBottom: 4,
+                borderTop: "1px solid var(--line-soft)",
+                marginTop: 8,
+              }}
+              className="notifications-section"
             >
-              <span className={cn("h-10 w-10 rounded-2xl inline-flex items-center justify-center shrink-0", tone)}>
-                <Icon className="h-5 w-5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[10px] uppercase tracking-wider font-medium text-muted-foreground">
-                    {n.type}
-                  </span>
-                  {n.unread && <span className="h-2 w-2 rounded-full bg-clay shrink-0" />}
-                  <span className="ml-auto text-[11px] text-muted-foreground">{n.time}</span>
-                </div>
-                <p className={cn("mt-1 text-[15px] leading-snug", n.unread ? "text-foreground font-medium" : "text-foreground/90")}>
-                  {n.title}
-                </p>
-                <p className="mt-1 text-sm text-muted-foreground leading-relaxed">{n.body}</p>
+              <div>
+                <h2 style={{ fontSize: 22, lineHeight: 1.1, fontFamily: "var(--display)" }}>
+                  {g.label}
+                </h2>
+                {g.date && (
+                  <p
+                    className="mono"
+                    style={{
+                      fontSize: 10,
+                      color: "var(--ink-mute)",
+                      marginTop: 4,
+                      letterSpacing: ".08em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {g.date}
+                  </p>
+                )}
               </div>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
+              <div>
+                {g.items.map((n, i) => {
+                  const tone = tones[i % tones.length];
+                  return (
+                    <article
+                      key={n.id}
+                      onClick={() => handleClick(n)}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "auto 1fr auto",
+                        gap: 18,
+                        alignItems: "center",
+                        padding: "14px 0",
+                        borderTop: i === 0 ? "0" : "1px dashed var(--line-soft)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <Avatar name={n.title} size={44} tone={tone} />
+                      <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <Pill style={{ background: "var(--cream)" }}>{kindLabel[n.type]}</Pill>
+                          {n.type === "Room reminder" && <LiveTag>Live</LiveTag>}
+                          {n.unread && (
+                            <span
+                              style={{
+                                width: 8,
+                                height: 8,
+                                borderRadius: 99,
+                                background: "var(--clay)",
+                              }}
+                            />
+                          )}
+                          <span
+                            className="mono"
+                            style={{ fontSize: 10, color: "var(--ink-mute)" }}
+                          >
+                            {n.time}
+                          </span>
+                        </div>
+                        <p style={{ fontSize: 15, margin: 0 }}>
+                          <span style={{ fontWeight: 600 }}>{n.title}</span>
+                        </p>
+                        <p
+                          style={{
+                            fontSize: 13,
+                            color: "var(--ink-mute)",
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          {n.body}
+                        </p>
+                      </div>
+                      <Btn kind="soft" size="md" iconRight={I.arrow}>
+                        Open
+                      </Btn>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
+
+        {!isLoading && filtered.length === 0 && (
+          <div
+            style={{
+              padding: 40,
+              borderRadius: "var(--radius-xl)",
+              background: "var(--cream)",
+              border: "1px dashed var(--line)",
+              textAlign: "center",
+              marginTop: 24,
+            }}
+          >
+            <h3
+              style={{
+                fontFamily: "var(--display)",
+                fontSize: 22,
+                fontWeight: 500,
+              }}
+            >
+              No activity here.
+            </h3>
+            <p style={{ marginTop: 8, fontSize: 14, color: "var(--ink-soft)" }}>
+              {filter === "All"
+                ? "Updates and replies will land here."
+                : "Try a different filter."}
+            </p>
+          </div>
+        )}
+      </div>
+
+      <style>{`
+        @media (max-width: 720px) {
+          .notifications-section { grid-template-columns: 1fr !important; gap: 10px !important; }
+          .notifications-section > div:last-child article { grid-template-columns: auto 1fr !important; }
+          .notifications-section > div:last-child article > button { grid-column: 1 / -1; justify-self: flex-end; }
+        }
+      `}</style>
+    </div>
   );
 };
 

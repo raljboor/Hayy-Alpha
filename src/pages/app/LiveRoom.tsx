@@ -1,22 +1,31 @@
+/**
+ * LiveRoom — ported from the redesign LiveRoomA "Stage" mock
+ * (frontend-new/hayy/project/components/liveroom.jsx → LiveRoomA).
+ *
+ * IMPORTANT: full LiveKit wiring from the previous implementation is
+ * preserved verbatim — the redesign is a re-skin only:
+ *   - getLiveKitToken() → lkRoom.connect()
+ *   - room subscription, participant sync, mic toggle
+ *   - <AudioTrackRenderer> for remote audio attach/detach
+ *
+ * Layout:
+ *   - LiveTopbar (back arrow, LiveTag, title, elapsed clock, attendee count)
+ *   - 1fr / 280px grid: stage left, side conversation right
+ *   - Stage: speaker tiles with redesign clay ring + waveform "speaking" badge
+ *   - Footer: pill control bar (Raise, React, Refer me, Chat, Leave)
+ *   - Modals (Refer me, Ask question) re-skinned without @/components/ui/dialog
+ */
+
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { useMemo, useState, useEffect, useRef } from "react";
 import {
-  Mic,
-  MicOff,
-  Video,
-  VideoOff,
-  Hand,
-  MessageSquareQuote,
-  Handshake,
-  LogOut,
-  Send,
-  MoreVertical,
-  Volume2,
-  Crown,
-  X,
-  Loader2,
-  WifiOff,
-} from "lucide-react";
+  useMemo,
+  useState,
+  useEffect,
+  useRef,
+  type CSSProperties,
+  type ReactNode,
+  type FormEvent,
+} from "react";
 import {
   Room as LKRoom,
   RoomEvent,
@@ -24,56 +33,20 @@ import {
   RemoteAudioTrack,
   Track,
 } from "livekit-client";
+import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Avatar, Btn, I, Icon, LiveTag, Waveform } from "@/components/ui/primitives";
 import { getLiveKitToken } from "@/lib/api/livekit";
-import { getUser, users } from "@/lib/mockData";
 import { getRoomById, leaveRoom } from "@/lib/api/rooms";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
-import { useAsync } from "@/lib/useAsync";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { Skeleton } from "@/components/ui/skeleton";
-import { UserAvatar } from "@/components/hayy/UserAvatar";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type Question = {
-  id: string;
-  userId: string;
-  displayName: string;
-  text: string;
-  upvotes: number;
-};
+type LKStatus = "idle" | "connecting" | "connected" | "error";
 
-/** Shape of a participant derived from LiveKit room state */
 type LKParticipant = {
   identity: string;
   name: string;
@@ -82,42 +55,12 @@ type LKParticipant = {
   isLocal: boolean;
 };
 
-/** Legacy mock-only tile type — only used when Supabase is not configured */
-type Tile = {
+type Question = {
   id: string;
-  user: ReturnType<typeof getUser>;
-  isHost?: boolean;
-  isSpeaker: boolean;
-  speaking?: boolean;
-  hasVideo?: boolean;
-  muted?: boolean;
+  userId: string;
+  displayName: string;
+  text: string;
 };
-
-// ---------------------------------------------------------------------------
-// Mock-only fixtures (never used when Supabase is configured)
-// ---------------------------------------------------------------------------
-
-const MOCK_QUESTIONS: Question[] = [
-  { id: "q1", userId: "u1", displayName: getUser("u1")?.name ?? "Participant", text: "How do referrals actually work?", upvotes: 24 },
-  { id: "q2", userId: "u5", displayName: getUser("u5")?.name ?? "Participant", text: "What makes someone referral-ready?", upvotes: 18 },
-  { id: "q3", userId: "u3", displayName: getUser("u3")?.name ?? "Participant", text: "Should I message before or after applying?", upvotes: 12 },
-  { id: "q4", userId: "u4", displayName: getUser("u4")?.name ?? "Participant", text: "How do I follow up without being annoying?", upvotes: 9 },
-];
-
-// Deterministic avatar colours cycled by participant index
-const AVATAR_COLORS = [
-  "bg-clay",
-  "bg-primary",
-  "bg-olive",
-  "bg-secondary",
-  "bg-sand",
-];
-
-function avatarFor(identity: string, idx: number) {
-  const color = AVATAR_COLORS[idx % AVATAR_COLORS.length];
-  const initials = identity.slice(0, 2).toUpperCase();
-  return { name: identity, initials, avatarColor: color };
-}
 
 // ---------------------------------------------------------------------------
 // AudioTrackRenderer — attaches a LiveKit RemoteAudioTrack to an <audio> node
@@ -134,7 +77,103 @@ const AudioTrackRenderer = ({ track }: { track: RemoteAudioTrack }) => {
     };
   }, [track]);
   // eslint-disable-next-line jsx-a11y/media-has-caption
-  return <audio ref={ref} autoPlay playsInline className="hidden" />;
+  return <audio ref={ref} autoPlay playsInline style={{ display: "none" }} />;
+};
+
+// ---------------------------------------------------------------------------
+// Modal helper (no @/components/ui/dialog)
+// ---------------------------------------------------------------------------
+
+const Modal = ({
+  open,
+  onClose,
+  title,
+  description,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  description?: string;
+  children: ReactNode;
+}) => {
+  if (!open) return null;
+  return (
+    <div
+      onClick={onClose}
+      className="hy"
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 80,
+        background: "rgba(15,15,20,.55)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 18,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "var(--paper)",
+          borderRadius: "var(--radius-xl)",
+          maxWidth: 460,
+          width: "100%",
+          padding: 28,
+          boxShadow: "var(--shadow-warm)",
+        }}
+      >
+        <h2
+          style={{
+            fontFamily: "var(--display)",
+            fontSize: 24,
+            fontWeight: 500,
+            margin: 0,
+          }}
+        >
+          {title}
+        </h2>
+        {description && (
+          <p
+            style={{
+              marginTop: 8,
+              color: "var(--ink-soft)",
+              fontSize: 13,
+              lineHeight: 1.5,
+            }}
+          >
+            {description}
+          </p>
+        )}
+        <div style={{ marginTop: 18 }}>{children}</div>
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Shared field styles
+// ---------------------------------------------------------------------------
+
+const inputStyle: CSSProperties = {
+  padding: "12px 14px",
+  borderRadius: 12,
+  border: "1px solid var(--line)",
+  background: "var(--paper)",
+  fontSize: 14,
+  color: "var(--ink)",
+  width: "100%",
+  outline: "none",
+  fontFamily: "var(--sans)",
+};
+
+const fieldLabelStyle: CSSProperties = {
+  fontFamily: "var(--mono)",
+  fontSize: 10,
+  color: "var(--ink-mute)",
+  letterSpacing: ".1em",
+  textTransform: "uppercase",
 };
 
 // ---------------------------------------------------------------------------
@@ -145,27 +184,42 @@ const LiveRoom = () => {
   const { id = "" } = useParams();
   const navigate = useNavigate();
   const { userId, profile } = useCurrentUser();
-  const { data: room, loading } = useAsync(() => getRoomById(id), [id]);
+
+  const { data: room, isLoading } = useQuery({
+    queryKey: ["live-room", id],
+    queryFn: () => getRoomById(id),
+    enabled: !!id,
+  });
 
   const [muted, setMuted] = useState(true);
-  const [video, setVideo] = useState(false);
   const [hand, setHand] = useState(false);
   const [referralOpen, setReferralOpen] = useState(false);
   const [questionOpen, setQuestionOpen] = useState(false);
   const [questionText, setQuestionText] = useState("");
   const [chatText, setChatText] = useState("");
+  const [questions, setQuestions] = useState<Question[]>([]);
 
-  // In Supabase mode: always start with no questions — real questions will come
-  // from Realtime in a future phase. In mock mode: use the fixture questions.
-  const [questions, setQuestions] = useState<Question[]>(
-    isSupabaseConfigured ? [] : MOCK_QUESTIONS,
-  );
+  // Elapsed clock — refreshed every 30s
+  const [now, setNow] = useState<number>(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  const elapsedLabel = useMemo(() => {
+    if (!room) return "";
+    const startMs = new Date(room.startsAt).getTime();
+    const diffMs = now - startMs;
+    if (diffMs < 0) return "Starting soon";
+    const totalSec = Math.floor(diffMs / 1000);
+    const mm = Math.floor(totalSec / 60);
+    const ss = totalSec % 60;
+    return `${mm.toString().padStart(2, "0")}:${ss.toString().padStart(2, "0")}`;
+  }, [now, room]);
 
-  // ---------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
   // LiveKit state (Supabase mode only)
-  // ---------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
 
-  type LKStatus = "idle" | "connecting" | "connected" | "error";
   const [lkStatus, setLkStatus] = useState<LKStatus>("idle");
   const [lkError, setLkError] = useState<string | null>(null);
   const [lkParticipants, setLkParticipants] = useState<LKParticipant[]>([]);
@@ -181,10 +235,7 @@ const LiveRoom = () => {
 
     const syncParticipants = () => {
       if (cancelled) return;
-
       const all: LKParticipant[] = [];
-
-      // Local participant
       const local = lkRoom.localParticipant;
       if (local.identity) {
         all.push({
@@ -195,8 +246,6 @@ const LiveRoom = () => {
           isLocal: true,
         });
       }
-
-      // Remote participants
       lkRoom.remoteParticipants.forEach((p) => {
         all.push({
           identity: p.identity,
@@ -206,10 +255,8 @@ const LiveRoom = () => {
           isLocal: false,
         });
       });
-
       setLkParticipants(all);
 
-      // Collect subscribed remote audio tracks for rendering
       const tracks: RemoteAudioTrack[] = [];
       lkRoom.remoteParticipants.forEach((p) => {
         p.getTrackPublications().forEach((pub) => {
@@ -262,13 +309,10 @@ const LiveRoom = () => {
     getLiveKitToken(id)
       .then(({ token, livekitUrl }) => {
         if (cancelled) return;
-        return lkRoom.connect(livekitUrl, token, {
-          autoSubscribe: true,
-        });
+        return lkRoom.connect(livekitUrl, token, { autoSubscribe: true });
       })
       .then(() => {
         if (cancelled) return;
-        // Start with mic muted — user explicitly unmutes via the control bar
         return lkRoom.localParticipant.setMicrophoneEnabled(false);
       })
       .then(() => {
@@ -290,87 +334,7 @@ const LiveRoom = () => {
       lkRoom.disconnect();
       lkRoomRef.current = null;
     };
-  }, [id, userId]); // isSupabaseConfigured is a module constant — not needed in deps
-
-  // ---------------------------------------------------------------------------
-  // Mock-only tiles (never used when Supabase is configured)
-  // ---------------------------------------------------------------------------
-
-  const tiles: Tile[] = useMemo(() => {
-    if (isSupabaseConfigured) return [];
-    const pool = users.concat(users).slice(0, 8);
-    return pool.map((u, i) => ({
-      id: `${u.id}-${i}`,
-      user: u,
-      isHost: i === 0,
-      isSpeaker: i < 4,
-      speaking: i === 1 || i === 2,
-      hasVideo: i === 0 || i === 3,
-      muted: i === 3,
-    }));
-  }, []);
-
-  // Raised hands: mock-only
-  const raisedHands = isSupabaseConfigured ? [] : [users[4], users[5]];
-
-  // Audience count
-  const audienceCount = isSupabaseConfigured
-    ? (room?.attendees ?? 0)
-    : (room?.attendees ?? 100) - tiles.filter((t) => t.isSpeaker).length;
-
-  // ---------------------------------------------------------------------------
-  // Loading / not found
-  // ---------------------------------------------------------------------------
-
-  if (loading) {
-    return (
-      <div className="fixed inset-0 z-50 bg-background flex items-center justify-center">
-        <Skeleton className="h-12 w-64" />
-      </div>
-    );
-  }
-
-  if (!room) {
-    return (
-      <div className="fixed inset-0 z-50 bg-background flex items-center justify-center">
-        <p className="text-muted-foreground">Room not found.</p>
-      </div>
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // Actions
-  // ---------------------------------------------------------------------------
-
-  const submitReferral = (e: React.FormEvent) => {
-    e.preventDefault();
-    setReferralOpen(false);
-    toast.success("Request sent", { description: "Your host will get a warm intro request." });
-  };
-
-  const submitQuestion = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!questionText.trim()) return;
-    const displayName = profile?.full_name ?? "You";
-    setQuestions([
-      { id: `q${Date.now()}`, userId: userId ?? "", displayName, text: questionText.trim(), upvotes: 1 },
-      ...questions,
-    ]);
-    setQuestionText("");
-    setQuestionOpen(false);
-    toast.success("Question added to the queue");
-  };
-
-  const sendChat = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatText.trim()) return;
-    const displayName = profile?.full_name ?? "You";
-    setQuestions([
-      { id: `q${Date.now()}`, userId: userId ?? "", displayName, text: chatText.trim(), upvotes: 1 },
-      ...questions,
-    ]);
-    setChatText("");
-  };
+  }, [id, userId]);
 
   const toggleMic = async () => {
     const nextMuted = !muted;
@@ -382,485 +346,648 @@ const LiveRoom = () => {
       try {
         await lkRoomRef.current.localParticipant.setMicrophoneEnabled(!nextMuted);
       } catch {
-        // revert UI if LiveKit call fails
         setMuted(muted);
       }
     }
   };
 
-  // ---------------------------------------------------------------------------
-  // Stage content — Supabase mode uses LiveKit state; mock mode uses tile list
-  // ---------------------------------------------------------------------------
+  const submitReferral = (e: FormEvent) => {
+    e.preventDefault();
+    setReferralOpen(false);
+    toast.success("Request sent", {
+      description: "Your host will get a warm intro request.",
+    });
+  };
 
-  const supabaseStage = (() => {
-    if (lkStatus === "connecting") {
-      return (
-        <div className="rounded-3xl border border-dashed border-border bg-card/40 p-12 flex flex-col items-center justify-center text-center gap-3">
-          <Loader2 className="h-8 w-8 text-muted-foreground/40 animate-spin" />
-          <p className="font-display text-lg text-foreground">Connecting to live audio…</p>
-          <p className="text-sm text-muted-foreground max-w-xs">
-            Hang tight while we join the room.
-          </p>
-        </div>
-      );
-    }
+  const submitQuestion = (e: FormEvent) => {
+    e.preventDefault();
+    if (!questionText.trim()) return;
+    const displayName = profile?.full_name ?? "You";
+    setQuestions((prev) => [
+      {
+        id: `q${Date.now()}`,
+        userId: userId ?? "",
+        displayName,
+        text: questionText.trim(),
+      },
+      ...prev,
+    ]);
+    setQuestionText("");
+    setQuestionOpen(false);
+    toast.success("Question added to the queue");
+  };
 
-    if (lkStatus === "error") {
-      return (
-        <div className="rounded-3xl border border-dashed border-destructive/40 bg-destructive/5 p-12 flex flex-col items-center justify-center text-center gap-3">
-          <WifiOff className="h-8 w-8 text-destructive/60" />
-          <p className="font-display text-lg text-foreground">Could not connect</p>
-          <p className="text-sm text-muted-foreground max-w-sm">{lkError}</p>
-        </div>
-      );
-    }
+  const sendChat = (e: FormEvent) => {
+    e.preventDefault();
+    if (!chatText.trim()) return;
+    const displayName = profile?.full_name ?? "You";
+    setQuestions((prev) => [
+      {
+        id: `q${Date.now()}`,
+        userId: userId ?? "",
+        displayName,
+        text: chatText.trim(),
+      },
+      ...prev,
+    ]);
+    setChatText("");
+  };
 
-    if (lkStatus === "connected" && lkParticipants.length === 0) {
-      return (
-        <div className="rounded-3xl border border-dashed border-border bg-card/40 p-12 flex flex-col items-center justify-center text-center gap-3">
-          <Mic className="h-8 w-8 text-muted-foreground/40" />
-          <p className="font-display text-lg text-foreground">You're the first one here</p>
-          <p className="text-sm text-muted-foreground max-w-xs">
-            Others will appear here when they join. Unmute to speak.
-          </p>
-        </div>
-      );
-    }
+  // -------------------------------------------------------------------------
+  // Render guards
+  // -------------------------------------------------------------------------
 
-    if (lkStatus === "connected" && lkParticipants.length > 0) {
-      return (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {lkParticipants.map((p, idx) => (
-            <LKParticipantTile key={p.identity} participant={p} idx={idx} />
-          ))}
-        </div>
-      );
-    }
-
-    // idle / disconnected — show neutral placeholder
+  if (isLoading) {
     return (
-      <div className="rounded-3xl border border-dashed border-border bg-card/40 p-12 flex flex-col items-center justify-center text-center gap-3">
-        <Mic className="h-8 w-8 text-muted-foreground/40" />
-        <p className="font-display text-lg text-foreground">No live participants yet</p>
-        <p className="text-sm text-muted-foreground max-w-xs">
-          Live audio will connect here once room audio is enabled.
+      <div
+        className="hy"
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 50,
+          background: "var(--bg)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <p
+          className="mono"
+          style={{
+            fontSize: 12,
+            color: "var(--ink-mute)",
+            letterSpacing: ".12em",
+            textTransform: "uppercase",
+          }}
+        >
+          Loading room…
         </p>
       </div>
     );
-  })();
+  }
 
-  // ---------------------------------------------------------------------------
-  // Render
-  // ---------------------------------------------------------------------------
+  if (!room) {
+    return (
+      <div
+        className="hy"
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 50,
+          background: "var(--bg)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <p style={{ color: "var(--ink-soft)" }}>Room not found.</p>
+      </div>
+    );
+  }
+
+  const tones: ("clay" | "olive" | "sand" | "dark")[] = ["clay", "olive", "sand", "dark"];
 
   return (
-    <div className="fixed inset-0 z-50 bg-gradient-to-b from-background to-cream/40 flex flex-col">
+    <div
+      className="hy"
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 50,
+        background: "var(--bg)",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+      }}
+    >
       {/* Hidden audio renderers for remote participant tracks */}
       {isSupabaseConfigured &&
-        lkAudioTracks.map((track) => (
-          <AudioTrackRenderer key={track.sid} track={track} />
-        ))}
+        lkAudioTracks.map((track) => <AudioTrackRenderer key={track.sid} track={track} />)}
 
-      {/* Top bar */}
-      <header className="h-16 border-b border-border bg-background/80 backdrop-blur flex items-center justify-between px-4 md:px-6 shrink-0">
-        <div className="flex items-center gap-3 min-w-0">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-clay/15 text-clay border border-clay/30 px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-wider">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inline-flex h-full w-full rounded-full bg-clay opacity-75 animate-ping" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-clay" />
-            </span>
-            Live now
-          </span>
-          <p className="font-display text-base sm:text-lg truncate max-w-[55vw]">
+      {/* Topbar */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          padding: "16px 28px",
+          borderBottom: "1px solid var(--line-soft)",
+          background: "var(--paper)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+          <button
+            type="button"
+            onClick={async () => {
+              if (userId) await leaveRoom(room.id, userId).catch(() => {});
+              navigate(`/app/rooms/${room.id}`);
+            }}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "var(--ink-soft)",
+              cursor: "pointer",
+              padding: 4,
+              display: "inline-flex",
+            }}
+            aria-label="Leave room"
+          >
+            <Icon d="m15 18-6-6 6-6" size={18} />
+          </button>
+          <LiveTag />
+          <span
+            style={{
+              fontSize: 14,
+              fontWeight: 500,
+              color: "var(--ink)",
+              marginLeft: 4,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              maxWidth: 380,
+            }}
+          >
             {room.title}
-          </p>
+          </span>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={async () => {
-            if (userId) {
-              await leaveRoom(room.id, userId).catch(() => {});
-            }
-            navigate(`/app/rooms/${room.id}`);
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <span className="mono" style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+            {elapsedLabel}
+          </span>
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 12,
+              color: "var(--ink-soft)",
+            }}
+          >
+            {I.users} {Math.max(room.attendees, lkParticipants.length)}
+          </span>
+        </div>
+      </div>
+
+      <div
+        className="liveroom-grid"
+        style={{
+          flex: 1,
+          display: "grid",
+          gridTemplateColumns: "1fr 280px",
+          overflow: "hidden",
+          minHeight: 0,
+        }}
+      >
+        {/* Stage */}
+        <main
+          style={{
+            padding: 28,
+            overflow: "auto",
+            display: "flex",
+            flexDirection: "column",
+            gap: 18,
           }}
         >
-          <LogOut className="h-4 w-4" />Leave
-        </Button>
-      </header>
-
-      <div className="flex-1 grid lg:grid-cols-[1fr_360px] overflow-hidden">
-        {/* Stage */}
-        <section className="overflow-y-auto p-5 md:p-8">
-          {/* Stage header — only shown when there are real participants */}
-          {isSupabaseConfigured ? (
-            lkStatus === "connected" && lkParticipants.length > 0 ? (
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-xs font-medium uppercase tracking-widest text-clay">
-                  On stage · {lkParticipants.length}
-                </p>
-                <p className="text-xs text-muted-foreground">{audienceCount}+ listening</p>
-              </div>
-            ) : null
-          ) : (
-            tiles.length > 0 && (
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-xs font-medium uppercase tracking-widest text-clay">
-                  On stage · {tiles.filter((t) => t.isSpeaker).length}
-                </p>
-                <p className="text-xs text-muted-foreground">{audienceCount}+ listening</p>
-              </div>
-            )
-          )}
-
-          {/* Stage body */}
-          {isSupabaseConfigured ? (
-            supabaseStage
-          ) : tiles.length === 0 ? (
-            <div className="rounded-3xl border border-dashed border-border bg-card/40 p-12 flex flex-col items-center justify-center text-center gap-3">
-              <Mic className="h-8 w-8 text-muted-foreground/40" />
-              <p className="font-display text-lg text-foreground">No live participants yet</p>
-              <p className="text-sm text-muted-foreground max-w-xs">
-                Live audio will connect here once room audio is enabled.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {tiles.map((t) => (
-                <ParticipantTile key={t.id} tile={t} />
-              ))}
-            </div>
-          )}
-
-          {/* Raised hand queue — mock mode only */}
-          {raisedHands.length > 0 && (
-            <div className="mt-10 rounded-3xl bg-card border border-border p-5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Hand className="h-4 w-4 text-clay" />
-                  <h3 className="font-display text-base font-semibold text-foreground">Raised hand queue</h3>
-                </div>
-                <span className="text-xs text-muted-foreground">{raisedHands.length} waiting</span>
-              </div>
-              <ul className="mt-4 space-y-3">
-                {raisedHands.map((u) => (
-                  <li key={u.id} className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <UserAvatar user={u} size="sm" />
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">{u.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{u.role}</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="soft">Bring up</Button>
-                      <Button size="sm" variant="ghost">Skip</Button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </section>
-
-        {/* Right panel — questions */}
-        <aside className="hidden lg:flex flex-col border-l border-border bg-cream/60">
-          <div className="p-4 border-b border-border flex items-center gap-2">
-            <MessageSquareQuote className="h-4 w-4 text-clay" />
-            <p className="font-display text-base font-semibold">Questions</p>
-            <span className="ml-auto text-xs text-muted-foreground">{questions.length}</span>
+          <div>
+            <p
+              className="mono"
+              style={{
+                fontSize: 10,
+                color: "var(--clay)",
+                letterSpacing: ".12em",
+                textTransform: "uppercase",
+              }}
+            >
+              On stage
+            </p>
+            <h2 style={{ fontSize: 26, marginTop: 4, fontFamily: "var(--display)" }}>
+              {room.description || "Welcome to the room."}
+            </h2>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {/* Connecting / error / empty / connected */}
+          {lkStatus === "connecting" && (
+            <StagePlaceholder
+              label="Connecting to live audio…"
+              hint="Hang tight while we join the room."
+            />
+          )}
+          {lkStatus === "error" && (
+            <StagePlaceholder label="Could not connect" hint={lkError ?? ""} error />
+          )}
+          {lkStatus === "connected" && lkParticipants.length === 0 && (
+            <StagePlaceholder
+              label="You're the first one here"
+              hint="Others will appear when they join. Unmute to speak."
+            />
+          )}
+          {lkStatus !== "connecting" &&
+            lkStatus !== "error" &&
+            lkParticipants.length > 0 && (
+              <div
+                style={{
+                  display: "grid",
+                  gap: 24,
+                  gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+                  justifyItems: "center",
+                  padding: "12px 0",
+                }}
+              >
+                {lkParticipants.map((p, i) => (
+                  <SpeakerTile
+                    key={p.identity}
+                    name={p.name || p.identity}
+                    role={p.isLocal ? "You" : ""}
+                    tone={tones[i % tones.length]}
+                    speaking={p.isSpeaking}
+                    micOn={p.isMicEnabled}
+                    isHost={room.hostId === p.identity}
+                  />
+                ))}
+              </div>
+            )}
+
+          {/* Footer pill controls */}
+          <div
+            style={{
+              marginTop: "auto",
+              display: "flex",
+              justifyContent: "center",
+              gap: 10,
+              padding: 10,
+              background: "var(--paper)",
+              borderRadius: "var(--radius-pill)",
+              border: "1px solid var(--line)",
+              boxShadow: "var(--shadow-soft)",
+              alignSelf: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            <ControlBtn
+              icon={muted ? I.micOff : I.mic}
+              label={muted ? "Unmute" : "Mute"}
+              onClick={toggleMic}
+              highlight={!muted}
+            />
+            <ControlBtn
+              icon={I.hand}
+              label={hand ? "Lower" : "Raise"}
+              onClick={() => setHand(!hand)}
+              highlight={hand}
+            />
+            <ControlBtn icon={I.heart} label="React" onClick={() => toast("👏")} />
+            <ControlBtn
+              icon={I.shake}
+              label="Refer me"
+              highlight
+              onClick={() => setReferralOpen(true)}
+            />
+            <ControlBtn
+              icon={I.msg}
+              label="Ask"
+              onClick={() => setQuestionOpen(true)}
+            />
+            <ControlBtn
+              icon={I.closed}
+              label="Leave"
+              danger
+              onClick={async () => {
+                if (userId) await leaveRoom(room.id, userId).catch(() => {});
+                navigate(`/app/rooms/${room.id}`);
+              }}
+            />
+          </div>
+        </main>
+
+        {/* Side conversation */}
+        <aside
+          className="liveroom-aside"
+          style={{
+            borderLeft: "1px solid var(--line-soft)",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            background: "var(--paper)",
+          }}
+        >
+          <div style={{ padding: "16px 18px", borderBottom: "1px solid var(--line-soft)" }}>
+            <p
+              className="mono"
+              style={{
+                fontSize: 10,
+                color: "var(--clay)",
+                letterSpacing: ".12em",
+                textTransform: "uppercase",
+              }}
+            >
+              Side conversation
+            </p>
+          </div>
+          <div
+            style={{
+              flex: 1,
+              overflow: "auto",
+              padding: 16,
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+            }}
+          >
             {questions.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">No questions yet.</p>
+              <p style={{ fontSize: 13, color: "var(--ink-mute)", textAlign: "center", padding: "24px 0" }}>
+                No questions yet — be the first to ask.
+              </p>
             ) : (
-              questions.map((q) => {
-                const initials = q.displayName.trim().split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "?";
-                return (
-                  <div key={q.id} className="rounded-2xl bg-card border border-border p-3">
-                    <div className="flex items-start gap-2.5">
-                      <UserAvatar
-                        user={{ name: q.displayName, initials, avatarColor: "bg-primary" }}
-                        size="sm"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-medium text-foreground">{q.displayName}</p>
-                        <p className="text-sm text-foreground/85 mt-0.5">{q.text}</p>
-                        <div className="mt-2 flex items-center justify-between">
-                          <button className="text-[11px] text-muted-foreground hover:text-clay">↑ {q.upvotes} upvotes</button>
-                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">In queue</span>
-                        </div>
-                      </div>
-                    </div>
+              questions.map((m, i) => (
+                <div key={m.id} style={{ display: "flex", gap: 8 }}>
+                  <Avatar name={m.displayName} size={26} tone={tones[i % tones.length]} />
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ fontSize: 11, color: "var(--ink-mute)", margin: 0 }}>
+                      {m.displayName}
+                    </p>
+                    <p style={{ fontSize: 13, marginTop: 2 }}>{m.text}</p>
                   </div>
-                );
-              })
+                </div>
+              ))
             )}
           </div>
-
-          <form onSubmit={sendChat} className="p-3 border-t border-border flex gap-2 bg-background/60">
-            <Input
+          <form
+            onSubmit={sendChat}
+            style={{
+              padding: 12,
+              borderTop: "1px solid var(--line-soft)",
+              display: "flex",
+              gap: 8,
+            }}
+          >
+            <input
               value={chatText}
               onChange={(e) => setChatText(e.target.value)}
-              placeholder="Ask a question…"
-              className="bg-card"
+              placeholder="Message the room…"
+              style={{
+                flex: 1,
+                background: "var(--cream)",
+                borderRadius: "var(--radius-pill)",
+                padding: "8px 14px",
+                fontSize: 12,
+                color: "var(--ink)",
+                border: "1px solid var(--line)",
+                outline: "none",
+                fontFamily: "var(--sans)",
+              }}
             />
-            <Button type="submit" variant="hero" size="icon"><Send className="h-4 w-4" /></Button>
+            <Btn kind="primary" size="md" type="submit">
+              {I.arrow}
+            </Btn>
           </form>
         </aside>
       </div>
 
-      {/* Controls */}
-      <footer className="border-t border-border bg-card/95 backdrop-blur shrink-0">
-        <div className="flex items-center justify-center gap-2 md:gap-3 px-3 py-3 md:py-4 overflow-x-auto">
-          <ControlBtn active={!muted} onClick={toggleMic} label={muted ? "Unmute" : "Mute"}>
-            {muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-          </ControlBtn>
-          <ControlBtn active={video} onClick={() => setVideo(!video)} label={video ? "Stop video" : "Video"}>
-            {video ? <Video className="h-4 w-4" /> : <VideoOff className="h-4 w-4" />}
-          </ControlBtn>
-          <ControlBtn active={hand} onClick={() => setHand(!hand)} label={hand ? "Lower hand" : "Raise hand"} variant="clay">
-            <Hand className="h-4 w-4" />
-          </ControlBtn>
-          <ControlBtn onClick={() => setQuestionOpen(true)} label="Ask question">
-            <MessageSquareQuote className="h-4 w-4" />
-          </ControlBtn>
-          <ControlBtn onClick={() => setReferralOpen(true)} label="Request referral" variant="hero">
-            <Handshake className="h-4 w-4" />
-          </ControlBtn>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-secondary text-foreground/70 hover:bg-sand transition-colors"
-                aria-label="Moderator tools"
-              >
-                <MoreVertical className="h-4 w-4" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" side="top">
-              <DropdownMenuLabel>Moderator tools</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem><MicOff className="h-4 w-4" />Mute participant</DropdownMenuItem>
-              <DropdownMenuItem><Volume2 className="h-4 w-4" />Spotlight speaker</DropdownMenuItem>
-              <DropdownMenuItem className="text-destructive focus:text-destructive">
-                <X className="h-4 w-4" />Remove participant
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button asChild variant="ghost" size="sm" className="ml-1 hidden md:inline-flex">
-            <Link to={`/app/rooms/${room.id}`}>Details</Link>
-          </Button>
-        </div>
-      </footer>
-
-      {/* Request referral modal */}
-      <Dialog open={referralOpen} onOpenChange={setReferralOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="font-display text-2xl">Request a warm intro</DialogTitle>
-            <DialogDescription>
-              Be specific and kind — hosts get a notification with your message.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={submitReferral} className="space-y-4 mt-2">
-            <div className="space-y-2">
-              <Label>Select host</Label>
-              {tiles.length > 0 ? (
-                <Select defaultValue={tiles[0]?.user?.id}>
-                  <SelectTrigger className="bg-cream"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {tiles.filter((t) => t.isSpeaker).map((t) => (
-                      <SelectItem key={t.id} value={t.user!.id}>
-                        {t.user!.name} — {t.user!.role}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <p className="rounded-xl border border-border bg-cream px-3 py-2 text-sm text-muted-foreground">
-                  Room host
-                </p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label>Request type</Label>
-              <Select defaultValue="referral">
-                <SelectTrigger className="bg-cream"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="coffee">Coffee chat</SelectItem>
-                  <SelectItem value="referral">Referral</SelectItem>
-                  <SelectItem value="resume">Resume feedback</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Message</Label>
-              <Textarea
-                rows={4}
-                placeholder="Hi — really enjoyed your perspective on Canadian corporate hiring. I'm targeting Ops roles and would love a 15-min chat…"
-                className="bg-cream resize-none"
-                required
-              />
-            </div>
-            <Button type="submit" variant="hero" className="w-full">Submit request</Button>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Ask question modal */}
-      <Dialog open={questionOpen} onOpenChange={setQuestionOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="font-display text-2xl">Ask a question</DialogTitle>
-            <DialogDescription>Hosts read every question — keep it specific.</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={submitQuestion} className="space-y-4 mt-2">
-            <Textarea
+      {/* Referral modal */}
+      <Modal
+        open={referralOpen}
+        onClose={() => setReferralOpen(false)}
+        title="Request a warm intro"
+        description="Be specific and kind — hosts get a notification with your message."
+      >
+        <form onSubmit={submitReferral} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={fieldLabelStyle}>Request type</span>
+            <select defaultValue="referral" style={{ ...inputStyle, appearance: "none" }}>
+              <option value="coffee_chat">Coffee chat</option>
+              <option value="referral">Referral</option>
+              <option value="resume_feedback">Resume feedback</option>
+            </select>
+          </label>
+          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={fieldLabelStyle}>Message</span>
+            <textarea
               rows={4}
-              value={questionText}
-              onChange={(e) => setQuestionText(e.target.value)}
-              placeholder="What's the difference between an internal referral and an employee submission?"
-              className="bg-cream resize-none"
               required
+              placeholder="Hi — really enjoyed your perspective on Canadian corporate hiring. I'm targeting Ops roles…"
+              style={{ ...inputStyle, resize: "none", lineHeight: 1.5 }}
             />
-            <Button type="submit" variant="hero" className="w-full">Add to queue</Button>
-          </form>
-        </DialogContent>
-      </Dialog>
+          </label>
+          <Btn
+            kind="primary"
+            size="lg"
+            type="submit"
+            iconRight={I.shake}
+            style={{ justifyContent: "center", width: "100%" }}
+          >
+            Send to host
+          </Btn>
+        </form>
+      </Modal>
+
+      {/* Question modal */}
+      <Modal
+        open={questionOpen}
+        onClose={() => setQuestionOpen(false)}
+        title="Ask a question"
+        description="Hosts read every question — keep it specific."
+      >
+        <form onSubmit={submitQuestion} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <textarea
+            rows={4}
+            required
+            value={questionText}
+            onChange={(e) => setQuestionText(e.target.value)}
+            placeholder="What's the difference between an internal referral and an employee submission?"
+            style={{ ...inputStyle, resize: "none", lineHeight: 1.5 }}
+          />
+          <Btn
+            kind="primary"
+            size="lg"
+            type="submit"
+            style={{ justifyContent: "center", width: "100%" }}
+          >
+            Add to queue
+          </Btn>
+        </form>
+      </Modal>
+
+      <style>{`
+        @media (max-width: 880px) {
+          .liveroom-grid { grid-template-columns: 1fr !important; }
+          .liveroom-aside { display: none !important; }
+        }
+      `}</style>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// LKParticipantTile — real participant from LiveKit room state
+// SpeakerTile
 // ---------------------------------------------------------------------------
 
-const LKParticipantTile = ({
-  participant,
-  idx,
+const SpeakerTile = ({
+  name,
+  role,
+  tone,
+  speaking,
+  micOn,
+  isHost,
 }: {
-  participant: LKParticipant;
-  idx: number;
-}) => {
-  const avatar = avatarFor(participant.name || participant.identity, idx);
-  return (
-    <div
-      className={cn(
-        "relative rounded-2xl border bg-card p-4 flex flex-col items-center justify-center text-center transition-all aspect-[4/5]",
-        participant.isSpeaking
-          ? "border-clay shadow-[0_0_0_3px_hsl(var(--clay)/0.25)]"
-          : "border-border shadow-soft",
+  name: string;
+  role: string;
+  tone: "clay" | "olive" | "sand" | "dark";
+  speaking?: boolean;
+  micOn?: boolean;
+  isHost?: boolean;
+}) => (
+  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+    <div style={{ position: "relative" }}>
+      <Avatar name={name} size={92} tone={tone} />
+      {speaking && (
+        <span
+          style={{
+            position: "absolute",
+            inset: -5,
+            borderRadius: "50%",
+            border: "2px solid var(--clay)",
+            animation: "hy-pulse 1.6s ease-out infinite",
+          }}
+        />
       )}
-    >
-      {participant.isLocal && (
-        <span className="absolute top-2 left-2 rounded-full bg-primary/10 text-primary px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider">
-          You
+      {isHost && (
+        <span
+          style={{
+            position: "absolute",
+            top: -2,
+            right: -2,
+            background: "var(--clay)",
+            color: "var(--paper)",
+            borderRadius: "var(--radius-pill)",
+            padding: "2px 7px",
+            fontSize: 9,
+            fontWeight: 600,
+            letterSpacing: ".05em",
+            textTransform: "uppercase",
+            border: "2px solid var(--paper)",
+          }}
+        >
+          Host
         </span>
       )}
-      <span className="absolute top-2 right-2 inline-flex items-center justify-center h-6 w-6 rounded-full bg-background/80 border border-border">
-        {participant.isMicEnabled ? (
-          <Mic className="h-3 w-3 text-olive" />
+      <span
+        style={{
+          position: "absolute",
+          bottom: -2,
+          right: -2,
+          width: 22,
+          height: 22,
+          borderRadius: "var(--radius-pill)",
+          background: "var(--paper)",
+          border: "1px solid var(--line)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: micOn ? "var(--clay)" : "var(--ink-mute)",
+        }}
+      >
+        {micOn && speaking ? (
+          <Waveform bars={3} height={10} color="var(--clay)" />
+        ) : micOn ? (
+          I.mic
         ) : (
-          <MicOff className="h-3 w-3 text-muted-foreground" />
+          I.micOff
         )}
       </span>
-
-      <div className="relative">
-        <UserAvatar user={avatar} size="xl" />
-        {participant.isSpeaking && (
-          <span className="absolute inset-0 rounded-full ring-4 ring-clay/40 animate-pulse" aria-hidden />
-        )}
-      </div>
-
-      <p className="mt-3 text-sm font-medium text-foreground truncate max-w-full">
-        {participant.name || participant.identity}
-      </p>
     </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// ParticipantTile — mock-only, used when Supabase is not configured
-// ---------------------------------------------------------------------------
-
-const ParticipantTile = ({ tile }: { tile: Tile }) => {
-  const u = tile.user!;
-  return (
-    <div
-      className={cn(
-        "relative rounded-2xl border bg-card p-4 flex flex-col items-center justify-center text-center transition-all aspect-[4/5]",
-        tile.speaking ? "border-clay shadow-[0_0_0_3px_hsl(var(--clay)/0.25)]" : "border-border shadow-soft",
+    <div style={{ textAlign: "center", maxWidth: 122 }}>
+      <p style={{ fontSize: 12, fontWeight: 500, lineHeight: 1.2 }}>{name}</p>
+      {role && (
+        <p style={{ fontSize: 10, color: "var(--ink-mute)", marginTop: 1, lineHeight: 1.2 }}>
+          {role}
+        </p>
       )}
-    >
-      {tile.isHost && (
-        <span className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-clay text-clay-foreground px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider">
-          <Crown className="h-2.5 w-2.5" />Host
-        </span>
-      )}
-      {tile.isSpeaker && !tile.isHost && (
-        <span className="absolute top-2 left-2 rounded-full bg-primary/10 text-primary px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider">
-          Speaker
-        </span>
-      )}
-      <span className="absolute top-2 right-2 inline-flex items-center justify-center h-6 w-6 rounded-full bg-background/80 border border-border">
-        {tile.muted ? <MicOff className="h-3 w-3 text-muted-foreground" /> : <Mic className="h-3 w-3 text-olive" />}
-      </span>
-
-      <div className="relative">
-        <UserAvatar user={u} size="xl" />
-        {tile.speaking && (
-          <span className="absolute inset-0 rounded-full ring-4 ring-clay/40 animate-pulse" aria-hidden />
-        )}
-        {tile.hasVideo && (
-          <span className="absolute -bottom-1 -right-1 inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground border-2 border-card">
-            <Video className="h-3 w-3" />
-          </span>
-        )}
-      </div>
-
-      <p className="mt-3 text-sm font-medium text-foreground truncate max-w-full">{u.name}</p>
-      <p className="text-[11px] text-muted-foreground truncate max-w-full">{u.role}</p>
     </div>
-  );
-};
+  </div>
+);
 
 // ---------------------------------------------------------------------------
-// ControlBtn
+// ControlBtn (footer pill control)
 // ---------------------------------------------------------------------------
 
-interface ControlBtnProps {
-  children: React.ReactNode;
+const ControlBtn = ({
+  icon,
+  label,
+  highlight,
+  danger,
+  onClick,
+}: {
+  icon: ReactNode;
   label: string;
-  active?: boolean;
+  highlight?: boolean;
+  danger?: boolean;
   onClick?: () => void;
-  variant?: "hero" | "clay" | "default";
-}
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      gap: 2,
+      padding: "8px 14px",
+      borderRadius: "var(--radius-pill)",
+      background: highlight ? "var(--clay)" : danger ? "rgba(220,60,60,.08)" : "transparent",
+      color: highlight ? "var(--paper)" : danger ? "hsl(0 65% 45%)" : "var(--ink-soft)",
+      border: "none",
+      cursor: "pointer",
+      minWidth: 64,
+      fontFamily: "var(--sans)",
+    }}
+  >
+    {icon}
+    <span style={{ fontSize: 10, fontWeight: 500 }}>{label}</span>
+  </button>
+);
 
-const ControlBtn = ({ children, label, active, onClick, variant = "default" }: ControlBtnProps) => {
-  const styles =
-    variant === "hero"
-      ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-soft"
-      : variant === "clay"
-      ? active
-        ? "bg-clay text-clay-foreground shadow-soft"
-        : "bg-secondary text-foreground/70 hover:bg-sand"
-      : active
-      ? "bg-primary text-primary-foreground shadow-soft"
-      : "bg-secondary text-foreground/70 hover:bg-sand";
+// ---------------------------------------------------------------------------
+// StagePlaceholder
+// ---------------------------------------------------------------------------
 
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "inline-flex flex-col items-center justify-center gap-1 rounded-2xl px-3 md:px-4 py-2 transition-colors min-w-[68px]",
-        styles,
-      )}
+const StagePlaceholder = ({
+  label,
+  hint,
+  error,
+}: {
+  label: string;
+  hint: string;
+  error?: boolean;
+}) => (
+  <div
+    style={{
+      borderRadius: "var(--radius-xl)",
+      border: `1px dashed ${error ? "var(--live)" : "var(--line)"}`,
+      background: error ? "rgba(220,60,60,.05)" : "var(--cream)",
+      padding: 36,
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      textAlign: "center",
+    }}
+  >
+    <p
+      style={{
+        fontFamily: "var(--display)",
+        fontSize: 18,
+        fontWeight: 500,
+        margin: 0,
+      }}
     >
-      <span className="inline-flex h-6 items-center justify-center">{children}</span>
-      <span className="text-[10px] font-medium leading-none">{label}</span>
-    </button>
-  );
-};
+      {label}
+    </p>
+    {hint && (
+      <p style={{ fontSize: 13, color: "var(--ink-soft)", maxWidth: 360, margin: 0 }}>{hint}</p>
+    )}
+  </div>
+);
 
 export default LiveRoom;

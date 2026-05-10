@@ -1,129 +1,113 @@
-import { useEffect, useRef, useState, useMemo } from "react";
-import { Link } from "react-router-dom";
+/**
+ * Profile — ported from the redesign Profile (story-style) and ProfileEdit
+ * mocks (frontend-new/hayy/project/components/more-screens.jsx → Profile,
+ * extra-screens.jsx → ProfileEdit).
+ *
+ * Single page that flips between view mode (editorial story layout with
+ * quote-led intro, bio paragraphs, tags, sidebar of stats / availability /
+ * "happy to help with") and edit mode (inline form with native inputs).
+ *
+ * Real data via getProfile + updateProfile + uploadResume + uploadVideoIntro
+ * + uploadAvatar. Wiring contracts preserved verbatim.
+ */
+
 import {
-  MapPin,
-  BadgeCheck,
-  Pencil,
-  Share2,
-  Sparkles,
-  Target,
-  Coffee,
-  FileText,
-  X,
-  Check,
-  Upload,
-  Video,
-  Loader2,
-  Link as LinkIcon,
-  Camera,
-} from "lucide-react";
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
+import { Link } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { UserAvatar } from "@/components/hayy/UserAvatar";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Skeleton } from "@/components/ui/skeleton";
-import { ErrorState } from "@/components/hayy/ErrorState";
-import { getProfile, updateProfile, uploadResume, uploadVideoIntro, uploadAvatar } from "@/lib/api/profiles";
-import { useAsync } from "@/lib/useAsync";
+import { Avatar, Btn, I, Pill } from "@/components/ui/primitives";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { isMockMode } from "@/lib/runtimeMode";
+import {
+  getProfile,
+  updateProfile,
+  uploadAvatar,
+  uploadResume,
+  uploadVideoIntro,
+} from "@/lib/api/profiles";
 
-// ---------------------------------------------------------------------------
-// Static mock data — display-only; never used in API calls
-// ---------------------------------------------------------------------------
-
-const fallbackMe = {
-  name: "Amira Khan",
-  initials: "AK",
-  avatarColor: "bg-clay",
-  headline: "Product Marketing · seeking warm intros into Canadian corporates",
-  location: "Toronto, CA",
-  pronouns: "she/her",
+const sectionLabelStyle: CSSProperties = {
+  fontFamily: "var(--mono)",
+  fontSize: 11,
+  letterSpacing: ".12em",
+  color: "var(--clay)",
+  textTransform: "uppercase",
+  fontWeight: 600,
+  margin: 0,
 };
 
-const mockCareerStory = [
-  "Newcomer to Canada, ex-Careem. Building my first corporate role here.",
-  "I'm an early-career professional with an industrial engineering background, focused on operations and program management.",
-];
-const mockTargetRoles = ["Product Marketing", "Operations Analyst", "Program Manager"];
-const mockSkills = ["Market research", "Operations", "Power BI", "Stakeholder management"];
-const mockReferralGoal =
-  "Looking for warm introductions into Canadian corporate teams where operations, growth, and customer experience meet.";
+const cardStyle: CSSProperties = {
+  background: "var(--paper)",
+  border: "1px solid var(--line-soft)",
+  borderRadius: "var(--radius-xl)",
+  padding: 18,
+  boxShadow: "var(--shadow-soft)",
+};
 
-const roomsJoined = [
-  "How to Get Referred Into Corporate Roles in Canada",
-  "Product Leaders in Tech",
-  "Newcomer Career Access Circle",
-];
+const inputStyle: CSSProperties = {
+  padding: "12px 14px",
+  borderRadius: 12,
+  border: "1px solid var(--line)",
+  background: "var(--paper)",
+  fontSize: 14,
+  color: "var(--ink)",
+  width: "100%",
+  outline: "none",
+  fontFamily: "var(--sans)",
+};
 
-const referralsReceived = [
-  {
-    name: "Khalid A.",
-    initials: "KA",
-    avatarColor: "bg-primary",
-    role: "Product Manager",
-    company: "Google",
-    status: "Coffee chat accepted",
-    icon: Coffee,
-    tone: "olive" as const,
-  },
-  {
-    name: "Leila M.",
-    initials: "LM",
-    avatarColor: "bg-olive",
-    role: "Design Lead",
-    company: "Airbnb",
-    status: "Resume feedback pending",
-    icon: FileText,
-    tone: "clay" as const,
-  },
-];
+const fieldLabelStyle: CSSProperties = {
+  fontFamily: "var(--mono)",
+  fontSize: 10,
+  color: "var(--ink-mute)",
+  letterSpacing: ".1em",
+  textTransform: "uppercase",
+};
 
-// ---------------------------------------------------------------------------
-// Sub-components
-// ---------------------------------------------------------------------------
-
-const Card = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
-  <section className={`w-full max-w-full box-border rounded-[28px] bg-card border border-border/70 p-6 shadow-soft ${className}`}>
+const FieldGroup = ({
+  label,
+  children,
+  style,
+}: {
+  label: string;
+  children: ReactNode;
+  style?: CSSProperties;
+}) => (
+  <label style={{ display: "flex", flexDirection: "column", gap: 6, ...style }}>
+    <span style={fieldLabelStyle}>{label}</span>
     {children}
-  </section>
+  </label>
 );
 
-const SectionTitle = ({ children }: { children: React.ReactNode }) => (
-  <h2 className="font-display text-[26px] md:text-[28px] leading-tight text-foreground">{children}</h2>
-);
-
-const Chip = ({ children }: { children: React.ReactNode }) => (
-  <span className="inline-flex items-center rounded-full bg-secondary text-foreground px-3.5 py-1.5 text-sm font-medium border border-border/60">
-    {children}
-  </span>
-);
-
-// ---------------------------------------------------------------------------
-// Inline file upload button
-// ---------------------------------------------------------------------------
-
-interface UploadButtonProps {
+const UploadTile = ({
+  label,
+  hint,
+  accept,
+  uploading,
+  hasFile,
+  onFile,
+}: {
   label: string;
   hint: string;
-  icon: typeof Upload;
   accept: string;
   uploading: boolean;
-  currentUrl: string | null | undefined;
+  hasFile: boolean;
   onFile: (f: File) => void;
-}
-
-const UploadButton = ({ label, hint, icon: Icon, accept, uploading, currentUrl, onFile }: UploadButtonProps) => {
-  const inputRef = useRef<HTMLInputElement>(null);
+}) => {
+  const ref = useRef<HTMLInputElement>(null);
   return (
-    <div>
+    <>
       <input
-        ref={inputRef}
+        ref={ref}
         type="file"
         accept={accept}
-        className="sr-only"
+        style={{ display: "none" }}
         onChange={(e) => {
           const f = e.target.files?.[0];
           if (f) onFile(f);
@@ -131,43 +115,61 @@ const UploadButton = ({ label, hint, icon: Icon, accept, uploading, currentUrl, 
       />
       <button
         type="button"
+        onClick={() => ref.current?.click()}
         disabled={uploading}
-        onClick={() => inputRef.current?.click()}
-        className="rounded-2xl border border-dashed border-border bg-cream/60 p-4 text-left hover:border-primary/40 hover:bg-cream transition-colors group w-full disabled:opacity-60 disabled:cursor-not-allowed"
+        style={{
+          textAlign: "left",
+          padding: 14,
+          borderRadius: 14,
+          border: `1.5px dashed ${hasFile ? "var(--olive)" : "var(--line)"}`,
+          background: "var(--cream)",
+          cursor: uploading ? "not-allowed" : "pointer",
+          fontFamily: "var(--sans)",
+          color: "var(--ink)",
+          width: "100%",
+        }}
       >
-        <div className="flex items-center gap-3">
-          <span className="h-9 w-9 rounded-xl bg-card flex items-center justify-center text-clay shadow-soft shrink-0 group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 10,
+              background: hasFile ? "var(--olive)" : "var(--paper)",
+              color: hasFile ? "var(--paper)" : "var(--clay)",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "1px solid var(--line-soft)",
+            }}
+          >
+            {I.reactN}
           </span>
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-foreground">{label}</p>
-            <p className="text-xs text-muted-foreground mt-0.5 truncate">
-              {currentUrl ? "Uploaded ✓ — click to replace" : hint}
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontSize: 14, fontWeight: 500, margin: 0 }}>{label}</p>
+            <p style={{ fontSize: 11, color: "var(--ink-mute)", margin: "2px 0 0" }}>
+              {uploading ? "Uploading…" : hasFile ? "Uploaded ✓ — click to replace" : hint}
             </p>
           </div>
         </div>
       </button>
-    </div>
+    </>
   );
 };
 
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
-
 const Profile = () => {
-  const { userId, loading: authLoading, refreshProfile } = useCurrentUser();
-  const { data: profile, loading: profileLoading, error, refetch } = useAsync(
-    () => (userId ? getProfile(userId) : Promise.resolve(null)),
-    [userId],
-  );
-  const loading = authLoading || profileLoading;
+  const { userId, refreshProfile } = useCurrentUser();
+  const queryClient = useQueryClient();
 
-  // Edit mode state
+  const { data: profile, isLoading, error } = useQuery({
+    queryKey: ["profile", userId],
+    queryFn: () => (userId ? getProfile(userId) : Promise.resolve(null)),
+    enabled: !!userId,
+  });
+
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Editable form fields — seeded from profile when edit mode opens
   const [editName, setEditName] = useState("");
   const [editHeadline, setEditHeadline] = useState("");
   const [editLocation, setEditLocation] = useState("");
@@ -176,19 +178,14 @@ const Profile = () => {
   const [editTargetRoles, setEditTargetRoles] = useState("");
   const [editSkills, setEditSkills] = useState("");
   const [editLinkedin, setEditLinkedin] = useState("");
-
-  // Editable field for referral goals
   const [editReferralGoals, setEditReferralGoals] = useState("");
 
-  // Upload states
   const [resumeUploading, setResumeUploading] = useState(false);
   const [videoUploading, setVideoUploading] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
-  // Local avatar preview — updated optimistically after upload
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
-  // Seed edit fields whenever the profile loads or edit mode opens
   useEffect(() => {
     if (profile && editing) {
       setEditName(profile.full_name ?? "");
@@ -202,22 +199,6 @@ const Profile = () => {
       setEditReferralGoals(profile.referral_goals ?? "");
     }
   }, [profile, editing]);
-
-  const openEdit = () => {
-    // Pre-seed fields from current profile (or fallback display values)
-    setEditName(profile?.full_name ?? fallbackMe.name);
-    setEditHeadline(profile?.headline ?? fallbackMe.headline);
-    setEditLocation(profile?.location ?? fallbackMe.location);
-    setEditPronouns(profile?.pronouns ?? fallbackMe.pronouns);
-    setEditBio(profile?.bio ?? "");
-    setEditTargetRoles((profile?.target_roles ?? mockTargetRoles).join(", "));
-    setEditSkills((profile?.skills ?? mockSkills).join(", "));
-    setEditLinkedin(profile?.linkedin_url ?? "");
-    setEditReferralGoals(profile?.referral_goals ?? "");
-    setEditing(true);
-  };
-
-  const cancelEdit = () => setEditing(false);
 
   const saveEdit = async () => {
     if (!userId) {
@@ -244,7 +225,7 @@ const Profile = () => {
         linkedin_url: editLinkedin.trim() || undefined,
       });
       await refreshProfile();
-      refetch();
+      queryClient.invalidateQueries({ queryKey: ["profile", userId] });
       setEditing(false);
       toast.success("Profile updated");
     } catch {
@@ -255,48 +236,47 @@ const Profile = () => {
   };
 
   const handleResumeUpload = async (file: File) => {
-    if (!userId) { toast.error("Not signed in."); return; }
+    if (!userId) return;
     setResumeUploading(true);
     try {
       await uploadResume(userId, file);
       await refreshProfile();
-      refetch();
-      toast.success("Resume uploaded successfully");
+      queryClient.invalidateQueries({ queryKey: ["profile", userId] });
+      toast.success("Resume uploaded");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.toLowerCase().includes("bucket") || msg.toLowerCase().includes("storage")) {
-        toast.error("Resume upload unavailable — storage bucket not configured yet.");
-      } else {
-        toast.error("Resume upload failed. Please try again.");
-      }
+      toast.error(
+        msg.toLowerCase().includes("bucket") || msg.toLowerCase().includes("storage")
+          ? "Resume upload unavailable — storage bucket not configured yet."
+          : "Resume upload failed.",
+      );
     } finally {
       setResumeUploading(false);
     }
   };
 
   const handleVideoUpload = async (file: File) => {
-    if (!userId) { toast.error("Not signed in."); return; }
+    if (!userId) return;
     setVideoUploading(true);
     try {
       await uploadVideoIntro(userId, file);
       await refreshProfile();
-      refetch();
-      toast.success("Video intro uploaded successfully");
+      queryClient.invalidateQueries({ queryKey: ["profile", userId] });
+      toast.success("Video intro uploaded");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.toLowerCase().includes("bucket") || msg.toLowerCase().includes("storage")) {
-        toast.error("Video upload unavailable — storage bucket not configured yet.");
-      } else {
-        toast.error("Video intro upload failed. Please try again.");
-      }
+      toast.error(
+        msg.toLowerCase().includes("bucket") || msg.toLowerCase().includes("storage")
+          ? "Video upload unavailable — storage bucket not configured yet."
+          : "Video upload failed.",
+      );
     } finally {
       setVideoUploading(false);
     }
   };
 
   const handleAvatarUpload = async (file: File) => {
-    if (!userId) { toast.error("Not signed in."); return; }
-    // Optimistic preview — show immediately before upload completes
+    if (!userId) return;
     const preview = URL.createObjectURL(file);
     setAvatarPreview(preview);
     setAvatarUploading(true);
@@ -304,456 +284,516 @@ const Profile = () => {
       const url = await uploadAvatar(userId, file);
       setAvatarPreview(url);
       await refreshProfile();
-      refetch();
+      queryClient.invalidateQueries({ queryKey: ["profile", userId] });
       toast.success("Profile photo updated");
     } catch (err) {
-      setAvatarPreview(null); // revert preview on failure
+      setAvatarPreview(null);
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.toLowerCase().includes("bucket") || msg.toLowerCase().includes("storage")) {
-        toast.error("Avatar upload unavailable — create the 'avatars' storage bucket first.");
-      } else {
-        toast.error("Photo upload failed. Please try again.");
-      }
+      toast.error(
+        msg.toLowerCase().includes("bucket") || msg.toLowerCase().includes("storage")
+          ? "Avatar upload unavailable — create the 'avatars' storage bucket."
+          : "Photo upload failed.",
+      );
     } finally {
       setAvatarUploading(false);
     }
   };
 
-  // Derived display values: prefer live profile, fall back to mock display data
-  const me = profile
-    ? {
-        name: profile.full_name || fallbackMe.name,
-        initials: (profile.full_name || fallbackMe.name).split(" ").map((s) => s[0]).slice(0, 2).join(""),
-        avatarColor: fallbackMe.avatarColor,
-        headline: profile.headline || fallbackMe.headline,
-        location: profile.location || fallbackMe.location,
-        pronouns: profile.pronouns || fallbackMe.pronouns,
-      }
-    : fallbackMe;
+  const skills = useMemo(() => profile?.skills ?? [], [profile]);
+  const targetRoles = useMemo(() => profile?.target_roles ?? [], [profile]);
 
-  // In production: show real data or null/empty (render empty states below).
-  // In mock mode: fall back to Amira's fixture data for a richer demo.
-  const displayBio = useMemo(() => {
-    if (profile?.bio) return [profile.bio];
-    return isMockMode ? mockCareerStory : null;
-  }, [profile]);
-
-  const displayTargetRoles = useMemo(() => {
-    if (profile?.target_roles?.length) return profile.target_roles;
-    return isMockMode ? mockTargetRoles : [];
-  }, [profile]);
-
-  const displaySkills = useMemo(() => {
-    if (profile?.skills?.length) return profile.skills;
-    return isMockMode ? mockSkills : [];
-  }, [profile]);
-
-  const displayGoal = useMemo(() => {
-    // Prefer dedicated referral_goals field; fall back to bio excerpt in mock mode
-    if (profile?.referral_goals) return profile.referral_goals;
-    if (isMockMode) return mockReferralGoal;
-    return null;
-  }, [profile]);
-
-  // Rooms and referrals — real data not fetched on Profile page yet.
-  // Show mock data in demo mode; show empty state in production.
-  const displayRoomsJoined = isMockMode ? roomsJoined : [];
-  const displayReferralsReceived = isMockMode ? referralsReceived : [];
-
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-40 w-full rounded-[28px]" />
-        <Skeleton className="h-64 w-full rounded-[28px]" />
+      <div className="hy" style={{ padding: 32 }}>
+        <p
+          className="mono"
+          style={{
+            fontSize: 12,
+            color: "var(--ink-mute)",
+            letterSpacing: ".12em",
+            textTransform: "uppercase",
+          }}
+        >
+          Loading profile…
+        </p>
       </div>
     );
   }
 
   if (error) {
-    return <ErrorState description="We couldn't load your profile." onRetry={refetch} />;
+    return (
+      <div className="hy" style={{ padding: 32 }}>
+        <p style={{ color: "var(--ink-soft)" }}>Couldn't load profile.</p>
+      </div>
+    );
   }
 
+  const fullName = profile?.full_name || "Your profile";
+  const headline = profile?.headline || "";
+  const location = profile?.location || "";
+
   return (
-    <div className="w-full max-w-full overflow-x-hidden">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 md:gap-6">
-        {/* LEFT COLUMN */}
-        <div className="lg:col-span-1 space-y-5 md:space-y-6 min-w-0">
-          {/* Profile hero — view or edit */}
-          <section className="w-full max-w-full box-border rounded-[28px] bg-gradient-warm border border-clay/20 p-6 shadow-soft">
-            {/* Avatar — shows photo if available, otherwise initials */}
-            <div className="relative inline-block">
+    <div
+      className="hy"
+      style={{
+        background: "var(--bg)",
+        color: "var(--ink)",
+        margin: "-24px -16px",
+        padding: "32px 16px",
+      }}
+    >
+      <div
+        className="profile-grid"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1.45fr 1fr",
+          gap: 56,
+        }}
+      >
+        {/* Left: the story */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 28, minWidth: 0 }}>
+          {/* Identity row */}
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ position: "relative" }}>
               {avatarPreview || profile?.avatar_url ? (
                 <img
                   src={avatarPreview ?? profile!.avatar_url!}
-                  alt={me.name}
-                  className="h-20 w-20 rounded-full object-cover ring-4 ring-card"
-                />
-              ) : (
-                <UserAvatar user={me} size="xl" className="ring-4 ring-card" />
-              )}
-              {/* Upload overlay — always visible so user can change photo */}
-              <div>
-                <input
-                  ref={avatarInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  className="sr-only"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) void handleAvatarUpload(f);
+                  alt={fullName}
+                  style={{
+                    width: 76,
+                    height: 76,
+                    borderRadius: "50%",
+                    objectFit: "cover",
+                    border: "3px solid var(--paper)",
                   }}
                 />
-                <button
-                  type="button"
-                  onClick={() => avatarInputRef.current?.click()}
-                  disabled={avatarUploading}
-                  title="Upload profile photo"
-                  className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-card border border-border flex items-center justify-center shadow-soft hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors disabled:opacity-60"
-                >
-                  {avatarUploading
-                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    : <Camera className="h-3.5 w-3.5" />}
-                </button>
-              </div>
+              ) : (
+                <Avatar name={fullName} size={76} tone="dark" />
+              )}
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void handleAvatarUpload(f);
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={avatarUploading}
+                title="Upload photo"
+                style={{
+                  position: "absolute",
+                  bottom: -2,
+                  right: -2,
+                  width: 28,
+                  height: 28,
+                  borderRadius: "50%",
+                  background: "var(--paper)",
+                  border: "1px solid var(--line)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: avatarUploading ? "not-allowed" : "pointer",
+                  color: "var(--ink-soft)",
+                  boxShadow: "var(--shadow-soft)",
+                }}
+              >
+                {I.plus}
+              </button>
             </div>
-
-            {editing ? (
-              /* ---------- Edit mode ---------- */
-              <div className="mt-4 space-y-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Full name</Label>
-                  <Input
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    className="h-10 rounded-xl bg-card border-border"
-                    disabled={saving}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Headline</Label>
-                  <Input
-                    value={editHeadline}
-                    onChange={(e) => setEditHeadline(e.target.value)}
-                    className="h-10 rounded-xl bg-card border-border"
-                    disabled={saving}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Location</Label>
-                    <Input
-                      value={editLocation}
-                      onChange={(e) => setEditLocation(e.target.value)}
-                      className="h-10 rounded-xl bg-card border-border"
-                      disabled={saving}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Pronouns</Label>
-                    <Input
-                      value={editPronouns}
-                      onChange={(e) => setEditPronouns(e.target.value)}
-                      className="h-10 rounded-xl bg-card border-border"
-                      disabled={saving}
-                    />
-                  </div>
-                </div>
-                <div className="flex gap-2 pt-1">
-                  <Button variant="hero" size="sm" onClick={saveEdit} disabled={saving} className="flex-1">
-                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                    {saving ? "Saving…" : "Save"}
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={cancelEdit} disabled={saving}>
-                    <X className="h-4 w-4" />Cancel
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              /* ---------- View mode ---------- */
-              <>
-                <div className="mt-4 flex items-center gap-2 flex-wrap">
-                  <h1 className="font-display text-[34px] sm:text-[38px] leading-tight text-foreground">
-                    {me.name}
-                  </h1>
-                  <BadgeCheck className="h-5 w-5 text-clay shrink-0" />
-                </div>
-
-                <div className="mt-2">
-                  <span className="inline-flex items-center gap-1 rounded-full bg-card border border-border px-2.5 py-1 text-[11px] font-medium uppercase tracking-wider text-foreground">
-                    <Sparkles className="h-3 w-3 text-clay" />
-                    Founding member
-                  </span>
-                </div>
-
-                <p className="mt-4 text-[16px] leading-[1.6] text-foreground/85">{me.headline}</p>
-
-                <p className="mt-2 inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-                  <MapPin className="h-3.5 w-3.5 shrink-0" />
-                  <span>{me.location} · {me.pronouns}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p
+                className="mono"
+                style={{
+                  fontSize: 11,
+                  color: "var(--olive)",
+                  letterSpacing: ".12em",
+                  textTransform: "uppercase",
+                  fontWeight: 600,
+                }}
+              >
+                Open to coffee chats
+              </p>
+              <h1
+                style={{
+                  fontSize: 40,
+                  marginTop: 2,
+                  lineHeight: 1.05,
+                  fontFamily: "var(--display)",
+                }}
+              >
+                {fullName}
+              </h1>
+              {(headline || location) && (
+                <p style={{ fontSize: 14, color: "var(--ink-soft)", marginTop: 4 }}>
+                  {[headline, location].filter(Boolean).join(" · ")}
                 </p>
-
-                {profile?.linkedin_url && (
-                  <a
-                    href={profile.linkedin_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-2 flex items-center gap-1.5 text-sm text-primary hover:underline"
-                  >
-                    <LinkIcon className="h-3.5 w-3.5 shrink-0" />
-                    LinkedIn profile
-                  </a>
-                )}
-
-                <div className="mt-5 flex flex-col sm:flex-row gap-2">
-                  <Button variant="hero" size="sm" className="w-full sm:w-auto" onClick={openEdit}>
-                    <Pencil className="h-4 w-4" />
-                    Edit profile
-                  </Button>
-                  <Button
-                    variant="soft"
-                    size="sm"
-                    className="w-full sm:w-auto"
-                    onClick={() => {
-                      navigator.clipboard?.writeText(window.location.href);
-                      toast.success("Profile link copied");
-                    }}
-                  >
-                    <Share2 className="h-4 w-4" />
-                    Share
-                  </Button>
-                </div>
-              </>
-            )}
-          </section>
-
-          {/* Uploads */}
-          <Card>
-            <p className="text-xs font-medium uppercase tracking-widest text-clay mb-4">Documents</p>
-            <div className="space-y-3">
-              <UploadButton
-                label="Resume"
-                hint="PDF or DOCX, up to 5MB"
-                icon={Upload}
-                accept=".pdf,.doc,.docx"
-                uploading={resumeUploading}
-                currentUrl={profile?.resume_url}
-                onFile={handleResumeUpload}
-              />
-              <UploadButton
-                label="Video intro"
-                hint="Optional · 60 seconds"
-                icon={Video}
-                accept="video/*"
-                uploading={videoUploading}
-                currentUrl={profile?.video_intro_url}
-                onFile={handleVideoUpload}
-              />
-            </div>
-          </Card>
-
-        </div>
-
-        {/* RIGHT/MAIN COLUMN */}
-        <div className="lg:col-span-2 space-y-5 md:space-y-6 min-w-0">
-          {/* Career story — editable in edit mode */}
-          <Card>
-            <div className="flex items-center justify-between gap-3 mb-4">
-              <SectionTitle>Career story</SectionTitle>
-              {editing && (
-                <span className="text-xs text-muted-foreground">Editing below</span>
               )}
             </div>
-            {editing ? (
-              <Textarea
-                rows={5}
-                value={editBio}
-                onChange={(e) => setEditBio(e.target.value)}
-                placeholder="A few warm sentences about who you are, what you've built, and what you're chasing next."
-                className="rounded-xl bg-cream border-border resize-none"
-                disabled={saving}
-              />
-            ) : displayBio ? (
-              <div className="space-y-3">
-                {displayBio.map((p, i) => (
-                  <p key={i} className="text-[16px] md:text-[17px] leading-[1.6] text-foreground/85 max-w-[68ch]">
-                    {p}
-                  </p>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground italic">
-                No career story yet. Click "Edit profile" to add your bio.
-              </p>
-            )}
-          </Card>
+          </div>
 
-          {/* Target roles */}
-          <Card>
-            <div className="flex items-center justify-between gap-3 mb-4">
-              <SectionTitle>Target roles</SectionTitle>
-            </div>
-            {editing ? (
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Separate with commas</Label>
-                <Input
+          {editing ? (
+            <div style={{ ...cardStyle, padding: 24 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <FieldGroup label="Display name">
+                  <input
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    style={inputStyle}
+                    disabled={saving}
+                  />
+                </FieldGroup>
+                <FieldGroup label="Pronouns">
+                  <input
+                    value={editPronouns}
+                    onChange={(e) => setEditPronouns(e.target.value)}
+                    placeholder="she / her"
+                    style={inputStyle}
+                    disabled={saving}
+                  />
+                </FieldGroup>
+              </div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 12,
+                  marginTop: 12,
+                }}
+              >
+                <FieldGroup label="Headline">
+                  <input
+                    value={editHeadline}
+                    onChange={(e) => setEditHeadline(e.target.value)}
+                    placeholder="Senior PM @ Shopify"
+                    style={inputStyle}
+                    disabled={saving}
+                  />
+                </FieldGroup>
+                <FieldGroup label="Location">
+                  <input
+                    value={editLocation}
+                    onChange={(e) => setEditLocation(e.target.value)}
+                    placeholder="City, country"
+                    style={inputStyle}
+                    disabled={saving}
+                  />
+                </FieldGroup>
+              </div>
+              <FieldGroup label="Bio" style={{ marginTop: 12 }}>
+                <textarea
+                  rows={4}
+                  value={editBio}
+                  onChange={(e) => setEditBio(e.target.value)}
+                  placeholder="A few warm sentences about who you are."
+                  style={{ ...inputStyle, resize: "none", lineHeight: 1.5 }}
+                  disabled={saving}
+                />
+              </FieldGroup>
+              <FieldGroup label="Target roles (comma-separated)" style={{ marginTop: 12 }}>
+                <input
                   value={editTargetRoles}
                   onChange={(e) => setEditTargetRoles(e.target.value)}
                   placeholder="Product Marketing, Operations Analyst…"
-                  className="h-11 rounded-xl bg-cream border-border"
+                  style={inputStyle}
                   disabled={saving}
                 />
-              </div>
-            ) : displayTargetRoles.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {displayTargetRoles.map((r) => <Chip key={r}>{r}</Chip>)}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground italic">No target roles yet — add them by editing your profile.</p>
-            )}
-          </Card>
-
-          {/* Skills */}
-          <Card>
-            <div className="flex items-center justify-between gap-3 mb-4">
-              <SectionTitle>Skills</SectionTitle>
-            </div>
-            {editing ? (
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Separate with commas</Label>
-                <Input
+              </FieldGroup>
+              <FieldGroup label="Skills (comma-separated)" style={{ marginTop: 12 }}>
+                <input
                   value={editSkills}
                   onChange={(e) => setEditSkills(e.target.value)}
                   placeholder="Market research, SQL, storytelling…"
-                  className="h-11 rounded-xl bg-cream border-border"
+                  style={inputStyle}
                   disabled={saving}
                 />
-              </div>
-            ) : displaySkills.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {displaySkills.map((s) => <Chip key={s}>{s}</Chip>)}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground italic">No skills yet — add them by editing your profile.</p>
-            )}
-          </Card>
-
-          {/* Referral goals — editable in edit mode, displayed in view mode */}
-          {editing ? (
-            <Card>
-              <SectionTitle>Referral goals</SectionTitle>
-              <div className="mt-4 space-y-1.5">
-                <Label className="text-xs text-muted-foreground">
-                  Describe the kinds of warm introductions, companies, or roles you're hoping to access.
-                </Label>
-                <Textarea
-                  rows={3}
+              </FieldGroup>
+              <FieldGroup label="Referral goals" style={{ marginTop: 12 }}>
+                <textarea
+                  rows={2}
                   value={editReferralGoals}
                   onChange={(e) => setEditReferralGoals(e.target.value)}
-                  placeholder="Looking for warm introductions into product teams at Canadian tech companies…"
-                  className="rounded-xl bg-cream border-border resize-none"
+                  placeholder="What kinds of warm intros are you hoping to access?"
+                  style={{ ...inputStyle, resize: "none", lineHeight: 1.5 }}
                   disabled={saving}
                 />
-              </div>
-            </Card>
-          ) : (
-            <Card>
-              <div className="flex items-center gap-2">
-                <Target className="h-4 w-4 text-clay" />
-                <SectionTitle>Referral goals</SectionTitle>
-              </div>
-              {displayGoal ? (
-                <p className="mt-3 text-[16px] leading-[1.6] text-foreground/85">{displayGoal}</p>
-              ) : (
-                <button
-                  className="mt-3 text-sm text-muted-foreground italic hover:text-primary transition-colors text-left"
-                  onClick={openEdit}
-                >
-                  No referral goals yet — click to add them.
-                </button>
-              )}
-            </Card>
-          )}
-
-          {/* LinkedIn — editable in edit mode */}
-          {editing && (
-            <Card>
-              <SectionTitle>Links</SectionTitle>
-              <div className="mt-4 space-y-1.5">
-                <Label className="text-xs text-muted-foreground">LinkedIn URL</Label>
-                <Input
+              </FieldGroup>
+              <FieldGroup label="LinkedIn URL" style={{ marginTop: 12 }}>
+                <input
+                  type="url"
                   value={editLinkedin}
                   onChange={(e) => setEditLinkedin(e.target.value)}
-                  type="url"
                   placeholder="https://linkedin.com/in/yourname"
-                  className="h-11 rounded-xl bg-cream border-border"
+                  style={inputStyle}
                   disabled={saving}
                 />
+              </FieldGroup>
+              <div style={{ marginTop: 18, display: "flex", gap: 8 }}>
+                <Btn kind="primary" size="md" onClick={saveEdit} disabled={saving}>
+                  {saving ? "Saving…" : "Save changes"}
+                </Btn>
+                <Btn
+                  kind="ghost"
+                  size="md"
+                  onClick={() => setEditing(false)}
+                  disabled={saving}
+                >
+                  Cancel
+                </Btn>
               </div>
-              {/* Bottom save bar in edit mode for convenience */}
-              <div className="mt-5 flex gap-2">
-                <Button variant="hero" size="sm" onClick={saveEdit} disabled={saving}>
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                  {saving ? "Saving…" : "Save all changes"}
-                </Button>
-                <Button variant="ghost" size="sm" onClick={cancelEdit} disabled={saving}>
-                  <X className="h-4 w-4" />Cancel
-                </Button>
+            </div>
+          ) : (
+            <>
+              {profile?.referral_goals && (
+                <blockquote
+                  style={{
+                    borderLeft: "3px solid var(--clay)",
+                    padding: "6px 0 6px 20px",
+                    fontFamily: "var(--display)",
+                    fontSize: 30,
+                    lineHeight: 1.25,
+                    fontWeight: 400,
+                    color: "var(--ink)",
+                    margin: 0,
+                  }}
+                >
+                  <span style={{ fontStyle: "italic" }}>
+                    "{profile.referral_goals}"
+                  </span>
+                </blockquote>
+              )}
+
+              {profile?.bio ? (
+                <p
+                  style={{
+                    fontSize: 15,
+                    color: "var(--ink-soft)",
+                    lineHeight: 1.65,
+                    maxWidth: 600,
+                    margin: 0,
+                  }}
+                >
+                  {profile.bio}
+                </p>
+              ) : (
+                <p
+                  style={{
+                    fontSize: 14,
+                    color: "var(--ink-mute)",
+                    fontStyle: "italic",
+                    margin: 0,
+                  }}
+                >
+                  No bio yet — click "Edit profile" to add yours.
+                </p>
+              )}
+
+              {(skills.length > 0 || targetRoles.length > 0) && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {[...targetRoles, ...skills].slice(0, 12).map((t) => (
+                    <Pill key={t}>{t}</Pill>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <Btn
+                  kind="primary"
+                  size="lg"
+                  icon={I.shake}
+                  onClick={() => setEditing(true)}
+                >
+                  Edit profile
+                </Btn>
+                <Btn
+                  kind="soft"
+                  size="lg"
+                  icon={I.link}
+                  onClick={() => {
+                    navigator.clipboard?.writeText(window.location.href);
+                    toast.success("Profile link copied");
+                  }}
+                >
+                  Share
+                </Btn>
               </div>
-            </Card>
+
+              <div style={cardStyle}>
+                <p style={sectionLabelStyle}>Documents</p>
+                <div
+                  style={{
+                    marginTop: 10,
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 10,
+                  }}
+                  className="profile-uploads"
+                >
+                  <UploadTile
+                    label="Resume"
+                    hint="PDF or DOCX, up to 5MB"
+                    accept=".pdf,.doc,.docx"
+                    uploading={resumeUploading}
+                    hasFile={!!profile?.resume_url}
+                    onFile={handleResumeUpload}
+                  />
+                  <UploadTile
+                    label="Video intro"
+                    hint="Optional · 60s"
+                    accept="video/*"
+                    uploading={videoUploading}
+                    hasFile={!!profile?.video_intro_url}
+                    onFile={handleVideoUpload}
+                  />
+                </div>
+              </div>
+            </>
           )}
-
-          {/* Rooms joined */}
-          <Card>
-            <SectionTitle>Rooms joined</SectionTitle>
-            {displayRoomsJoined.length > 0 ? (
-              <ul className="mt-4 divide-y divide-border">
-                {displayRoomsJoined.map((r) => (
-                  <li key={r} className="py-3 text-[15px] leading-[1.5] text-foreground/85">{r}</li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-4 text-sm text-muted-foreground italic">
-                No rooms joined yet. <Link to="/app/rooms" className="text-primary hover:underline">Browse rooms</Link> to get started.
-              </p>
-            )}
-          </Card>
-
-          {/* Referrals received */}
-          <Card>
-            <SectionTitle>Referrals received</SectionTitle>
-            {displayReferralsReceived.length > 0 ? (
-              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {displayReferralsReceived.map((r) => {
-                  const Icon = r.icon;
-                  return (
-                    <article key={r.name} className="w-full max-w-full box-border rounded-2xl border border-border bg-cream/60 p-4">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <UserAvatar user={r} size="md" />
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium text-foreground truncate">{r.name}</p>
-                          <p className="text-xs text-muted-foreground truncate">{r.role} @ {r.company}</p>
-                        </div>
-                      </div>
-                      <div className={`mt-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium border ${
-                        r.tone === "olive"
-                          ? "bg-olive/15 text-olive border-olive/30"
-                          : "bg-clay/15 text-clay border-clay/30"
-                      }`}>
-                        <Icon className="h-3 w-3" />
-                        {r.status}
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="mt-4 text-sm text-muted-foreground italic">
-                No referrals received yet. Join a room to get started.
-              </p>
-            )}
-          </Card>
         </div>
+
+        {/* Right: editorial sidebar */}
+        <aside style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
+          <div style={cardStyle}>
+            {[
+              { n: targetRoles.length, l: "Target roles set" },
+              { n: skills.length, l: "Skills listed" },
+              { n: profile?.linkedin_url ? "✓" : "—", l: "LinkedIn linked" },
+            ].map((s, i) => (
+              <div
+                key={s.l}
+                style={{
+                  display: "flex",
+                  alignItems: "baseline",
+                  gap: 14,
+                  paddingTop: i === 0 ? 0 : 14,
+                  borderTop: i === 0 ? "0" : "1px dashed var(--line-soft)",
+                }}
+              >
+                <p
+                  style={{
+                    fontFamily: "var(--display)",
+                    fontSize: 32,
+                    lineHeight: 1,
+                    fontWeight: 500,
+                    color: "var(--clay)",
+                    flex: "none",
+                    margin: 0,
+                  }}
+                >
+                  {s.n}
+                </p>
+                <p
+                  className="mono"
+                  style={{
+                    fontSize: 11,
+                    color: "var(--ink-mute)",
+                    letterSpacing: ".06em",
+                    textTransform: "uppercase",
+                    margin: 0,
+                  }}
+                >
+                  {s.l}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div style={cardStyle}>
+            <p style={sectionLabelStyle}>Linked</p>
+            {profile?.linkedin_url ? (
+              <a
+                href={profile.linkedin_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  marginTop: 10,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  fontSize: 13,
+                  color: "var(--clay)",
+                  textDecoration: "none",
+                  fontWeight: 500,
+                }}
+              >
+                {I.link} LinkedIn profile
+              </a>
+            ) : (
+              <p style={{ fontSize: 12, color: "var(--ink-mute)", marginTop: 8 }}>
+                Add your LinkedIn from edit mode.
+              </p>
+            )}
+          </div>
+
+          <div style={cardStyle}>
+            <p style={sectionLabelStyle}>Happy to help with</p>
+            <ul
+              style={{
+                marginTop: 10,
+                padding: 0,
+                listStyle: "none",
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+              }}
+            >
+              {targetRoles.length === 0 && skills.length === 0 ? (
+                <li style={{ fontSize: 13, color: "var(--ink-mute)" }}>
+                  Set your target roles and skills to populate this list.
+                </li>
+              ) : (
+                <>
+                  {targetRoles.slice(0, 3).map((r) => (
+                    <li
+                      key={r}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        fontSize: 13,
+                      }}
+                    >
+                      <span style={{ color: "var(--olive)" }}>{I.check}</span>
+                      Conversations on {r}
+                    </li>
+                  ))}
+                  {skills.slice(0, 2).map((s) => (
+                    <li
+                      key={s}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        fontSize: 13,
+                      }}
+                    >
+                      <span style={{ color: "var(--olive)" }}>{I.check}</span>
+                      {s} feedback
+                    </li>
+                  ))}
+                </>
+              )}
+            </ul>
+          </div>
+
+          <Link to="/app/settings" style={{ textDecoration: "none" }}>
+            <Btn kind="ghost" size="md" iconRight={I.arrow}>
+              Settings &amp; visibility
+            </Btn>
+          </Link>
+        </aside>
       </div>
+
+      <style>{`
+        @media (max-width: 880px) {
+          .profile-grid { grid-template-columns: 1fr !important; gap: 22px !important; }
+          .profile-uploads { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </div>
   );
 };

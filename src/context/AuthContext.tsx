@@ -81,6 +81,10 @@ function buildMockProfile(): UserProfile {
     resume_url: null,
     video_intro_url: null,
     role_type: "job_seeker",
+    // The mock fixture user is fully populated; mark them as already
+    // onboarded so post-login routing sends them to /app/dashboard
+    // (not /onboarding) in mock mode.
+    onboarding_completed: true,
     created_at: new Date().toISOString(),
   };
 }

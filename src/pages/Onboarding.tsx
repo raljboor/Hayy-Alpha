@@ -843,6 +843,7 @@ const JobSeekerOnboarding = ({
           .map((s) => s.trim())
           .filter(Boolean),
         linkedin_url: data.linkedinUrl.trim() || undefined,
+        onboarding_completed: true,
       });
       if (data.resumeFile) {
         try {
@@ -1206,6 +1207,7 @@ const HostOnboarding = ({
           .filter(Boolean),
         linkedin_url: data.linkedinUrl.trim() || undefined,
         role_type: "referral_host",
+        onboarding_completed: true,
       });
       await upsertHostSettings(userId, {
         monthly_capacity: parseInt(data.monthlyCapacity, 10) || 3,
@@ -1521,6 +1523,7 @@ const RecruiterOnboarding = ({
           bio: data.companyDescription.trim() || undefined,
           linkedin_url: data.linkedinUrl.trim() || undefined,
           role_type: "recruiter",
+          onboarding_completed: true,
           // Extended recruiter fields (migration 004)
           company_name: data.companyName.trim() || undefined,
           recruiter_title: data.recruiterTitle.trim() || undefined,

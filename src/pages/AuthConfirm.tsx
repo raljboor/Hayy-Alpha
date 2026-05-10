@@ -25,6 +25,8 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
 import { isAuthed } from "@/lib/auth";
+import { getProfile } from "@/lib/api/profiles";
+import { decideLandingRoute } from "@/lib/routing";
 import type { Session } from "@supabase/supabase-js";
 
 type Status = "loading" | "success" | "error";
@@ -192,7 +194,10 @@ const AuthConfirm = () => {
       }
 
       // -----------------------------------------------------------------
-      // STEP 3 — Decide where to send them.
+      // STEP 3 — Hand off to the shared post-login routing helper. We
+      // don't compute the destination here ourselves anymore — the same
+      // rule (profile.onboarding_completed → /onboarding vs /app/dashboard)
+      // is owned by src/lib/routing.ts and shared with Login.tsx.
       // -----------------------------------------------------------------
       if (!session) {
         console.error(
@@ -209,13 +214,21 @@ const AuthConfirm = () => {
       console.log(LOG, "step3 session.user =", {
         id: session.user.id,
         email: session.user.email,
-        user_metadata: session.user.user_metadata,
       });
 
-      const roleFromMeta =
-        (session.user.user_metadata?.role_type as string | undefined) ?? "job_seeker";
-      const dest = `/onboarding?role=${encodeURIComponent(roleFromMeta)}`;
-      console.log(LOG, "step3 role =", roleFromMeta, "→ navigate to", dest);
+      let profile = null;
+      try {
+        profile = await getProfile(session.user.id);
+        console.log(LOG, "step3 profile =", {
+          role_type: profile?.role_type,
+          onboarding_completed: profile?.onboarding_completed,
+        });
+      } catch (err) {
+        console.warn(LOG, "step3 getProfile failed; defaulting to /onboarding:", err);
+      }
+
+      const dest = decideLandingRoute({ profile });
+      console.log(LOG, "step3 decideLandingRoute →", dest);
 
       setStatus("success");
       // Short pause so the user sees the success state before being redirected.

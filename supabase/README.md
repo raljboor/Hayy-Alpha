@@ -137,7 +137,8 @@ When `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are **not set**, the fronten
 4. 004_add_recruiter_profile_fields.sql           — recruiter profile columns
 5. 005_placeholder_intentionally_skipped.sql      — no-op; reserved during planning, never authored
 6. 006_room_types_and_creation_permissions.sql    — community/referral/hiring room types + RLS
-7. seed.sql                 — optional dev data (uncomment + fill UUIDs first)
+7. 007_add_onboarding_completed.sql               — onboarding_completed boolean (post-login routing)
+8. seed.sql                 — optional dev data (uncomment + fill UUIDs first)
 ```
 
 > Migration 005 is an intentional no-op. The next change to ship after

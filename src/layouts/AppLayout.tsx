@@ -1,10 +1,11 @@
 import { Outlet, useLocation, NavLink } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Menu, X, Home, Mic, Handshake, MessageCircle, Bell, User, UserCheck, Briefcase, Settings as SettingsIcon } from "lucide-react";
+import { Menu, X, Home, Mic, Handshake, MessageCircle, Bell, User, UserCheck, Briefcase, Settings as SettingsIcon, Sun, Moon } from "lucide-react";
 import { AppSidebar } from "@/components/hayy/AppSidebar";
 import { Logo } from "@/components/hayy/Logo";
 import { NavBadge } from "@/components/hayy/InboxPrimitives";
 import { cn } from "@/lib/utils";
+import { usePalette } from "@/lib/palette";
 
 const mobileNav = [
   { to: "/app", label: "Home", icon: Home, end: true, badge: 0 },
@@ -22,6 +23,9 @@ export const AppLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { pathname } = useLocation();
+  const { palette, setPalette } = usePalette();
+  const togglePalette = () => setPalette(palette === "dusk" ? "warm" : "dusk");
+  const PaletteIcon = palette === "dusk" ? Sun : Moon;
 
   useEffect(() => {
     setMobileMenuOpen(false);
@@ -35,13 +39,23 @@ export const AppLayout = () => {
         <div className="scale-90 origin-left">
           <Logo />
         </div>
-        <button
-          onClick={() => setMobileMenuOpen((v) => !v)}
-          className="h-10 w-10 inline-flex items-center justify-center rounded-xl hover:bg-card transition-colors"
-          aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
-        >
-          {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={togglePalette}
+            className="h-10 w-10 inline-flex items-center justify-center rounded-xl hover:bg-card transition-colors"
+            aria-label={palette === "dusk" ? "Switch to warm palette" : "Switch to dusk palette"}
+            title={palette === "dusk" ? "Switch to warm" : "Switch to dusk"}
+          >
+            <PaletteIcon className="h-5 w-5" />
+          </button>
+          <button
+            onClick={() => setMobileMenuOpen((v) => !v)}
+            className="h-10 w-10 inline-flex items-center justify-center rounded-xl hover:bg-card transition-colors"
+            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+          >
+            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
       </header>
 
       {/* Mobile dropdown menu */}

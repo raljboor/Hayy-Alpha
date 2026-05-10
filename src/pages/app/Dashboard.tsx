@@ -21,11 +21,15 @@
 import { useMemo, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Avatar, Btn, I, LiveTag } from "@/components/ui/primitives";
+import { Avatar, Btn, I, LiveTag, Pill } from "@/components/ui/primitives";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { getRooms } from "@/lib/api/rooms";
 import { getNotifications } from "@/lib/api/notifications";
 import { getReferralRequests } from "@/lib/api/referrals";
+import {
+  getSuggestedProfiles,
+  type SuggestedProfile,
+} from "@/lib/api/profiles";
 import type { Room } from "@/data/mockData";
 
 // ---------------------------------------------------------------------------
@@ -200,9 +204,24 @@ const Dashboard = () => {
     staleTime: 30_000,
   });
 
+  // "People to meet" — hosts/recruiters whose tokens overlap with the
+  // current user's target_roles + skills. Falls back to any hosts/recruiters
+  // when the user has no overlap yet (fresh accounts).
+  const interests = useMemo(
+    () => [...(profile?.target_roles ?? []), ...(profile?.skills ?? [])],
+    [profile?.target_roles, profile?.skills],
+  );
+  const suggestionsQ = useQuery({
+    queryKey: ["dashboard-suggestions", userId, interests],
+    queryFn: () =>
+      getSuggestedProfiles({ interests, selfId: userId, limit: 6 }),
+    staleTime: 60_000,
+  });
+
   const rooms = roomsQ.data ?? [];
   const notifications = notificationsQ.data ?? [];
   const referrals = referralsQ.data ?? [];
+  const suggestions = suggestionsQ.data ?? [];
 
   const heroRoom = useMemo(() => pickHeroRoom(rooms), [rooms]);
   const checklist = useMemo(() => buildChecklist(profile ?? null), [profile]);
@@ -487,14 +506,246 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
+
+        {/* People to meet */}
+        <SuggestedPeopleSection
+          suggestions={suggestions}
+          loading={suggestionsQ.isLoading}
+          hasInterests={interests.length > 0}
+        />
       </div>
 
       <style>{`
         @media (max-width: 880px) {
           .dashboard-grid { grid-template-columns: 1fr !important; }
         }
+        @media (max-width: 720px) {
+          .suggested-grid { grid-template-columns: 1fr !important; }
+        }
       `}</style>
     </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Suggested people section
+// ---------------------------------------------------------------------------
+
+const SuggestedPeopleSection = ({
+  suggestions,
+  loading,
+  hasInterests,
+}: {
+  suggestions: SuggestedProfile[];
+  loading: boolean;
+  hasInterests: boolean;
+}) => {
+  // Section is hidden entirely when the API returns nothing AND we're not
+  // loading — happens only when there are zero hosts/recruiters in the DB.
+  if (!loading && suggestions.length === 0) return null;
+
+  const tones: ("clay" | "olive" | "sand" | "dark")[] = [
+    "clay",
+    "olive",
+    "sand",
+    "dark",
+  ];
+  const anyMatched = suggestions.some((s) => s.match_score > 0);
+
+  return (
+    <section style={{ marginTop: 24 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "baseline",
+          marginBottom: 16,
+        }}
+      >
+        <div>
+          <p style={sectionLabelStyle}>People to meet</p>
+          <h3
+            style={{
+              fontSize: 24,
+              marginTop: 6,
+              fontFamily: "var(--display)",
+              fontWeight: 500,
+              lineHeight: 1.15,
+            }}
+          >
+            {anyMatched ? (
+              <>
+                Hosts &amp; recruiters who match{" "}
+                <span className="display-italic">your shape</span>.
+              </>
+            ) : hasInterests ? (
+              <>
+                Some hosts <span className="display-italic">to start with</span>.
+              </>
+            ) : (
+              <>
+                Build your <span className="display-italic">target roles</span> for
+                better matches.
+              </>
+            )}
+          </h3>
+        </div>
+        <Link
+          to="/app/referrals"
+          style={{
+            fontSize: 13,
+            color: "var(--clay)",
+            textDecoration: "none",
+            fontWeight: 500,
+            whiteSpace: "nowrap",
+          }}
+        >
+          See all →
+        </Link>
+      </div>
+
+      {loading ? (
+        <div
+          style={{
+            display: "grid",
+            gap: 12,
+            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+          }}
+          className="suggested-grid"
+        >
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div
+              key={i}
+              style={{
+                height: 180,
+                borderRadius: "var(--radius-xl)",
+                background: "var(--line-soft)",
+                opacity: 0.6,
+              }}
+            />
+          ))}
+        </div>
+      ) : (
+        <div
+          style={{
+            display: "grid",
+            gap: 12,
+            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+          }}
+          className="suggested-grid"
+        >
+          {suggestions.map((p, i) => (
+            <SuggestedProfileCard
+              key={p.id}
+              profile={p}
+              tone={tones[i % tones.length]}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+};
+
+const SuggestedProfileCard = ({
+  profile,
+  tone,
+}: {
+  profile: SuggestedProfile;
+  tone: "clay" | "olive" | "sand" | "dark";
+}) => {
+  const subtitle =
+    profile.headline ||
+    [profile.role_type === "recruiter" ? "Recruiter" : "Host", profile.company_name]
+      .filter(Boolean)
+      .join(" · ");
+
+  // Prefer the shared tokens (the actual overlap) over generic skills, so the
+  // card surfaces *why* this person matched. Fall back to skills.
+  const chips =
+    profile.shared_tokens.length > 0
+      ? profile.shared_tokens.slice(0, 2)
+      : profile.skills.slice(0, 2);
+
+  return (
+    <article
+      style={{
+        background: "var(--paper)",
+        border: "1px solid var(--line-soft)",
+        borderRadius: "var(--radius-xl)",
+        padding: 18,
+        boxShadow: "var(--shadow-soft)",
+        display: "flex",
+        flexDirection: "column",
+        gap: 12,
+        minHeight: 180,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {profile.avatar_url ? (
+          <img
+            src={profile.avatar_url}
+            alt={profile.full_name}
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: "50%",
+              objectFit: "cover",
+            }}
+          />
+        ) : (
+          <Avatar name={profile.full_name || "Hayy member"} size={44} tone={tone} />
+        )}
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <p
+            style={{
+              fontSize: 14,
+              fontWeight: 600,
+              margin: 0,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {profile.full_name || "Hayy member"}
+          </p>
+          <p
+            style={{
+              fontSize: 11,
+              color: "var(--ink-mute)",
+              margin: 0,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {subtitle || "—"}
+          </p>
+        </div>
+      </div>
+
+      {chips.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {chips.map((c) => (
+            <Pill key={c}>{c}</Pill>
+          ))}
+        </div>
+      )}
+
+      <Link
+        to={`/app/referrals?host=${encodeURIComponent(profile.id)}`}
+        style={{ marginTop: "auto", textDecoration: "none" }}
+      >
+        <Btn
+          kind="primary"
+          size="md"
+          icon={I.shake}
+          style={{ width: "100%", justifyContent: "center" }}
+        >
+          Request intro
+        </Btn>
+      </Link>
+    </article>
   );
 };
 

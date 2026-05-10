@@ -244,6 +244,54 @@
   --d-12: 48px;
 }
 
+/* ================================================================
+   Dusk overrides for the SHADCN/Tailwind tokens (bare HSL components)
+   used by the app chrome (AppLayout sidebar, mobile topbar). These
+   live at root level so any element using `hsl(var(--background))`,
+   `hsl(var(--card))`, etc. flips to dusk when <html data-palette="dusk">.
+
+   The redesigned `.hy` pages use a separate, more-specific rule
+   (`.hy[data-palette="dusk"]`, see below) that overrides --clay,
+   --cream, --sand, --olive with full hsl() colours for the inline-
+   style redesign idiom — those win over these bare-component values
+   inside `.hy` subtrees.
+   ================================================================ */
+[data-palette="dusk"] {
+  --background: 228 20% 10%;
+  --foreground: 36 30% 95%;
+  --card: 228 18% 13%;
+  --card-foreground: 36 30% 95%;
+  --popover: 228 18% 13%;
+  --popover-foreground: 36 30% 95%;
+  --primary: 18 78% 62%;
+  --primary-foreground: 228 18% 13%;
+  --secondary: 228 14% 18%;
+  --secondary-foreground: 36 30% 95%;
+  --muted: 228 14% 18%;
+  --muted-foreground: 228 12% 70%;
+  --accent: 75 30% 50%;
+  --accent-foreground: 228 18% 13%;
+  --clay: 18 78% 62%;
+  --clay-foreground: 228 18% 13%;
+  --olive: 75 30% 50%;
+  --olive-foreground: 228 18% 13%;
+  --cream: 228 16% 16%;
+  --sand: 228 14% 20%;
+  --destructive: 8 80% 60%;
+  --destructive-foreground: 228 18% 13%;
+  --border: 228 14% 22%;
+  --input: 228 14% 22%;
+  --ring: 18 78% 62%;
+  --sidebar-background: 228 18% 13%;
+  --sidebar-foreground: 36 30% 95%;
+  --sidebar-primary: 18 78% 62%;
+  --sidebar-primary-foreground: 228 18% 13%;
+  --sidebar-accent: 228 14% 18%;
+  --sidebar-accent-foreground: 36 30% 95%;
+  --sidebar-border: 228 14% 22%;
+  --sidebar-ring: 18 78% 62%;
+}
+
 /* Density variant — set [data-density="compact"] on a .hy ancestor.
    Scoped to .hy so the attribute selector cannot match elsewhere in the app. */
 .hy[data-density="compact"],

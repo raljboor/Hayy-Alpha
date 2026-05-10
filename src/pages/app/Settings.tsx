@@ -15,11 +15,13 @@ import { Avatar, Btn, I } from "@/components/ui/primitives";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { getProfile, updateProfile } from "@/lib/api/profiles";
 import { deleteAccount } from "@/lib/api/account";
+import { usePalette, type Palette } from "@/lib/palette";
 
-type Tab = "Account" | "Notifications" | "Privacy" | "Danger zone";
+type Tab = "Account" | "Appearance" | "Notifications" | "Privacy" | "Danger zone";
 
 const TABS: { l: Tab; icon: ReactNode }[] = [
   { l: "Account", icon: I.users },
+  { l: "Appearance", icon: I.spark },
   { l: "Notifications", icon: I.bell },
   { l: "Privacy", icon: I.lock },
   { l: "Danger zone", icon: I.closed },
@@ -169,6 +171,8 @@ const Settings = () => {
   const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  const { palette, setPalette } = usePalette();
 
   // Notification toggles (UI-only for now — wiring to backend lives in a future phase)
   const [notifPrefs, setNotifPrefs] = useState({
@@ -350,6 +354,126 @@ const Settings = () => {
                   </Btn>
                 </form>
               )}
+            </>
+          )}
+
+          {tab === "Appearance" && (
+            <>
+              <div>
+                <h2 style={{ fontSize: 22, fontFamily: "var(--display)", margin: 0 }}>
+                  Appearance
+                </h2>
+                <p
+                  style={{
+                    marginTop: 6,
+                    fontSize: 13,
+                    color: "var(--ink-soft)",
+                    maxWidth: 540,
+                    lineHeight: 1.55,
+                  }}
+                >
+                  Pick a palette for Hayy. We follow your OS preference by default — change
+                  it anytime; your choice survives refreshes and other tabs.
+                </p>
+              </div>
+
+              <div
+                style={{
+                  ...cardStyle,
+                  padding: 0,
+                  overflow: "hidden",
+                }}
+              >
+                {(
+                  [
+                    {
+                      value: "warm" as Palette,
+                      title: "Warm",
+                      desc: "Soft cream, clay, olive — Hayy's daylight feel.",
+                    },
+                    {
+                      value: "dusk" as Palette,
+                      title: "Dusk",
+                      desc: "Late-evening palette. Easier on the eyes after dark.",
+                    },
+                  ]
+                ).map((opt, i) => {
+                  const active = palette === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setPalette(opt.value)}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "60px 1fr auto",
+                        padding: "16px 20px",
+                        alignItems: "center",
+                        gap: 16,
+                        width: "100%",
+                        textAlign: "left",
+                        background: active ? "var(--cream)" : "transparent",
+                        borderTop: i === 0 ? "0" : "1px solid var(--line-soft)",
+                        border: i === 0 ? "0" : undefined,
+                        cursor: "pointer",
+                        fontFamily: "var(--sans)",
+                        color: "var(--ink)",
+                      }}
+                    >
+                      <span
+                        aria-hidden="true"
+                        style={{
+                          width: 48,
+                          height: 32,
+                          borderRadius: 10,
+                          border: "1px solid var(--line)",
+                          background:
+                            opt.value === "dusk"
+                              ? "linear-gradient(135deg, hsl(228 20% 10%) 0%, hsl(228 18% 13%) 100%)"
+                              : "linear-gradient(135deg, hsl(36 32% 96%) 0%, hsl(38 50% 94%) 100%)",
+                          flex: "none",
+                        }}
+                      />
+                      <div style={{ minWidth: 0 }}>
+                        <p style={{ fontSize: 14, fontWeight: 500, margin: 0 }}>
+                          {opt.title}
+                        </p>
+                        <p
+                          style={{
+                            fontSize: 12,
+                            color: "var(--ink-mute)",
+                            marginTop: 2,
+                          }}
+                        >
+                          {opt.desc}
+                        </p>
+                      </div>
+                      <span
+                        aria-hidden="true"
+                        style={{
+                          width: 22,
+                          height: 22,
+                          borderRadius: 99,
+                          border: `1.5px solid ${active ? "var(--clay)" : "var(--line)"}`,
+                          background: active ? "var(--clay)" : "transparent",
+                          color: "var(--paper)",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flex: "none",
+                        }}
+                      >
+                        {active && I.check}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <p style={{ fontSize: 12, color: "var(--ink-mute)", lineHeight: 1.5 }}>
+                Tip: there's a sun/moon toggle in the top of the sidebar — same control,
+                everywhere you already are.
+              </p>
             </>
           )}
 

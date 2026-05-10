@@ -100,10 +100,12 @@ export default {
       fontFamily: {
         display: ["Fraunces", "Cormorant Garamond", "Georgia", "serif"],
         sans: ["Inter", "system-ui", "sans-serif"],
-        /* Redesign type pairings (tokens.css) */
-        "inter-tight": ["Inter Tight", "Inter", "system-ui", "sans-serif"],
-        "instrument-serif": ["Instrument Serif", "Fraunces", "Georgia", "serif"],
-        mono: ["JetBrains Mono", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
+        /* Redesign type pairings (tokens.css) — hy- prefixed so they don't
+           override Tailwind's default `font-mono`, which is referenced by
+           pre-existing components (e.g. src/components/ui/chart.tsx). */
+        "hy-inter-tight": ["Inter Tight", "Inter", "system-ui", "sans-serif"],
+        "hy-instrument-serif": ["Instrument Serif", "Fraunces", "Georgia", "serif"],
+        "hy-mono": ["JetBrains Mono", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },
       keyframes: {
         "accordion-down": {

@@ -244,23 +244,29 @@
   --d-12: 48px;
 }
 
-/* Density variant — set [data-density="compact"] on a .hy ancestor. */
-[data-density="compact"] {
+/* Density variant — set [data-density="compact"] on a .hy ancestor.
+   Scoped to .hy so the attribute selector cannot match elsewhere in the app. */
+.hy[data-density="compact"],
+.hy [data-density="compact"] {
   --d-1: 3px; --d-2: 6px; --d-3: 9px; --d-4: 12px;
   --d-5: 16px; --d-6: 18px; --d-8: 24px; --d-10: 30px; --d-12: 36px;
 }
 
-/* Type pairings — set [data-type="..."] on a .hy ancestor. */
-[data-type="serif-mono"] {
+/* Type pairings — set [data-type="..."] on a .hy ancestor.
+   Scoped to .hy so the attribute selector cannot match elsewhere in the app. */
+.hy[data-type="serif-mono"],
+.hy [data-type="serif-mono"] {
   --display: 'Fraunces', Georgia, serif;
   --sans: 'Inter', system-ui, sans-serif;
   --mono: 'JetBrains Mono', ui-monospace, monospace;
 }
-[data-type="grotesk"] {
+.hy[data-type="grotesk"],
+.hy [data-type="grotesk"] {
   --display: 'Instrument Serif', 'Fraunces', Georgia, serif;
   --sans: 'Inter Tight', 'Inter', system-ui, sans-serif;
 }
-[data-type="all-sans"] {
+.hy[data-type="all-sans"],
+.hy [data-type="all-sans"] {
   --display: 'Inter Tight', 'Inter', system-ui, sans-serif;
   --sans: 'Inter', system-ui, sans-serif;
 }

@@ -1,192 +1,387 @@
-import { useEffect, useState } from "react";
+/**
+ * Signup screen — ported using the redesign Auth idiom
+ * (frontend-new/hayy/project/components/extra-screens.jsx → Auth).
+ *
+ * The redesign mock only depicts sign-in; this mirrors the same two-pane
+ * layout for signup and adds the full-name + role fields the existing
+ * Supabase auth flow needs (the role goes into auth metadata so the
+ * handle_new_auth_user trigger can write user_profiles.role_type).
+ *
+ * Wraps with .hy so redesign tokens resolve. AuthLayout owns the outer
+ * gradient + Logo + footer chrome, so the redesign's internal logo is
+ * intentionally omitted.
+ */
+import { useEffect, useState, type CSSProperties, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Sparkles, Users, Mic, Handshake, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Avatar, Btn, I } from "@/components/ui/primitives";
 import { signUpUser } from "@/lib/api/auth";
 
-// Maps URL ?type= query params to the correct SQL role_type values
+// URL ?type=… query param → DB role_type value
 const typeToRole: Record<string, string> = {
   seeker: "job_seeker",
   host: "referral_host",
   recruiter: "recruiter",
-  partner: "job_seeker", // community_partner not in schema yet
+  partner: "job_seeker", // community_partner is not in the schema yet
 };
 
-const highlights = [
-  { icon: Mic, title: "First live rooms", desc: "Be in the first cohort dropping into honest career conversations." },
-  { icon: Handshake, title: "Warm referrals", desc: "Earn intros from real people inside your target companies." },
-  { icon: Users, title: "Shape the community", desc: "Founding members help us decide what Hayy becomes next." },
+const ROLE_OPTIONS: { value: string; label: string }[] = [
+  { value: "job_seeker", label: "Job seeker" },
+  { value: "referral_host", label: "Referral host" },
+  { value: "recruiter", label: "Recruiter / employer" },
+  { value: "community_partner", label: "Community partner" },
 ];
 
+const inputStyle: CSSProperties = {
+  padding: "12px 14px",
+  borderRadius: 12,
+  border: "1px solid var(--line)",
+  background: "var(--paper)",
+  fontSize: 14,
+  color: "var(--ink)",
+  width: "100%",
+  outline: "none",
+  fontFamily: "var(--sans)",
+};
+
+const fieldLabelStyle: CSSProperties = {
+  fontFamily: "var(--mono)",
+  fontSize: 10,
+  color: "var(--ink-mute)",
+  letterSpacing: ".1em",
+  textTransform: "uppercase",
+};
+
 const Signup = () => {
-  const [role, setRole] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const navigate = useNavigate();
   const [params] = useSearchParams();
+  const [role, setRole] = useState<string>("");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Pre-select the role from the ?type= query param if present.
   useEffect(() => {
     const t = params.get("type");
     if (t && typeToRole[t]) setRole(typeToRole[t]);
   }, [params]);
 
-  const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const signupMutation = useMutation({
+    mutationFn: (vars: { email: string; password: string; fullName: string; roleType: string }) =>
+      signUpUser(vars),
+    onSuccess: (result, vars) => {
+      if (result.error) {
+        setErrorMsg(result.error.message);
+        toast.error("Couldn't create your account", { description: result.error.message });
+        return;
+      }
+      toast.success("Welcome to Hayy", { description: "Let's set up your founding profile." });
+      navigate(`/onboarding?role=${encodeURIComponent(vars.roleType)}`);
+    },
+    onError: (error: Error) => {
+      const message = error.message || "Something went wrong, please try again.";
+      setErrorMsg(message);
+      toast.error("Couldn't create your account", { description: message });
+    },
+  });
+
+  const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!role) {
       setErrorMsg("Please select your role to continue.");
       return;
     }
     setErrorMsg(null);
-    setSubmitting(true);
     const form = new FormData(e.currentTarget);
-    const { error } = await signUpUser({
+    signupMutation.mutate({
       email: String(form.get("email") ?? ""),
       password: String(form.get("password") ?? ""),
       fullName: String(form.get("name") ?? ""),
-      roleType: role, // passed into Supabase auth metadata → DB trigger
+      roleType: role,
     });
-    setSubmitting(false);
-    if (error) {
-      setErrorMsg(error.message);
-      toast.error("Couldn't create your account", { description: error.message });
-      return;
-    }
-    toast.success("Welcome to Hayy", { description: "Let's set up your founding profile." });
-    // Route to the correct role-based onboarding
-    navigate(`/onboarding?role=${encodeURIComponent(role)}`);
   };
 
-  return (
-    <div className="w-full max-w-5xl grid lg:grid-cols-[1fr_1.05fr] gap-6 lg:gap-8 items-stretch">
-      {/* Side panel */}
-      <aside className="hidden lg:flex relative rounded-3xl bg-primary text-primary-foreground p-10 overflow-hidden shadow-warm">
-        <div className="absolute -top-16 -left-16 h-64 w-64 rounded-full bg-clay/30 blur-3xl" />
-        <div className="absolute -bottom-20 -right-10 h-72 w-72 rounded-full bg-olive/20 blur-3xl" />
+  const showComingSoon = (label: string) =>
+    toast(label, { description: "We'll let you know when this is ready." });
 
-        <div className="relative flex flex-col justify-between w-full">
+  const submitting = signupMutation.isPending;
+
+  return (
+    <div
+      className="hy hy-bg-hero"
+      style={{
+        width: "100%",
+        display: "flex",
+        overflow: "hidden",
+        borderRadius: "var(--radius-xl)",
+        border: "1px solid var(--line-soft)",
+        boxShadow: "var(--shadow-warm)",
+        minHeight: 720,
+      }}
+    >
+      {/* Form panel — left on desktop */}
+      <main
+        style={{
+          flex: 1,
+          padding: "56px 64px",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          gap: 22,
+        }}
+      >
+        <div style={{ maxWidth: 460, width: "100%", display: "flex", flexDirection: "column", gap: 18 }}>
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full bg-card/15 backdrop-blur px-3 py-1.5 text-xs font-medium">
-              <Sparkles className="h-3.5 w-3.5" />
+            <p
+              className="mono"
+              style={{
+                fontSize: 11,
+                color: "var(--clay)",
+                letterSpacing: ".12em",
+                textTransform: "uppercase",
+                fontWeight: 600,
+              }}
+            >
               Founding access
-            </span>
-            <h2 className="font-display text-4xl xl:text-5xl font-medium leading-[1.1] mt-6">
-              Join the first <br />
-              <span className="italic text-clay-foreground/95">Hayy rooms.</span>
+            </p>
+            <h2 style={{ fontSize: 38, marginTop: 8, lineHeight: 1.1 }}>
+              Create your <span className="display-italic">Hayy</span> account.
             </h2>
-            <p className="mt-4 text-primary-foreground/80 max-w-sm">
-              Real people. Real referrals. Real growth — starting with a community of just a few hundred.
+            <p
+              style={{
+                marginTop: 10,
+                fontSize: 14,
+                color: "var(--ink-soft)",
+                lineHeight: 1.5,
+                maxWidth: 420,
+              }}
+            >
+              Join the founding cohort and get access to the first live career rooms.
             </p>
           </div>
 
-          <ul className="mt-10 space-y-5">
-            {highlights.map((f) => (
-              <li key={f.title} className="flex items-start gap-4">
-                <span className="h-10 w-10 rounded-2xl bg-card/15 backdrop-blur flex items-center justify-center shrink-0">
-                  <f.icon className="h-4 w-4" />
-                </span>
-                <div>
-                  <p className="font-display text-lg font-semibold leading-tight">{f.title}</p>
-                  <p className="text-sm text-primary-foreground/75 mt-0.5 leading-relaxed">{f.desc}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <form onSubmit={onSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={fieldLabelStyle}>Full name</span>
+              <input
+                name="name"
+                required
+                autoComplete="name"
+                placeholder="Amira Mansour"
+                disabled={submitting}
+                style={inputStyle}
+              />
+            </label>
 
-          <p className="mt-10 text-xs text-primary-foreground/60">
-            We're hand-picking the founding cohort. No spam, ever.
-          </p>
-        </div>
-      </aside>
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={fieldLabelStyle}>Email</span>
+              <input
+                name="email"
+                type="email"
+                required
+                autoComplete="email"
+                placeholder="you@example.com"
+                disabled={submitting}
+                style={{ ...inputStyle, fontFamily: "var(--mono)" }}
+              />
+            </label>
 
-      {/* Auth card */}
-      <div className="bg-card rounded-3xl border border-border shadow-warm p-7 sm:p-9">
-        <div className="max-w-md mx-auto">
-          <h1 className="font-display text-3xl sm:text-4xl font-medium text-foreground leading-tight">
-            Create your Hayy account.
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Join the founding Hayy community and get access to the first live career rooms.
-          </p>
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={fieldLabelStyle}>Password</span>
+              <input
+                name="password"
+                type="password"
+                required
+                autoComplete="new-password"
+                minLength={8}
+                placeholder="At least 8 characters"
+                disabled={submitting}
+                style={inputStyle}
+              />
+            </label>
 
-          <form onSubmit={onSubmit} className="mt-7 space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Full name</Label>
-              <Input id="name" name="name" required placeholder="Amira Mansour" className="h-11 rounded-xl bg-cream border-border" disabled={submitting} />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" name="email" type="email" required placeholder="you@example.com" className="h-11 rounded-xl bg-cream border-border" disabled={submitting} />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input id="password" name="password" type="password" required placeholder="At least 8 characters" className="h-11 rounded-xl bg-cream border-border" disabled={submitting} />
-            </div>
-
-            <div className="space-y-2">
-              <Label>I am a</Label>
-              <Select value={role} onValueChange={setRole} required disabled={submitting}>
-                <SelectTrigger className="h-11 rounded-xl bg-cream border-border">
-                  <SelectValue placeholder="Select your role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="job_seeker">Job seeker</SelectItem>
-                  <SelectItem value="referral_host">Referral host</SelectItem>
-                  <SelectItem value="recruiter">Recruiter / employer</SelectItem>
-                  <SelectItem value="community_partner">Community partner</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="target">Target role or industry</Label>
-                <Input id="target" placeholder="e.g. Operations, PM, Tech" className="h-11 rounded-xl bg-cream border-border" disabled={submitting} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="location">Location</Label>
-                <Input id="location" placeholder="City, country" className="h-11 rounded-xl bg-cream border-border" disabled={submitting} />
-              </div>
-            </div>
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={fieldLabelStyle}>I am a</span>
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                required
+                disabled={submitting}
+                style={{
+                  ...inputStyle,
+                  appearance: "none",
+                  WebkitAppearance: "none",
+                  backgroundImage:
+                    "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='none' stroke='%23998f86' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M1 1.5l5 5 5-5'/></svg>\")",
+                  backgroundRepeat: "no-repeat",
+                  backgroundPosition: "right 14px center",
+                  paddingRight: 40,
+                  color: role ? "var(--ink)" : "var(--ink-mute)",
+                }}
+              >
+                <option value="" disabled>
+                  Select your role
+                </option>
+                {ROLE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </label>
 
             {errorMsg && (
-              <p className="text-sm text-destructive rounded-xl bg-destructive/10 px-4 py-2.5">
+              <p
+                style={{
+                  fontSize: 13,
+                  color: "white",
+                  background: "var(--live)",
+                  borderRadius: 12,
+                  padding: "10px 14px",
+                  margin: 0,
+                }}
+              >
                 {errorMsg}
               </p>
             )}
 
-            <Button type="submit" variant="hero" size="lg" className="w-full mt-2" disabled={submitting}>
-              {submitting ? (
-                <><Loader2 className="h-4 w-4 animate-spin" />Creating account…</>
-              ) : (
-                "Create account"
-              )}
-            </Button>
+            <Btn
+              kind="primary"
+              size="lg"
+              type="submit"
+              iconRight={I.arrow}
+              disabled={submitting}
+              style={{ justifyContent: "center", width: "100%" }}
+            >
+              {submitting ? "Creating your account…" : "Create account"}
+            </Btn>
 
-            <p className="text-[11px] text-center text-muted-foreground leading-relaxed">
-              By creating an account you agree to Hayy's community guidelines and privacy commitments.
+            <p
+              style={{
+                fontSize: 11,
+                textAlign: "center",
+                color: "var(--ink-mute)",
+                lineHeight: 1.5,
+                margin: "4px 0 0",
+              }}
+            >
+              By creating an account you agree to Hayy's community guidelines and privacy
+              commitments.
             </p>
           </form>
 
-          <div className="mt-6 flex items-center gap-3">
-            <span className="h-px flex-1 bg-border" />
-            <span className="text-[11px] uppercase tracking-widest text-muted-foreground">or</span>
-            <span className="h-px flex-1 bg-border" />
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              color: "var(--ink-mute)",
+              fontSize: 11,
+            }}
+          >
+            <span style={{ flex: 1, height: 1, background: "var(--line)" }} />
+            <span
+              className="mono"
+              style={{ letterSpacing: ".12em", textTransform: "uppercase" }}
+            >
+              or
+            </span>
+            <span style={{ flex: 1, height: 1, background: "var(--line)" }} />
           </div>
 
-          <p className="mt-6 text-sm text-center text-muted-foreground">
+          <Btn
+            kind="soft"
+            size="lg"
+            onClick={() => showComingSoon("Google sign-up coming soon")}
+            style={{ justifyContent: "center", width: "100%" }}
+          >
+            Continue with Google
+          </Btn>
+
+          <p style={{ fontSize: 13, color: "var(--ink-soft)", textAlign: "center", marginTop: 4 }}>
             Already have an account?{" "}
-            <Link to="/login" className="text-primary font-medium hover:underline">
-              Log in
+            <Link
+              to="/login"
+              style={{ color: "var(--clay)", fontWeight: 500, textDecoration: "none" }}
+            >
+              Log in →
             </Link>
           </p>
         </div>
-      </div>
+      </main>
+
+      {/* Editorial side panel — desktop only */}
+      <aside
+        className="hidden lg:flex"
+        style={{
+          width: "44%",
+          padding: "48px 56px",
+          flexDirection: "column",
+          justifyContent: "space-between",
+          borderLeft: "1px solid var(--line-soft)",
+          gap: 32,
+        }}
+      >
+        <div>
+          <p
+            className="mono"
+            style={{
+              fontSize: 11,
+              color: "var(--clay)",
+              letterSpacing: ".12em",
+              textTransform: "uppercase",
+              fontWeight: 600,
+            }}
+          >
+            Be part of the first rooms
+          </p>
+          <h1 style={{ fontSize: 52, marginTop: 14, lineHeight: 1.0 }}>
+            Real <span className="display-italic">people.</span>
+            <br />
+            Real referrals.
+          </h1>
+          <p
+            style={{
+              marginTop: 18,
+              fontSize: 16,
+              color: "var(--ink-soft)",
+              lineHeight: 1.6,
+              maxWidth: 440,
+            }}
+          >
+            Hayy is a community of newcomers and operators across MENA &amp; North America.
+            Members refer 8× more often than they apply.
+          </p>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ display: "flex" }}>
+            {(
+              [
+                { name: "Maya N", tone: "clay" as const },
+                { name: "Rashid K", tone: "olive" as const },
+                { name: "Layla P", tone: "sand" as const },
+                { name: "Sara M", tone: "dark" as const },
+              ]
+            ).map((p, i) => (
+              <span
+                key={p.name}
+                style={{
+                  marginLeft: i === 0 ? 0 : -10,
+                  border: "2px solid var(--paper)",
+                  borderRadius: 999,
+                  display: "inline-flex",
+                }}
+              >
+                <Avatar name={p.name} size={36} tone={p.tone} />
+              </span>
+            ))}
+          </div>
+          <p style={{ fontSize: 13, color: "var(--ink-soft)", margin: 0 }}>
+            <span style={{ color: "var(--ink)", fontWeight: 500 }}>Hand-picked cohort.</span>{" "}
+            No spam, ever.
+          </p>
+        </div>
+      </aside>
     </div>
   );
 };

@@ -43,6 +43,10 @@ export async function getProfile(userId: string): Promise<UserProfile | null> {
     resume_url: null,
     video_intro_url: null,
     role_type: "job_seeker",
+    // The mock fixture user is fully populated; surface them as already
+    // onboarded so the fail-closed decideLandingRoute helper doesn't
+    // bounce mock-mode users to /onboarding on every login.
+    onboarding_completed: true,
     created_at: new Date().toISOString(),
   };
 }

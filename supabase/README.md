@@ -135,8 +135,15 @@ When `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are **not set**, the fronten
 2. 002_rls_policies.sql     — RLS enable + named policies
 3. 003_add_profile_picture_and_referral_goals.sql — avatars bucket + referral_goals column
 4. 004_add_recruiter_profile_fields.sql           — recruiter profile columns
-5. seed.sql                 — optional dev data (uncomment + fill UUIDs first)
+5. 005_placeholder_intentionally_skipped.sql      — no-op; reserved during planning, never authored
+6. 006_room_types_and_creation_permissions.sql    — community/referral/hiring room types + RLS
+7. seed.sql                 — optional dev data (uncomment + fill UUIDs first)
 ```
+
+> Migration 005 is an intentional no-op. The next change to ship after
+> migration 004 was migration 006; the 005 slot is preserved as a placeholder
+> so the sequence stays dense for tools that expect it. Do not delete it; if
+> you need to add a new migration, start at 007.
 
 ---
 

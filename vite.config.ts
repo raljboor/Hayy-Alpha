@@ -4,11 +4,20 @@ import path from "path";
 // https://vitejs.dev/config/
 export default defineConfig(() => ({
   server: {
-    host: "::",
+    // 0.0.0.0 binds to all IPv4 interfaces so Replit (and other
+    // sandboxed preview environments) can forward the port.
+    host: "0.0.0.0",
     port: 8080,
+    // strictPort=false lets Vite fall back to another port if 8080
+    // is already taken (e.g. by a stale dev server).
+    strictPort: false,
     hmr: {
       overlay: false,
     },
+  },
+  preview: {
+    host: "0.0.0.0",
+    port: 8080,
   },
   plugins: [react()],
   resolve: {

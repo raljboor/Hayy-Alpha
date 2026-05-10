@@ -1,45 +1,36 @@
-import { useMemo } from "react";
+/**
+ * Dashboard — ported from the redesign DashboardA mock
+ * (frontend-new/hayy/project/components/dashboard.jsx → DashboardA).
+ *
+ * AppLayout owns the desktop sidebar and the mobile top bar / dropdown
+ * nav, so the redesign's internal Sidebar / MobileTopbar / MobileTabbar
+ * are intentionally NOT included here.
+ *
+ * Layout:
+ *   1. Greeting (real date, real first name)
+ *   2. Today's room — hero card pulled from the next live or upcoming
+ *      room (getRooms)
+ *   3. Two columns:
+ *      left  → activity timeline backed by real notifications
+ *      right → profile-completion donut + founding-member card
+ *
+ * No fixture data: every count, name, room, and timeline event is
+ * derived from the existing src/lib/api/* layer.
+ */
+
+import { useMemo, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, Mic, Handshake, Users, Sparkles, Coffee, Check, MessageSquare, Bell } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { SectionHeader } from "@/components/hayy/SectionHeader";
-import { StatCard } from "@/components/hayy/StatCard";
-import { RoomCard } from "@/components/hayy/RoomCard";
-import { UserAvatar } from "@/components/hayy/UserAvatar";
-import { StatusBadge } from "@/components/hayy/StatusBadge";
-import { UnreadDot } from "@/components/hayy/InboxPrimitives";
-import { RoomCardSkeleton } from "@/components/hayy/Skeletons";
-import { Skeleton } from "@/components/ui/skeleton";
-import { ErrorState } from "@/components/hayy/ErrorState";
-import { users, getUser, type Room } from "@/data/mockData";
-import { getRooms } from "@/lib/api/rooms";
-import { getReferralRequests, getReferralThreads } from "@/lib/api/referrals";
-import { getNotifications } from "@/lib/api/notifications";
-import { useAsync } from "@/lib/useAsync";
+import { useQuery } from "@tanstack/react-query";
+import { Avatar, Btn, I, LiveTag } from "@/components/ui/primitives";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { isMockMode } from "@/lib/runtimeMode";
-import { cn } from "@/lib/utils";
+import { getRooms } from "@/lib/api/rooms";
+import { getNotifications } from "@/lib/api/notifications";
+import { getReferralRequests } from "@/lib/api/referrals";
+import type { Room } from "@/data/mockData";
 
 // ---------------------------------------------------------------------------
-// Mock-only constants — only used when Supabase is NOT configured
-// ---------------------------------------------------------------------------
-
-const mockMe = users[0]; // Amira — display fallback in mock mode
-
-const suggestedRoomTitles = [
-  "Amazon Canada Career Room",
-  "Product, Data & Software Career Room",
-  "Career Access for International Professionals",
-];
-
-const recommendedHosts = [
-  { user: users[1], capacity: "3 chats / month open" },
-  { user: users[2], capacity: "2 chats / month open" },
-  { user: users[5], capacity: "1 chat / month open" },
-];
-
-// ---------------------------------------------------------------------------
-// Profile completion helpers
+// Profile-completion checklist (same logic as the previous Dashboard but
+// surfaced via the redesign's donut card)
 // ---------------------------------------------------------------------------
 
 interface ChecklistItem {
@@ -48,33 +39,141 @@ interface ChecklistItem {
 }
 
 function buildChecklist(profile: {
-  full_name?: string | null;
-  headline?: string | null;
   bio?: string | null;
-  target_roles?: string[];
+  headline?: string | null;
   skills?: string[];
   linkedin_url?: string | null;
   resume_url?: string | null;
   video_intro_url?: string | null;
 } | null): ChecklistItem[] {
   if (!profile) {
-    // In mock mode, show some checked items for a better demo feel
     return [
-      { label: "Add bio", done: true },
-      { label: "Add skills", done: true },
-      { label: "Add resume", done: false },
+      { label: "Add headline", done: false },
+      { label: "Add bio", done: false },
+      { label: "Add skills", done: false },
       { label: "Add LinkedIn", done: false },
+      { label: "Add resume", done: false },
       { label: "Add video intro", done: false },
     ];
   }
   return [
+    { label: "Add headline", done: !!profile.headline },
     { label: "Add bio", done: !!profile.bio },
     { label: "Add skills", done: !!(profile.skills && profile.skills.length > 0) },
-    { label: "Add resume", done: !!profile.resume_url },
     { label: "Add LinkedIn", done: !!profile.linkedin_url },
+    { label: "Add resume", done: !!profile.resume_url },
     { label: "Add video intro", done: !!profile.video_intro_url },
   ];
 }
+
+// ---------------------------------------------------------------------------
+// Hero room — pick the most relevant single room to surface
+// ---------------------------------------------------------------------------
+
+function pickHeroRoom(rooms: Room[]): Room | null {
+  if (rooms.length === 0) return null;
+  // Prefer live rooms first, then nearest upcoming, then anything that hasn't ended.
+  const live = rooms.find((r) => r.status === "live");
+  if (live) return live;
+  const upcoming = rooms
+    .filter((r) => r.status === "upcoming")
+    .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
+  return upcoming[0] ?? rooms[0] ?? null;
+}
+
+function formatStartTime(room: Room): string {
+  if (room.status === "live") return "Live now";
+  const start = new Date(room.startsAt);
+  const now = Date.now();
+  const diffMin = Math.round((start.getTime() - now) / 60_000);
+  if (diffMin < 0) return "Starting soon";
+  if (diffMin < 60) return `Starting in ${diffMin} min`;
+  if (diffMin < 24 * 60) return `Starting in ${Math.round(diffMin / 60)}h`;
+  return start.toLocaleString(undefined, {
+    weekday: "short",
+    hour: "numeric",
+    minute: "numeric",
+  });
+}
+
+function formatToday(): string {
+  const d = new Date();
+  return d.toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Timeline dot colour by notification type
+// ---------------------------------------------------------------------------
+
+function dotForType(type: string): string {
+  const t = type.toLowerCase();
+  if (t.includes("accept") || t.includes("referral")) return "var(--clay)";
+  if (t.includes("room") || t.includes("speak")) return "var(--olive)";
+  if (t.includes("message") || t.includes("reply")) return "var(--ink)";
+  return "var(--clay-2)";
+}
+
+// ---------------------------------------------------------------------------
+// Donut SVG — exact port of the redesign's DonutPct
+// ---------------------------------------------------------------------------
+
+const DonutPct = ({ pct = 60, size = 72 }: { pct?: number; size?: number }) => {
+  const stroke = 8;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flex: "none" }}>
+      <circle cx={size / 2} cy={size / 2} r={r} stroke="var(--line)" strokeWidth={stroke} fill="none" />
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        stroke="var(--clay)"
+        strokeWidth={stroke}
+        fill="none"
+        strokeDasharray={c}
+        strokeDashoffset={c * (1 - pct / 100)}
+        strokeLinecap="round"
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+      />
+      <text
+        x="50%"
+        y="54%"
+        textAnchor="middle"
+        fontFamily="var(--display)"
+        fontSize="16"
+        fill="var(--ink)"
+      >
+        {pct}
+      </text>
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Shared style tokens
+// ---------------------------------------------------------------------------
+
+const sectionLabelStyle: CSSProperties = {
+  fontFamily: "var(--mono)",
+  fontSize: 11,
+  letterSpacing: ".12em",
+  color: "var(--clay)",
+  textTransform: "uppercase",
+  fontWeight: 600,
+  margin: 0,
+};
+
+const cardStyle: CSSProperties = {
+  background: "var(--paper)",
+  border: "1px solid var(--line-soft)",
+  borderRadius: "var(--radius-xl)",
+  boxShadow: "var(--shadow-soft)",
+};
 
 // ---------------------------------------------------------------------------
 // Component
@@ -82,348 +181,518 @@ function buildChecklist(profile: {
 
 const Dashboard = () => {
   const { userId, profile } = useCurrentUser();
-  const me = profile
-    ? { name: profile.full_name || mockMe.name, id: userId ?? mockMe.id }
-    : mockMe;
+  const fullName = profile?.full_name ?? "";
+  const firstName = fullName.trim().split(/\s+/)[0] || "there";
 
-  const roomsQ = useAsync(() => getRooms(), []);
-  const referralsQ = useAsync(() => getReferralRequests(userId ?? undefined), [userId]);
-  const threadsQ = useAsync(() => getReferralThreads(userId ?? undefined), [userId]);
-  const notificationsQ = useAsync(() => getNotifications(userId ?? undefined), [userId]);
+  const roomsQ = useQuery({
+    queryKey: ["dashboard-rooms"],
+    queryFn: getRooms,
+    staleTime: 60_000,
+  });
+  const notificationsQ = useQuery({
+    queryKey: ["dashboard-notifications", userId],
+    queryFn: () => getNotifications(userId ?? undefined),
+    staleTime: 30_000,
+  });
+  const referralsQ = useQuery({
+    queryKey: ["dashboard-referrals", userId],
+    queryFn: () => getReferralRequests(userId ?? undefined),
+    staleTime: 30_000,
+  });
 
   const rooms = roomsQ.data ?? [];
-  const referralRequests = referralsQ.data ?? [];
-  const threads = threadsQ.data ?? [];
   const notifications = notificationsQ.data ?? [];
+  const referrals = referralsQ.data ?? [];
 
-  // ---------------------------------------------------------------------------
-  // Stats — computed from real API data in production, hardcoded in mock mode
-  // ---------------------------------------------------------------------------
-  const stats = useMemo(() => {
-    if (isMockMode) {
-      return { total: 6, accepted: 3, roomsJoined: 2, hostIntros: 1 };
-    }
-    return {
-      total: referralRequests.length,
-      accepted: referralRequests.filter(
-        (r) => r.status === "accepted" || r.status === "completed",
-      ).length,
-      // room_participants not fetched on dashboard yet — show 0 until wired
-      roomsJoined: 0,
-      // host intros = accepted/completed referrals where current user is requester
-      hostIntros: referralRequests.filter(
-        (r) => (r.status === "accepted" || r.status === "completed") && r.direction === "outgoing",
-      ).length,
-    };
-  }, [referralRequests]);
-
-  // ---------------------------------------------------------------------------
-  // Profile completion checklist — real in production, mock demo otherwise
-  // ---------------------------------------------------------------------------
-  const checklist = useMemo(
-    () => (isMockMode ? buildChecklist(null) : buildChecklist(profile)),
-    [profile],
-  );
+  const heroRoom = useMemo(() => pickHeroRoom(rooms), [rooms]);
+  const checklist = useMemo(() => buildChecklist(profile ?? null), [profile]);
   const completedCount = checklist.filter((c) => c.done).length;
   const pct = Math.round((completedCount / checklist.length) * 100);
 
-  // ---------------------------------------------------------------------------
-  // Suggested rooms
-  // In production: show the first 3 real rooms from the DB.
-  // In mock mode: overlay curated titles on mock rooms for a richer demo.
-  // ---------------------------------------------------------------------------
-  const suggestedRooms: Room[] = useMemo(() => {
-    if (isMockMode) {
-      return suggestedRoomTitles
-        .map((title, i): Room | null => {
-          const base = rooms[i % rooms.length];
-          if (!base) return null;
-          return { ...base, id: `s${i}`, title, status: i === 0 ? "live" : "upcoming" };
-        })
-        .filter((r): r is Room => r !== null);
-    }
-    // In production: show first 3 real rooms (may be empty)
-    return rooms.slice(0, 3);
-  }, [rooms]);
+  // Live activity timeline: the last 4 notifications, sorted by recency
+  // (the API already returns them newest-first in mock mode).
+  const timelineEvents = notifications.slice(0, 4);
 
-  // Pending referrals for the "follow-ups" section
-  const pending = referralRequests.filter((r) => r.status === "pending").slice(0, 3);
+  // Pending follow-ups for the secondary headline "X are waiting on you"
+  const pendingCount = referrals.filter((r) => r.status === "pending").length;
+
+  const greetingSubtitle =
+    pendingCount > 0
+      ? `${pendingCount} ${pendingCount === 1 ? "person is" : "people are"} waiting on you today.`
+      : heroRoom
+        ? "One room is calling your name today."
+        : "Calm inbox. Quiet day. Make it count.";
 
   return (
-    <div className="space-y-12">
-      {/* Welcome */}
-      <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+    <div
+      className="hy"
+      style={{
+        background: "var(--bg)",
+        color: "var(--ink)",
+        // AppLayout already constrains width; let the redesign breathe inside it.
+        margin: "-24px -16px",
+        padding: "32px 16px",
+      }}
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+        {/* Greeting */}
         <div>
-          <p className="text-sm text-muted-foreground">Welcome back</p>
-          <h1 className="font-display text-3xl sm:text-4xl text-foreground leading-tight">
-            Welcome back, <span className="italic text-primary">{me.name.split(" ")[0]}.</span>
+          <p style={sectionLabelStyle}>{formatToday()}</p>
+          <h1 style={{ fontSize: "clamp(28px, 4vw, 44px)", marginTop: 6, lineHeight: 1.05 }}>
+            Good day, <span className="display-italic">{firstName}.</span>
           </h1>
-          <p className="mt-2 text-muted-foreground max-w-xl">
-            Your career command center — calm, warm, and built around real people.
+          <p style={{ marginTop: 8, color: "var(--ink-soft)", fontSize: 16, margin: "8px 0 0" }}>
+            {greetingSubtitle}
           </p>
         </div>
-        <Button asChild variant="hero" size="lg">
-          <Link to="/app/rooms">Find a room <ArrowRight className="h-4 w-4" /></Link>
-        </Button>
-      </header>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard label="Referral requests" value={stats.total} tone="primary" icon={Handshake} />
-        <StatCard label="Accepted chats" value={stats.accepted} tone="clay" icon={Coffee} />
-        <StatCard label="Rooms joined" value={stats.roomsJoined} tone="olive" icon={Mic} />
-        <StatCard label="Host intros" value={stats.hostIntros} icon={Sparkles} />
-      </div>
+        {/* Hero room */}
+        <HeroRoomCard room={heroRoom} loading={roomsQ.isLoading} />
 
-      {/* Suggested rooms */}
-      <section>
-        <SectionHeader
-          eyebrow="Curated for you"
-          title="Suggested rooms"
-          description="Live and upcoming spaces matched to your goals."
-          action={<Button asChild variant="soft" size="sm"><Link to="/app/rooms">Browse all</Link></Button>}
-        />
-        {roomsQ.loading ? (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {Array.from({ length: 3 }).map((_, i) => <RoomCardSkeleton key={i} />)}
-          </div>
-        ) : roomsQ.error ? (
-          <ErrorState description="We couldn't load suggested rooms." onRetry={roomsQ.refetch} />
-        ) : suggestedRooms.length === 0 ? (
-          <div className="rounded-3xl bg-cream border border-dashed border-border p-10 text-center">
-            <p className="text-muted-foreground text-sm">No rooms yet — check back soon.</p>
-            <Button asChild variant="soft" size="sm" className="mt-4">
-              <Link to="/app/rooms">Browse rooms</Link>
-            </Button>
-          </div>
-        ) : (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {suggestedRooms.map((r) => <RoomCard key={r.id} room={r} />)}
-          </div>
-        )}
-      </section>
+        {/* Two-column grid */}
+        <div
+          className="dashboard-grid"
+          style={{
+            display: "grid",
+            gap: 24,
+            gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr)",
+            alignItems: "start",
+          }}
+        >
+          {/* Activity timeline */}
+          <div
+            style={{
+              ...cardStyle,
+              padding: 24,
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <h3 style={{ fontSize: 20, fontFamily: "var(--display)", fontWeight: 500, margin: 0 }}>
+                Your warm activity
+              </h3>
+              <span
+                className="mono"
+                style={{ fontSize: 11, color: "var(--ink-mute)", letterSpacing: ".08em" }}
+              >
+                LAST UPDATES
+              </span>
+            </div>
 
-      {/* Pending follow-ups + Profile checklist */}
-      <section className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <SectionHeader
-            eyebrow="Stay warm"
-            title="Pending follow-ups"
-            action={<Button asChild variant="ghost" size="sm"><Link to="/app/referrals">All referrals <ArrowRight className="h-4 w-4" /></Link></Button>}
-          />
-          <ul className="rounded-3xl bg-card border border-border divide-y divide-border overflow-hidden">
-            {referralsQ.loading ? (
-              <li className="p-4"><Skeleton className="h-12 w-full" /></li>
-            ) : pending.length === 0 ? (
-              <li className="p-6 text-sm text-muted-foreground text-center">
-                No pending follow-ups — you're all caught up!
-              </li>
+            {notificationsQ.isLoading ? (
+              <TimelineSkeleton />
+            ) : timelineEvents.length === 0 ? (
+              <EmptyTimeline />
             ) : (
-              pending.map((r) => {
-                // In mock mode getUser() works; in production hostId is a UUID
-                // not in the mock fixture so we gracefully degrade.
-                const counterpart = getUser(r.hostId);
-                return (
-                  <li key={r.id} className="p-4 sm:p-5 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3 min-w-0">
-                      {counterpart ? (
-                        <UserAvatar user={counterpart} size="md" />
-                      ) : (
-                        <span className="h-9 w-9 rounded-full bg-secondary flex items-center justify-center text-xs font-bold text-muted-foreground shrink-0">
-                          {(r.company ?? "?")[0]}
+              <div style={{ marginTop: 16, position: "relative", paddingLeft: 22 }}>
+                <span
+                  style={{
+                    position: "absolute",
+                    top: 6,
+                    bottom: 6,
+                    left: 6,
+                    width: 1,
+                    background: "var(--line)",
+                  }}
+                />
+                {timelineEvents.map((n) => {
+                  const dot = dotForType(n.type);
+                  return (
+                    <div key={n.id} style={{ position: "relative", paddingBottom: 16 }}>
+                      <span
+                        style={{
+                          position: "absolute",
+                          left: -22,
+                          top: 4,
+                          width: 13,
+                          height: 13,
+                          borderRadius: 999,
+                          background: dot,
+                          border: "2px solid var(--paper)",
+                          boxShadow: `0 0 0 1px ${dot}`,
+                        }}
+                      />
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                        <p style={{ fontSize: 14, fontWeight: 500, margin: 0 }}>{n.title}</p>
+                        <span
+                          className="mono"
+                          style={{
+                            fontSize: 10,
+                            color: "var(--ink-mute)",
+                            flex: "none",
+                            letterSpacing: ".05em",
+                          }}
+                        >
+                          {n.time}
                         </span>
+                      </div>
+                      {n.body && (
+                        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 2 }}>{n.body}</p>
                       )}
-                      <div className="min-w-0">
-                        <p className="font-medium text-foreground truncate">
-                          {counterpart?.name ?? r.company}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">{r.role} · {r.company}</p>
-                      </div>
                     </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <StatusBadge status={r.status} />
-                      <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
-                        <Link to="/app/referrals">View</Link>
-                      </Button>
-                    </div>
-                  </li>
-                );
-              })
+                  );
+                })}
+              </div>
             )}
-          </ul>
-        </div>
 
-        {/* Profile completion — real field check in production */}
-        <aside className="rounded-3xl bg-cream border border-border p-6 flex flex-col">
-          <p className="text-xs font-medium uppercase tracking-widest text-clay">Profile completion</p>
-          <h3 className="font-display text-2xl text-foreground mt-1">{pct}% complete</h3>
-          <p className="text-sm text-muted-foreground mt-1">Hosts say yes more often to complete profiles.</p>
-
-          <div className="mt-4 h-1.5 w-full rounded-full bg-border overflow-hidden">
-            <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+            <Link
+              to="/app/notifications"
+              style={{
+                marginTop: 8,
+                fontSize: 13,
+                color: "var(--clay)",
+                textDecoration: "none",
+                fontWeight: 500,
+              }}
+            >
+              See everything →
+            </Link>
           </div>
 
-          <ul className="mt-5 space-y-2.5 flex-1">
-            {checklist.map((c) => (
-              <li key={c.label} className="flex items-center gap-3 text-sm">
-                <span className={cn(
-                  "h-5 w-5 rounded-full flex items-center justify-center shrink-0 border",
-                  c.done ? "bg-primary border-primary text-primary-foreground" : "bg-card border-border text-transparent",
-                )}>
-                  <Check className="h-3 w-3" />
-                </span>
-                <span className={cn(c.done ? "text-muted-foreground line-through" : "text-foreground")}>
-                  {c.label}
-                </span>
-              </li>
-            ))}
-          </ul>
-
-          <Button asChild variant="soft" size="sm" className="mt-5">
-            <Link to="/app/profile">Complete profile</Link>
-          </Button>
-        </aside>
-      </section>
-
-      {/* Latest messages + Notifications */}
-      <section className="grid lg:grid-cols-2 gap-6">
-        <div className="rounded-3xl bg-card border border-border shadow-soft overflow-hidden">
-          <div className="flex items-center justify-between p-5 border-b border-border">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="h-4 w-4 text-clay" />
-              <h3 className="font-display text-xl text-foreground">Latest messages</h3>
-            </div>
-            <Button asChild variant="ghost" size="sm">
-              <Link to="/app/messages">Open inbox <ArrowRight className="h-4 w-4" /></Link>
-            </Button>
-          </div>
-          <ul className="divide-y divide-border">
-            {threadsQ.loading ? (
-              Array.from({ length: 3 }).map((_, i) => (
-                <li key={i} className="p-4"><Skeleton className="h-12 w-full" /></li>
-              ))
-            ) : threadsQ.error ? (
-              <li className="p-4 text-sm text-muted-foreground">Couldn't load messages.</li>
-            ) : threads.length === 0 ? (
-              <li className="p-6 text-sm text-muted-foreground text-center">No messages yet.</li>
-            ) : (
-              threads.slice(0, 3).map((t) => (
-                <li key={t.id}>
-                  <Link
-                    to={`/app/referrals/${t.id}`}
-                    className={cn(
-                      "flex items-start gap-3 p-4 transition-colors hover:bg-cream/60",
-                      t.unread && "bg-clay/5",
-                    )}
+          {/* Side panel */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            {/* Profile completion donut */}
+            <div style={{ ...cardStyle, padding: 22, background: "var(--cream)" }}>
+              <div style={{ display: "flex", gap: 18, alignItems: "center" }}>
+                <DonutPct pct={pct} />
+                <div>
+                  <p style={{ ...sectionLabelStyle, fontSize: 10 }}>Profile</p>
+                  <p
+                    style={{
+                      fontFamily: "var(--display)",
+                      fontSize: 24,
+                      marginTop: 2,
+                      lineHeight: 1,
+                    }}
                   >
-                    <UserAvatar user={t.person} size="md" />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-foreground truncate">{t.person.name}</p>
-                        {t.unread && <UnreadDot />}
-                        <span className="ml-auto text-[11px] text-muted-foreground shrink-0">{t.lastUpdated}</span>
-                      </div>
-                      <p className="text-sm text-muted-foreground truncate mt-0.5">{t.lastPreview}</p>
-                    </div>
-                  </Link>
-                </li>
-              ))
-            )}
-          </ul>
-        </div>
+                    {pct}% warm
+                  </p>
+                  <p style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 6 }}>
+                    {completedCount === checklist.length
+                      ? "Your profile is complete — hosts say yes faster."
+                      : `${checklist.length - completedCount} thing${
+                          checklist.length - completedCount === 1 ? "" : "s"
+                        } left. Each one helps hosts say yes.`}
+                  </p>
+                </div>
+              </div>
 
-        <div className="rounded-3xl bg-card border border-border shadow-soft overflow-hidden">
-          <div className="flex items-center justify-between p-5 border-b border-border">
-            <div className="flex items-center gap-2">
-              <Bell className="h-4 w-4 text-clay" />
-              <h3 className="font-display text-xl text-foreground">Notifications</h3>
-            </div>
-            <Button asChild variant="ghost" size="sm">
-              <Link to="/app/notifications">View all <ArrowRight className="h-4 w-4" /></Link>
-            </Button>
-          </div>
-          <ul className="divide-y divide-border">
-            {notificationsQ.loading ? (
-              Array.from({ length: 3 }).map((_, i) => (
-                <li key={i} className="p-4"><Skeleton className="h-12 w-full" /></li>
-              ))
-            ) : notificationsQ.error ? (
-              <li className="p-4 text-sm text-muted-foreground">Couldn't load notifications.</li>
-            ) : notifications.length === 0 ? (
-              <li className="p-6 text-sm text-muted-foreground text-center">No activity yet.</li>
-            ) : (
-              notifications.slice(0, 3).map((n) => (
-                <li
-                  key={n.id}
-                  className={cn("p-4 flex items-start gap-3", n.unread && "bg-clay/5")}
+              {/* Mini checklist preview */}
+              <ul
+                style={{
+                  marginTop: 14,
+                  listStyle: "none",
+                  padding: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                }}
+              >
+                {checklist.slice(0, 4).map((c) => (
+                  <li
+                    key={c.label}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      fontSize: 13,
+                      color: c.done ? "var(--ink-mute)" : "var(--ink)",
+                      textDecoration: c.done ? "line-through" : "none",
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 16,
+                        height: 16,
+                        borderRadius: 999,
+                        background: c.done ? "var(--clay)" : "transparent",
+                        border: `1.5px solid ${c.done ? "var(--clay)" : "var(--line)"}`,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "var(--paper)",
+                        flex: "none",
+                      }}
+                    >
+                      {c.done && I.check}
+                    </span>
+                    {c.label}
+                  </li>
+                ))}
+              </ul>
+
+              <Link
+                to="/app/profile"
+                style={{ display: "block", textDecoration: "none", marginTop: 14 }}
+              >
+                <Btn
+                  kind="soft"
+                  size="md"
+                  style={{ width: "100%", justifyContent: "center" }}
                 >
-                  <span className="h-9 w-9 rounded-xl bg-secondary inline-flex items-center justify-center shrink-0">
-                    <Bell className="h-4 w-4 text-clay" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-[10px] uppercase tracking-wider font-medium text-muted-foreground">{n.type}</p>
-                      {n.unread && <UnreadDot />}
-                      <span className="ml-auto text-[11px] text-muted-foreground">{n.time}</span>
-                    </div>
-                    <p className={cn("text-sm mt-1", n.unread ? "font-medium text-foreground" : "text-foreground/85")}>
-                      {n.title}
-                    </p>
-                  </div>
-                </li>
-              ))
-            )}
-          </ul>
-        </div>
-      </section>
+                  Complete your profile
+                </Btn>
+              </Link>
+            </div>
 
-      {/* Recommended hosts — mock only; in production hide until host discovery is built */}
-      {isMockMode && (
-        <section>
-          <SectionHeader
-            eyebrow="Warm intros"
-            title="Recommended hosts"
-            description="People in your target companies who are open to a conversation right now."
-          />
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {recommendedHosts.map(({ user, capacity }) => (
-              <article key={user.id} className="rounded-3xl bg-card border border-border p-6 shadow-soft hover:shadow-warm transition-all">
-                <div className="flex items-center gap-3">
-                  <UserAvatar user={user} size="lg" />
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <p className="font-medium text-foreground truncate">{user.name}</p>
-                      {user.verified && <Sparkles className="h-3.5 w-3.5 text-clay shrink-0" />}
-                    </div>
-                    <p className="text-xs text-muted-foreground truncate">{user.role}{user.company && ` · ${user.company}`}</p>
-                  </div>
-                </div>
-                <div className="mt-4 flex items-center gap-2 text-xs text-foreground/70">
-                  <span className="h-2 w-2 rounded-full bg-olive" />
-                  {capacity}
-                </div>
-                <p className="mt-4 text-sm text-foreground/80 line-clamp-2">{user.bio}</p>
-                <Button variant="hero" size="sm" className="mt-5 w-full">
-                  <Coffee className="h-4 w-4" /> Request coffee chat
-                </Button>
-              </article>
-            ))}
+            {/* Founding-member card */}
+            <div
+              style={{
+                ...cardStyle,
+                padding: 22,
+                background: "var(--clay)",
+                color: "var(--paper)",
+                borderColor: "transparent",
+              }}
+            >
+              <p
+                className="mono"
+                style={{
+                  fontSize: 10,
+                  letterSpacing: ".1em",
+                  textTransform: "uppercase",
+                  opacity: 0.85,
+                  margin: 0,
+                }}
+              >
+                Founding member
+              </p>
+              <p
+                style={{
+                  fontFamily: "var(--display)",
+                  fontSize: 20,
+                  marginTop: 6,
+                  lineHeight: 1.2,
+                }}
+              >
+                You're shaping what Hayy becomes next.
+              </p>
+              <Link
+                to="/app/settings"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  marginTop: 14,
+                  fontSize: 13,
+                  color: "var(--paper)",
+                  textDecoration: "none",
+                  fontWeight: 500,
+                  opacity: 0.95,
+                }}
+              >
+                Share feedback {I.arrow}
+              </Link>
+            </div>
           </div>
-        </section>
-      )}
-
-      {/* Footer nudge */}
-      <div className="rounded-3xl bg-gradient-clay text-clay-foreground p-7 sm:p-9 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-widest opacity-90">Founding member</p>
-          <h3 className="font-display text-2xl mt-1">Help shape what Hayy becomes next.</h3>
         </div>
-        <Button variant="soft" className="bg-card text-foreground hover:bg-cream" asChild>
-          <Link to="/app/settings"><Users className="h-4 w-4" />Share feedback</Link>
-        </Button>
       </div>
+
+      <style>{`
+        @media (max-width: 880px) {
+          .dashboard-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </div>
   );
 };
+
+// ---------------------------------------------------------------------------
+// Hero room card
+// ---------------------------------------------------------------------------
+
+const HeroRoomCard = ({ room, loading }: { room: Room | null; loading: boolean }) => {
+  if (loading) {
+    return (
+      <div
+        style={{
+          ...cardStyle,
+          padding: 26,
+          minHeight: 220,
+          background: "linear-gradient(135deg, var(--paper), var(--cream))",
+        }}
+      >
+        <p
+          className="mono"
+          style={{ fontSize: 11, color: "var(--ink-mute)", letterSpacing: ".08em" }}
+        >
+          LOADING TODAY'S ROOM…
+        </p>
+      </div>
+    );
+  }
+
+  if (!room) {
+    return (
+      <div
+        style={{
+          ...cardStyle,
+          padding: 26,
+          background: "linear-gradient(135deg, var(--paper), var(--cream))",
+        }}
+      >
+        <p style={{ ...sectionLabelStyle, fontSize: 10 }}>Quiet today</p>
+        <h2
+          style={{
+            fontSize: 28,
+            marginTop: 12,
+            lineHeight: 1.1,
+            fontFamily: "var(--display)",
+            fontWeight: 500,
+          }}
+        >
+          No live or upcoming rooms <span className="display-italic">yet</span>.
+        </h2>
+        <p style={{ marginTop: 10, color: "var(--ink-soft)", fontSize: 14 }}>
+          Browse the rooms feed to RSVP — we'll surface the next one here.
+        </p>
+        <Link to="/app/rooms" style={{ display: "inline-block", marginTop: 18, textDecoration: "none" }}>
+          <Btn kind="primary" iconRight={I.arrow}>
+            Browse rooms
+          </Btn>
+        </Link>
+      </div>
+    );
+  }
+
+  const startsLabel = formatStartTime(room);
+
+  return (
+    <div
+      className="dashboard-hero"
+      style={{
+        ...cardStyle,
+        padding: 26,
+        display: "grid",
+        gridTemplateColumns: "minmax(0, 1fr) 240px",
+        gap: 24,
+        alignItems: "center",
+        background: "linear-gradient(135deg, var(--paper), var(--cream))",
+      }}
+    >
+      <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          {room.status === "live" ? (
+            <LiveTag>{startsLabel}</LiveTag>
+          ) : (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "4px 10px",
+                borderRadius: "var(--radius-pill)",
+                background: "var(--paper)",
+                border: "1px solid var(--line)",
+                fontSize: 11,
+                fontFamily: "var(--mono)",
+                color: "var(--ink-soft)",
+                letterSpacing: ".06em",
+                textTransform: "uppercase",
+              }}
+            >
+              {startsLabel}
+            </span>
+          )}
+          <span
+            className="mono"
+            style={{ fontSize: 11, color: "var(--ink-mute)", letterSpacing: ".08em" }}
+          >
+            {room.company.toUpperCase()}
+          </span>
+        </div>
+        <h2
+          style={{
+            fontSize: "clamp(22px, 3vw, 32px)",
+            marginTop: 12,
+            lineHeight: 1.05,
+            fontFamily: "var(--display)",
+            fontWeight: 500,
+          }}
+        >
+          {room.title}
+        </h2>
+        <p style={{ marginTop: 10, color: "var(--ink-soft)", fontSize: 14 }}>
+          {room.attendees > 0 && `${room.attendees} attending · `}
+          {room.speakers} speaker{room.speakers === 1 ? "" : "s"} · {room.durationMin} min
+        </p>
+        <div style={{ display: "flex", gap: 10, marginTop: 18, flexWrap: "wrap" }}>
+          <Link to={`/app/rooms/${room.id}`} style={{ textDecoration: "none" }}>
+            <Btn kind="primary" iconRight={I.arrow}>
+              {room.status === "live" ? "Join the room" : "View details"}
+            </Btn>
+          </Link>
+          {room.status === "upcoming" && (
+            <Link to={`/app/rooms/${room.id}`} style={{ textDecoration: "none" }}>
+              <Btn kind="ghost">Remind me</Btn>
+            </Link>
+          )}
+        </div>
+      </div>
+
+      {/* Tag chip column — uses the room's own tags so it's not fixture data */}
+      <HeroTagsColumn tags={room.tags} />
+
+      <style>{`
+        @media (max-width: 720px) {
+          .dashboard-hero { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
+    </div>
+  );
+};
+
+const HeroTagsColumn = ({ tags }: { tags: string[] }) => {
+  if (!tags.length) return <span />;
+  const tones = ["clay", "olive", "sand"] as const;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {tags.slice(0, 3).map((t, i) => (
+        <div
+          key={t}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "10px 12px",
+            borderRadius: 14,
+            background: "var(--paper)",
+            border: "1px solid var(--line-soft)",
+          }}
+        >
+          <Avatar name={t} size={28} tone={tones[i % tones.length]} />
+          <span style={{ fontSize: 12, fontWeight: 500 }}>{t}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Empty / loading bits
+// ---------------------------------------------------------------------------
+
+const TimelineSkeleton = (): ReactNode => (
+  <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+    {Array.from({ length: 3 }).map((_, i) => (
+      <div
+        key={i}
+        style={{
+          height: 36,
+          borderRadius: 8,
+          background: "var(--line-soft)",
+          opacity: 0.6,
+        }}
+      />
+    ))}
+  </div>
+);
+
+const EmptyTimeline = (): ReactNode => (
+  <p style={{ marginTop: 16, fontSize: 14, color: "var(--ink-soft)" }}>
+    No activity yet. Join your first room to start filling this timeline.
+  </p>
+);
 
 export default Dashboard;

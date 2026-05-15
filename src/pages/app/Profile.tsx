@@ -205,8 +205,15 @@ const Profile = () => {
   // The /app/profile route is always the owner's view in this app — there's
   // no /app/profile/:id yet. The component still supports viewer mode so
   // when that route ships, the same component can render either way.
-  const mode: "owner" | "viewer" = "owner";
-  const isOwner = mode === "owner";
+  // `actualOwner` = is this the signed-in user's own profile (used to gate
+  // owner-only controls like Edit/Preview).
+  // `previewMode` = owner has clicked "Preview as visitor" to see their
+  // own page as someone else would. While previewing, the page renders the
+  // visitor branch of every section (stats, CTAs, right rail) and surfaces
+  // the "Preview mode" banner with an Exit button.
+  const actualOwner = true;
+  const [previewMode, setPreviewMode] = useState(false);
+  const isOwner = actualOwner && !previewMode;
 
   // Tab state — synced to URL so the section is shareable / refresh-stable.
   const rawTab = searchParams.get("tab") as TabKey | null;
@@ -637,7 +644,7 @@ const Profile = () => {
                 </span>
               )}
             </span>
-            {isOwner && (
+            {actualOwner && previewMode && (
               <span
                 style={{
                   position: "absolute",
@@ -645,8 +652,8 @@ const Profile = () => {
                   left: 16,
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: 8,
-                  padding: "5px 10px",
+                  gap: 10,
+                  padding: "5px 6px 5px 10px",
                   borderRadius: 999,
                   background: "var(--ink)",
                   color: "var(--paper)",
@@ -655,7 +662,25 @@ const Profile = () => {
                   letterSpacing: ".04em",
                 }}
               >
-                This is how you appear to others
+                Preview mode · this is how visitors see you
+                <button
+                  type="button"
+                  onClick={() => setPreviewMode(false)}
+                  style={{
+                    background: "var(--paper)",
+                    color: "var(--ink)",
+                    border: "none",
+                    borderRadius: 999,
+                    padding: "2px 10px",
+                    fontSize: 10,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    fontFamily: "var(--sans)",
+                    letterSpacing: ".04em",
+                  }}
+                >
+                  EXIT
+                </button>
               </span>
             )}
           </div>
@@ -750,7 +775,7 @@ const Profile = () => {
                   <Btn
                     kind="ghost"
                     size="md"
-                    onClick={() => toast("Visitor preview coming soon")}
+                    onClick={() => setPreviewMode(true)}
                   >
                     Preview as visitor
                   </Btn>

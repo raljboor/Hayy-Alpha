@@ -21,7 +21,6 @@ import { toast } from "sonner";
 import { users, type Room } from "@/data/mockData";
 import {
   getRoomById,
-  joinRoom,
   waitlistRoom,
   getRoomParticipantStatus,
 } from "@/lib/api/rooms";
@@ -121,23 +120,13 @@ const RoomDetail = () => {
     [id, userId],
   );
 
-  const [joining, setJoining] = useState(false);
   const [waitlisting, setWaitlisting] = useState(false);
 
-  const handleJoin = async () => {
+  // Tapping Join opens the green room (the "are you sure?" pause), which
+  // performs the actual joinRoom() write before entering the live room.
+  const handleJoin = () => {
     if (!userId) { toast.error("Please sign in to join."); return; }
-    setJoining(true);
-    try {
-      const { error: err } = await joinRoom(id, userId);
-      if (err) throw err;
-      await refetchStatus();
-      toast.success("You're registered!", { description: "Head into the live room when it starts." });
-      navigate(`/app/rooms/${id}/live`);
-    } catch {
-      toast.error("Couldn't join the room — please try again.");
-    } finally {
-      setJoining(false);
-    }
+    navigate(`/app/rooms/${id}/green`);
   };
 
   const handleWaitlist = async () => {
@@ -206,7 +195,11 @@ const RoomDetail = () => {
       </Pill>
     );
 
-  const primaryCta = isRegistered ? (
+  const primaryCta = room.status === "ended" ? (
+    <Btn kind="primary" size="lg" iconRight={I.arrow} onClick={() => navigate(`/app/rooms/${room.id}/recap`)}>
+      Watch recap
+    </Btn>
+  ) : isRegistered ? (
     <Btn kind="primary" size="lg" iconRight={I.arrow} onClick={() => navigate(`/app/rooms/${room.id}/live`)}>
       Enter room
     </Btn>
@@ -217,8 +210,8 @@ const RoomDetail = () => {
       {waitlisting ? "Joining waitlist…" : "Join waitlist"}
     </Btn>
   ) : (
-    <Btn kind="primary" size="lg" iconRight={I.arrow} onClick={handleJoin} disabled={joining}>
-      {joining ? "Joining…" : "Join room"}
+    <Btn kind="primary" size="lg" iconRight={I.arrow} onClick={handleJoin}>
+      Join room
     </Btn>
   );
 

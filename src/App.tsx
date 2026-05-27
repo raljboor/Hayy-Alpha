@@ -18,7 +18,10 @@ import AppLayout from "./layouts/AppLayout.tsx";
 import Dashboard from "./pages/app/Dashboard.tsx";
 import RoomsList from "./pages/app/RoomsList.tsx";
 import RoomDetail from "./pages/app/RoomDetail.tsx";
+import ScheduleRoom from "./pages/app/ScheduleRoom.tsx";
+import RoomRecap from "./pages/app/RoomRecap.tsx";
 import LiveRoom from "./pages/app/LiveRoom.tsx";
+import GreenRoom from "./pages/app/GreenRoom.tsx";
 import Referrals from "./pages/app/Referrals.tsx";
 import ReferralThread from "./pages/app/ReferralThread.tsx";
 import Messages from "./pages/app/Messages.tsx";
@@ -74,7 +77,9 @@ const App = () => (
             <Route index element={<Dashboard />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="rooms" element={<RoomsList />} />
+            <Route path="rooms/schedule" element={<ScheduleRoom />} />
             <Route path="rooms/:id" element={<RoomDetail />} />
+            <Route path="rooms/:id/recap" element={<RoomRecap />} />
             <Route path="referrals" element={<Referrals />} />
             <Route path="referrals/:id" element={<ReferralThread />} />
             <Route path="messages" element={<Messages />} />
@@ -85,7 +90,15 @@ const App = () => (
             <Route path="settings" element={<Settings />} />
           </Route>
 
-          {/* Live room: full-screen, no sidebar — auth required */}
+          {/* Green room + live room: full-screen, no sidebar — auth required */}
+          <Route
+            path="/app/rooms/:id/green"
+            element={
+              <RequireAuth>
+                <GreenRoom />
+              </RequireAuth>
+            }
+          />
           <Route
             path="/app/rooms/:id/live"
             element={

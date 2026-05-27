@@ -8,35 +8,18 @@
  * collide with the .hy token overrides) and inline `var(--…)` styles for
  * colour + type, matching the Login/Signup port idiom.
  *
- * Data wiring (getRooms, dedup, search + category filter, create-room
- * dialog, auth gating) is unchanged from the previous version.
+ * Data wiring (getRooms, dedup, search + category filter) is unchanged.
+ * "Propose a room" now routes to the Schedule a Room screen (the old
+ * create-room dialog was replaced by that page); ended rooms open the recap.
  */
 import { useState, type CSSProperties, type MouseEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { Btn, Avatar, LiveTag, I, type AvatarTone } from "@/components/ui/primitives";
-import { getRooms, createRoom } from "@/lib/api/rooms";
+import { getRooms } from "@/lib/api/rooms";
 import { getUser, type Room } from "@/lib/mockData";
 import { useAsync } from "@/lib/useAsync";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { toast } from "sonner";
 
 const filters = [
   "All",
@@ -129,18 +112,9 @@ const RoomsList = () => {
   const [q, setQ] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const { data: rooms, loading, error, refetch } = useAsync(() => getRooms(), []);
-  const { userId, profile, isAuthenticated } = useCurrentUser();
+  const { isAuthenticated } = useCurrentUser();
 
-  // Create Room dialog state
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [formTitle, setFormTitle] = useState("");
-  const [formDescription, setFormDescription] = useState("");
-  const [formRoomType, setFormRoomType] = useState<"community" | "referral" | "hiring">("community");
-  const [formStartsAt, setFormStartsAt] = useState("");
-
-  const isRecruiter =
-    profile?.role_type === "recruiter" || profile?.role_type === "admin";
+  const goSchedule = () => navigate("/app/rooms/schedule");
 
   // Deduplicate by room.id, keeping the first occurrence
   const seen = new Set<string>();
@@ -171,36 +145,6 @@ const RoomsList = () => {
   });
 
   const groups = groupByDay(list);
-
-  function resetForm() {
-    setFormTitle("");
-    setFormDescription("");
-    setFormRoomType("community");
-    setFormStartsAt("");
-  }
-
-  async function handleCreate() {
-    if (!formTitle.trim() || !userId) return;
-    setCreating(true);
-    try {
-      await createRoom({
-        title: formTitle.trim(),
-        description: formDescription.trim(),
-        room_type: formRoomType,
-        hostId: userId,
-        startsAt: formStartsAt || new Date().toISOString(),
-        status: "upcoming",
-      });
-      toast.success("Room created", { description: "Your room is now live." });
-      setDialogOpen(false);
-      resetForm();
-      refetch();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create room.");
-    } finally {
-      setCreating(false);
-    }
-  }
 
   return (
     <div className="hy" style={{ background: "transparent", color: "var(--ink)" }}>
@@ -236,7 +180,7 @@ const RoomsList = () => {
               Search
             </Btn>
             {isAuthenticated && (
-              <Btn kind="soft" size="md" icon={I.plus} onClick={() => setDialogOpen(true)}>
+              <Btn kind="soft" size="md" icon={I.plus} onClick={goSchedule}>
                 Propose a room
               </Btn>
             )}
@@ -319,7 +263,7 @@ const RoomsList = () => {
           </p>
           {isSupabaseConfigured && isAuthenticated && (
             <div className="mt-6 flex justify-center">
-              <Btn kind="soft" icon={I.plus} onClick={() => setDialogOpen(true)}>
+              <Btn kind="soft" icon={I.plus} onClick={goSchedule}>
                 Propose a room
               </Btn>
             </div>
@@ -353,9 +297,11 @@ const RoomsList = () => {
                 {day.items.map((r, i) => {
                   const host = getUser(r.hostId);
                   const isLive = r.status === "live";
+                  const dest =
+                    r.status === "ended" ? `/app/rooms/${r.id}/recap` : `/app/rooms/${r.id}`;
                   const go = (e?: MouseEvent) => {
                     e?.stopPropagation();
-                    navigate(`/app/rooms/${r.id}`);
+                    navigate(dest);
                   };
                   return (
                     <article
@@ -441,86 +387,6 @@ const RoomsList = () => {
           ))}
         </div>
       )}
-
-      <Dialog
-        open={dialogOpen}
-        onOpenChange={(open) => {
-          setDialogOpen(open);
-          if (!open) resetForm();
-        }}
-      >
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Create a room</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Title *</label>
-              <Input
-                placeholder="e.g. Breaking into product at a startup"
-                value={formTitle}
-                onChange={(e) => setFormTitle(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Description</label>
-              <Textarea
-                placeholder="What will you talk about?"
-                value={formDescription}
-                onChange={(e) => setFormDescription(e.target.value)}
-                rows={3}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Room type</label>
-              <Select
-                value={formRoomType}
-                onValueChange={(v) =>
-                  setFormRoomType(v as "community" | "referral" | "hiring")
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="community">Community</SelectItem>
-                  <SelectItem value="referral">Referral</SelectItem>
-                  {isRecruiter && <SelectItem value="hiring">Hiring</SelectItem>}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Scheduled time</label>
-              <Input
-                type="datetime-local"
-                value={
-                  formStartsAt ? new Date(formStartsAt).toISOString().slice(0, 16) : ""
-                }
-                onChange={(e) =>
-                  setFormStartsAt(
-                    e.target.value ? new Date(e.target.value).toISOString() : "",
-                  )
-                }
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setDialogOpen(false);
-                resetForm();
-              }}
-              disabled={creating}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleCreate} disabled={creating || !formTitle.trim()}>
-              {creating ? "Creating…" : "Create Room"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

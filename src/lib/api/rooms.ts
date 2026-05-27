@@ -10,8 +10,20 @@
  *   room_participants.participant_role:  'host' | 'speaker' | 'listener' | 'spectator' | 'moderator'
  */
 import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
-import { rooms, type Room as MockRoom } from "@/data/mockData";
+import { rooms, users, type Room as MockRoom } from "@/data/mockData";
 import { adaptRoomsFromDb, adaptRoomFromDb, type DbRoom } from "@/lib/adapters/roomsAdapter";
+import {
+  adaptAgendaFromDb,
+  adaptRulesFromDb,
+  adaptHostsFromDb,
+  adaptHostFromDb,
+  type AgendaItem,
+  type RoomRule,
+  type RoomHost,
+  type DbRoomAgendaItem,
+  type DbRoomRule,
+  type DbRoomHostRow,
+} from "@/lib/adapters/roomContentAdapter";
 
 // ---------------------------------------------------------------------------
 // Read
@@ -65,6 +77,95 @@ export async function getRoomParticipantStatus(
   }
   // Mock mode: no participant state tracked — return null
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// Agenda / rules / hosts
+//
+// In Supabase mode these read from room_agenda / room_rules and from
+// room_participants (role = 'host'). In mock mode — and as a fallback when a
+// real room has no agenda/rules rows yet — RoomDetail uses these defaults so
+// the page never looks empty.
+// ---------------------------------------------------------------------------
+
+export const DEFAULT_AGENDA: AgendaItem[] = [
+  { id: "a0", time: "0:00", title: "Welcome + room rules", desc: "Quick intro to how Hayy rooms work and how to get the most out of today." },
+  { id: "a1", time: "0:05", title: "Host introductions", desc: "Hear from operators, recruiters, and analysts inside Canadian corporates." },
+  { id: "a2", time: "0:15", title: "Live Q&A", desc: "Bring your questions about resumes, ATS, and the referral process." },
+  { id: "a3", time: "0:35", title: "Breakout networking", desc: "Smaller rooms grouped by target industry and city." },
+  { id: "a4", time: "0:50", title: "Referral request instructions", desc: "How to send a thoughtful, high-signal referral request after the room." },
+];
+
+export const DEFAULT_RULES: RoomRule[] = [
+  { id: "r0", title: "Be respectful", desc: "Hayy is a warm, human community — treat every host and member that way." },
+  { id: "r1", title: "Don't spam referral requests", desc: "Earn the intro. Quality over quantity, every time." },
+  { id: "r2", title: "Ask specific questions", desc: "Specific questions get specific, useful answers." },
+  { id: "r3", title: "Follow up professionally", desc: "If a host opens a door, walk through it on time and prepared." },
+];
+
+const DEFAULT_HOSTS: RoomHost[] = [
+  { id: users[5]?.id ?? "h0", name: users[5]?.name ?? "Operations host", role: "Operations Manager", company: "Top-3 Canadian retailer", openTo: "coffee chats" },
+  { id: users[3]?.id ?? "h1", name: users[3]?.name ?? "Recruiter", role: "Recruiter", company: "Tech-forward bank", openTo: "referrals" },
+  { id: users[2]?.id ?? "h2", name: users[2]?.name ?? "Product analyst", role: "Product Analyst", company: "Insurance & fintech", openTo: "coffee chats" },
+  { id: users[1]?.id ?? "h3", name: users[1]?.name ?? "Community host", role: "Founder / Community host", company: "Hayy", openTo: "referrals" },
+];
+
+const PROFILE_FIELDS = "id, full_name, headline, location";
+
+export async function getRoomAgenda(roomId: string): Promise<AgendaItem[]> {
+  if (isSupabaseConfigured && supabase) {
+    const { data, error } = await supabase
+      .from("room_agenda")
+      .select("*")
+      .eq("room_id", roomId)
+      .order("position", { ascending: true });
+    if (error) throw error;
+    return adaptAgendaFromDb((data ?? []) as DbRoomAgendaItem[]);
+  }
+  return DEFAULT_AGENDA;
+}
+
+export async function getRoomRules(roomId: string): Promise<RoomRule[]> {
+  if (isSupabaseConfigured && supabase) {
+    const { data, error } = await supabase
+      .from("room_rules")
+      .select("*")
+      .eq("room_id", roomId)
+      .order("position", { ascending: true });
+    if (error) throw error;
+    return adaptRulesFromDb((data ?? []) as DbRoomRule[]);
+  }
+  return DEFAULT_RULES;
+}
+
+export async function getRoomHosts(roomId: string): Promise<RoomHost[]> {
+  if (isSupabaseConfigured && supabase) {
+    const { data, error } = await supabase
+      .from("room_participants")
+      .select(`user_id, participant_role, user_profiles(${PROFILE_FIELDS})`)
+      .eq("room_id", roomId)
+      .eq("participant_role", "host");
+    if (error) throw error;
+    const hosts = adaptHostsFromDb((data ?? []) as unknown as DbRoomHostRow[]);
+    if (hosts.length > 0) return hosts;
+
+    // Fallback: surface the room owner even if no host participant row exists.
+    const { data: roomRow } = await supabase
+      .from("rooms")
+      .select("host_id")
+      .eq("id", roomId)
+      .maybeSingle();
+    const hostId = (roomRow as { host_id?: string } | null)?.host_id;
+    if (!hostId) return [];
+    const { data: prof } = await supabase
+      .from("user_profiles")
+      .select(PROFILE_FIELDS)
+      .eq("id", hostId)
+      .maybeSingle();
+    if (!prof) return [];
+    return [adaptHostFromDb({ user_id: hostId, participant_role: "host", user_profiles: prof as never })];
+  }
+  return DEFAULT_HOSTS;
 }
 
 // ---------------------------------------------------------------------------
@@ -197,7 +298,32 @@ export async function createRoom(roomData: RoomInsertData): Promise<MockRoom> {
       }
       throw new Error(error.message);
     }
-    return adaptRoomFromDb(data as DbRoom);
+    const created = adaptRoomFromDb(data as DbRoom);
+
+    // Best-effort: register the creator as the room host so getRoomHosts()
+    // (room_participants where role = 'host') surfaces them. Non-fatal.
+    const hostId = insert.host_id;
+    if (hostId) {
+      await supabase
+        .from("room_participants")
+        .upsert(
+          {
+            room_id: created.id,
+            user_id: hostId,
+            participant_role: "host",
+            attendance_status: "registered",
+            joined_at: new Date().toISOString(),
+          },
+          { onConflict: "room_id,user_id" },
+        )
+        .then(({ error: partErr }) => {
+          if (partErr && import.meta.env.DEV) {
+            console.warn("[createRoom] host participant upsert failed", partErr.message);
+          }
+        });
+    }
+
+    return created;
   }
   // Mock: not persisted between renders
   return { ...(rooms[0]), ...roomData, id: `mock-${Date.now()}` } as MockRoom;

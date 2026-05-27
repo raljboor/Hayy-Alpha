@@ -18,11 +18,16 @@
 import { useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { users, type Room } from "@/data/mockData";
+import { type Room } from "@/data/mockData";
 import {
   getRoomById,
   waitlistRoom,
   getRoomParticipantStatus,
+  getRoomAgenda,
+  getRoomRules,
+  getRoomHosts,
+  DEFAULT_AGENDA,
+  DEFAULT_RULES,
 } from "@/lib/api/rooms";
 import { useAsync } from "@/lib/useAsync";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -48,35 +53,12 @@ const backIcon = (
   <span style={{ display: "inline-flex", transform: "scaleX(-1)" }}>{I.arrow}</span>
 );
 
-// Static content — superseded when room_agenda / room_rules tables ship
-const agenda = [
-  { time: "0:00", title: "Welcome + room rules", desc: "Quick intro to how Hayy rooms work and how to get the most out of today." },
-  { time: "0:05", title: "Host introductions", desc: "Hear from operators, recruiters, and analysts inside Canadian corporates." },
-  { time: "0:15", title: "Live Q&A", desc: "Bring your questions about resumes, ATS, and the referral process." },
-  { time: "0:35", title: "Breakout networking", desc: "Smaller rooms grouped by target industry and city." },
-  { time: "0:50", title: "Referral request instructions", desc: "How to send a thoughtful, high-signal referral request after the room." },
-];
-
-const hostRoles = [
-  { user: users[5], role: "Operations Manager", company: "Top-3 Canadian retailer", openTo: "coffee chats" as const },
-  { user: users[3], role: "Recruiter", company: "Tech-forward bank", openTo: "referrals" as const },
-  { user: users[2], role: "Product Analyst", company: "Insurance & fintech", openTo: "coffee chats" as const },
-  { user: users[1], role: "Founder / Community host", company: "Hayy", openTo: "referrals" as const },
-];
-
 const audience = [
   "Early-career professionals",
   "International students",
   "Newcomers to Canada",
   "People targeting corporate roles",
   "People looking to understand referrals",
-];
-
-const rules = [
-  { title: "Be respectful", desc: "Hayy is a warm, human community — treat every host and member that way." },
-  { title: "Don't spam referral requests", desc: "Earn the intro. Quality over quantity, every time." },
-  { title: "Ask specific questions", desc: "Specific questions get specific, useful answers." },
-  { title: "Follow up professionally", desc: "If a host opens a door, walk through it on time and prepared." },
 ];
 
 const aboutBullets = [
@@ -119,6 +101,16 @@ const RoomDetail = () => {
     () => (userId ? getRoomParticipantStatus(id, userId) : Promise.resolve(null)),
     [id, userId],
   );
+
+  // Agenda / rules / hosts now load from the DB (room_agenda, room_rules,
+  // room_participants where role = 'host'); fall back to defaults so the page
+  // stays populated for rooms that haven't customised these yet.
+  const { data: agendaData } = useAsync(() => getRoomAgenda(id), [id]);
+  const { data: rulesData } = useAsync(() => getRoomRules(id), [id]);
+  const { data: hostsData } = useAsync(() => getRoomHosts(id), [id]);
+  const agenda = agendaData && agendaData.length > 0 ? agendaData : DEFAULT_AGENDA;
+  const rules = rulesData && rulesData.length > 0 ? rulesData : DEFAULT_RULES;
+  const hosts = hostsData ?? [];
 
   const [waitlisting, setWaitlisting] = useState(false);
 
@@ -295,7 +287,7 @@ const RoomDetail = () => {
             <div className="mt-4 flex flex-col">
               {agenda.map((a, i) => (
                 <div
-                  key={a.title}
+                  key={a.id}
                   className="grid grid-cols-1 md:grid-cols-[110px_1fr] gap-1 md:gap-4 py-4"
                   style={{ borderTop: i === 0 ? "1px solid var(--line-soft)" : "1px dashed var(--line-soft)" }}
                 >
@@ -320,38 +312,44 @@ const RoomDetail = () => {
             <p style={{ marginTop: 4, fontSize: 13, color: "var(--ink-mute)" }}>
               Real people inside corporate Canada — here to help.
             </p>
-            <div className="grid sm:grid-cols-2 gap-4 mt-6">
-              {hostRoles.map((h) => (
-                <div
-                  key={h.role}
-                  style={{
-                    borderRadius: "var(--radius-md)",
-                    border: "1px solid var(--line)",
-                    background: "var(--cream)",
-                    padding: 16,
-                    display: "flex",
-                    gap: 14,
-                  }}
-                >
-                  <Avatar name={h.user.name} size={48} tone={toneFor(h.user.id)} />
-                  <div className="min-w-0 flex-1">
-                    <p style={{ fontFamily: "var(--display)", fontSize: 16, fontWeight: 600, lineHeight: 1.2 }} className="truncate">
-                      {h.user.name}
-                    </p>
-                    <p style={{ fontSize: 13, color: "var(--ink-soft)" }}>{h.role}</p>
-                    <p style={{ fontSize: 12, color: "var(--ink-mute)" }} className="truncate">{h.company}</p>
-                    <span className="mt-2 inline-flex">
-                      <Pill style={{ color: "var(--olive)" }}>
-                        <span style={{ display: "inline-flex", transform: "scale(0.7)" }}>
-                          {h.openTo === "coffee chats" ? I.msg : I.shake}
-                        </span>
-                        Open to {h.openTo}
-                      </Pill>
-                    </span>
+            {hosts.length === 0 ? (
+              <p style={{ marginTop: 16, fontSize: 14, color: "var(--ink-mute)" }}>
+                Hosts will be announced soon.
+              </p>
+            ) : (
+              <div className="grid sm:grid-cols-2 gap-4 mt-6">
+                {hosts.map((h) => (
+                  <div
+                    key={h.id}
+                    style={{
+                      borderRadius: "var(--radius-md)",
+                      border: "1px solid var(--line)",
+                      background: "var(--cream)",
+                      padding: 16,
+                      display: "flex",
+                      gap: 14,
+                    }}
+                  >
+                    <Avatar name={h.name} size={48} tone={toneFor(h.id)} />
+                    <div className="min-w-0 flex-1">
+                      <p style={{ fontFamily: "var(--display)", fontSize: 16, fontWeight: 600, lineHeight: 1.2 }} className="truncate">
+                        {h.name}
+                      </p>
+                      <p style={{ fontSize: 13, color: "var(--ink-soft)" }}>{h.role}</p>
+                      {h.company && <p style={{ fontSize: 12, color: "var(--ink-mute)" }} className="truncate">{h.company}</p>}
+                      <span className="mt-2 inline-flex">
+                        <Pill style={{ color: "var(--olive)" }}>
+                          <span style={{ display: "inline-flex", transform: "scale(0.7)" }}>
+                            {h.openTo === "coffee chats" ? I.msg : I.shake}
+                          </span>
+                          Open to {h.openTo}
+                        </Pill>
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </section>
         </div>
 
@@ -376,7 +374,7 @@ const RoomDetail = () => {
             </div>
             <ul className="mt-4 flex flex-col gap-4" style={{ padding: 0, listStyle: "none" }}>
               {rules.map((r) => (
-                <li key={r.title}>
+                <li key={r.id}>
                   <p style={{ fontSize: 14, fontWeight: 600 }}>{r.title}</p>
                   <p style={{ fontSize: 12, color: "var(--ink-mute)", marginTop: 2, lineHeight: 1.5 }}>{r.desc}</p>
                 </li>

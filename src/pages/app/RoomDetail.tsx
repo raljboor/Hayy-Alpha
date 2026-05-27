@@ -1,28 +1,33 @@
-import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import {
-  Calendar,
-  Users,
-  Mic,
-  ArrowLeft,
-  Bookmark,
-  Video,
-  CheckCircle2,
-  Coffee,
-  Handshake,
-  ShieldCheck,
-  Loader2,
-} from "lucide-react";
+/**
+ * Room detail — re-skinned to the redesign idiom.
+ *
+ * There's no dedicated room-detail mock in the bundle, so this follows the
+ * established detail-page idiom (workflow-screens.jsx → ReferralDetail) and
+ * the room-join idiom (GreenRoom): breadcrumb back, an editorial warm hero,
+ * a two-column body of `.hy-card` sections with mono eyebrows, and a
+ * ReferralDetail-style agenda timeline. Wrapped in `.hy` so the redesign CSS
+ * vars resolve; layout uses Tailwind responsive grids + inline var(--…)
+ * styles, matching the RoomsList port.
+ *
+ * Data wiring (getRoomById, participant status, join / waitlist / enter,
+ * navigation to the live room) is unchanged.
+ *
+ * NOTE: agenda / hosts / rules are still hardcoded — superseded once the
+ * room_agenda / room_rules tables and host loading land.
+ */
+import { useState, type ReactNode } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { getUser, users } from "@/data/mockData";
-import { getRoomById, joinRoom, waitlistRoom, getRoomParticipantStatus } from "@/lib/api/rooms";
+import { users, type Room } from "@/data/mockData";
+import {
+  getRoomById,
+  joinRoom,
+  waitlistRoom,
+  getRoomParticipantStatus,
+} from "@/lib/api/rooms";
 import { useAsync } from "@/lib/useAsync";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { Skeleton } from "@/components/ui/skeleton";
-import { ErrorState } from "@/components/hayy/ErrorState";
-import { StatusBadge } from "@/components/hayy/StatusBadge";
-import { UserAvatar } from "@/components/hayy/UserAvatar";
-import { Button } from "@/components/ui/button";
+import { Avatar, Btn, LiveTag, Pill, I, type AvatarTone } from "@/components/ui/primitives";
 
 const fmtDateTime = (iso: string) =>
   new Date(iso).toLocaleString(undefined, {
@@ -33,7 +38,18 @@ const fmtDateTime = (iso: string) =>
     minute: "2-digit",
   });
 
-// Static content — will be superseded when room_agenda and room_rules tables ship
+const TONES: AvatarTone[] = ["clay", "olive", "sand", "dark"];
+const toneFor = (seed: string): AvatarTone => {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return TONES[h % TONES.length];
+};
+
+const backIcon = (
+  <span style={{ display: "inline-flex", transform: "scaleX(-1)" }}>{I.arrow}</span>
+);
+
+// Static content — superseded when room_agenda / room_rules tables ship
 const agenda = [
   { time: "0:00", title: "Welcome + room rules", desc: "Quick intro to how Hayy rooms work and how to get the most out of today." },
   { time: "0:05", title: "Host introductions", desc: "Hear from operators, recruiters, and analysts inside Canadian corporates." },
@@ -64,6 +80,36 @@ const rules = [
   { title: "Follow up professionally", desc: "If a host opens a door, walk through it on time and prepared." },
 ];
 
+const aboutBullets = [
+  "How warm referrals move through ATS systems",
+  "What hiring managers actually scan for",
+  "How to position your story for Canadian roles",
+  "How to ask for a referral without it feeling cold",
+];
+
+const eyebrow = (text: string): ReactNode => (
+  <p
+    className="mono"
+    style={{
+      fontSize: 11,
+      color: "var(--clay)",
+      letterSpacing: ".12em",
+      textTransform: "uppercase",
+      fontWeight: 600,
+    }}
+  >
+    {text}
+  </p>
+);
+
+const sectionHeading = (text: string): ReactNode => (
+  <h2 style={{ fontFamily: "var(--display)", fontSize: "clamp(20px, 3vw, 26px)", fontWeight: 500 }}>
+    {text}
+  </h2>
+);
+
+const middot = <span style={{ color: "var(--ink-mute)" }}>·</span>;
+
 const RoomDetail = () => {
   const { id = "" } = useParams();
   const navigate = useNavigate();
@@ -86,7 +132,6 @@ const RoomDetail = () => {
       if (err) throw err;
       await refetchStatus();
       toast.success("You're registered!", { description: "Head into the live room when it starts." });
-      // Navigate directly into the live room
       navigate(`/app/rooms/${id}/live`);
     } catch {
       toast.error("Couldn't join the room — please try again.");
@@ -112,213 +157,260 @@ const RoomDetail = () => {
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-40" />
-        <Skeleton className="h-64 w-full rounded-3xl" />
-        <Skeleton className="h-32 w-full rounded-3xl" />
+      <div className="hy" style={{ background: "transparent", color: "var(--ink)" }}>
+        <div className="animate-pulse space-y-6">
+          <div className="h-4 rounded" style={{ background: "var(--sand)", width: 120 }} />
+          <div className="rounded-[22px]" style={{ background: "var(--sand)", height: 220 }} />
+          <div className="rounded-[22px]" style={{ background: "var(--sand)", height: 160 }} />
+        </div>
       </div>
     );
   }
 
   if (error) {
-    return <ErrorState description="Couldn't load this room." onRetry={refetch} />;
+    return (
+      <div className="hy text-center" style={{ background: "transparent", color: "var(--ink)", padding: "64px 0" }}>
+        <p style={{ fontFamily: "var(--display)", fontSize: 24 }}>Couldn't load this room</p>
+        <div className="mt-6 flex justify-center">
+          <Btn kind="soft" onClick={refetch}>Try again</Btn>
+        </div>
+      </div>
+    );
   }
 
   if (!room) {
     return (
-      <div className="py-20 text-center">
-        <h2 className="font-display text-2xl">Room not found</h2>
-        <Link to="/app/rooms" className="text-primary mt-4 inline-block">← Back to rooms</Link>
+      <div className="hy text-center" style={{ background: "transparent", color: "var(--ink)", padding: "80px 0" }}>
+        <h2 style={{ fontFamily: "var(--display)", fontSize: 28 }}>Room not found</h2>
+        <div className="mt-6 flex justify-center">
+          <Btn kind="soft" icon={backIcon} onClick={() => navigate("/app/rooms")}>Back to rooms</Btn>
+        </div>
       </div>
     );
   }
 
   const isRegistered = participantStatus === "registered";
   const isWaitlisted = participantStatus === "waitlisted";
-  const isWaitlistRoom = room.access === "waitlist";
+  const isWaitlistRoom = (room as Room).access === "waitlist";
+
+  const statusPill = room.status === "live"
+    ? <LiveTag>Live</LiveTag>
+    : (
+      <Pill
+        style={{
+          background: room.status === "ended" ? "var(--sand)" : "var(--paper)",
+          color: "var(--ink-soft)",
+        }}
+      >
+        {room.status === "ended" ? "Ended" : "Upcoming"}
+      </Pill>
+    );
+
+  const primaryCta = isRegistered ? (
+    <Btn kind="primary" size="lg" iconRight={I.arrow} onClick={() => navigate(`/app/rooms/${room.id}/live`)}>
+      Enter room
+    </Btn>
+  ) : isWaitlisted ? (
+    <Btn kind="soft" size="lg" disabled>On waitlist</Btn>
+  ) : isWaitlistRoom ? (
+    <Btn kind="primary" size="lg" onClick={handleWaitlist} disabled={waitlisting}>
+      {waitlisting ? "Joining waitlist…" : "Join waitlist"}
+    </Btn>
+  ) : (
+    <Btn kind="primary" size="lg" iconRight={I.arrow} onClick={handleJoin} disabled={joining}>
+      {joining ? "Joining…" : "Join room"}
+    </Btn>
+  );
 
   return (
-    <div className="space-y-10">
-      <Link to="/app/rooms" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" />Back to rooms
-      </Link>
+    <div className="hy" style={{ background: "transparent", color: "var(--ink)" }}>
+      <Btn kind="ghost" size="md" icon={backIcon} onClick={() => navigate("/app/rooms")}>
+        Back to rooms
+      </Btn>
 
       {/* Hero */}
-      <div className={`${room.coverColor} rounded-3xl p-8 md:p-12 text-clay-foreground relative overflow-hidden shadow-warm`}>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-card/95 text-foreground px-3 py-1 text-[11px] font-medium uppercase tracking-wider">
+      <div
+        className="hy-card"
+        style={{
+          marginTop: 16,
+          padding: "clamp(24px, 4vw, 44px)",
+          background: "linear-gradient(180deg, var(--cream), var(--paper))",
+          boxShadow: "var(--shadow-warm)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <Pill style={{ background: "var(--ink)", color: "var(--paper)", borderColor: "transparent" }}>
             Founding Room
-          </span>
-          <StatusBadge status={room.status} className="bg-card/90 text-foreground border-transparent" />
+          </Pill>
+          {statusPill}
         </div>
 
-        <h1 className="font-display text-3xl md:text-5xl mt-5 max-w-3xl leading-tight">{room.title}</h1>
-        <p className="mt-4 max-w-2xl text-base md:text-lg opacity-95">
+        <h1 style={{ fontFamily: "var(--display)", fontSize: "clamp(28px, 5vw, 46px)", fontWeight: 500, lineHeight: 1.08, marginTop: 16, maxWidth: 760 }}>
+          {room.title}
+        </h1>
+        <p style={{ fontSize: "clamp(15px, 1.6vw, 18px)", color: "var(--ink-soft)", marginTop: 14, maxWidth: 640, lineHeight: 1.55 }}>
           Meet professionals inside target companies, ask questions, and learn how to turn a conversation into a warm intro.
         </p>
 
-        <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm opacity-95">
-          <span className="flex items-center gap-1.5"><Calendar className="h-4 w-4" />{fmtDateTime(room.startsAt)}</span>
-          <span className="flex items-center gap-1.5"><Video className="h-4 w-4" />Online · Hayy live room</span>
-          <span className="flex items-center gap-1.5"><Users className="h-4 w-4" />{room.attendees} going</span>
-          <span className="flex items-center gap-1.5"><Mic className="h-4 w-4" />{room.speakers} speakers</span>
+        <div style={{ marginTop: 18, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, fontSize: 13, color: "var(--ink-soft)" }}>
+          <span>{fmtDateTime(room.startsAt)}</span>
+          {middot}
+          <span>Online · Hayy live room</span>
+          {middot}
+          <span>{room.attendees} going</span>
+          {middot}
+          <span>{room.speakers} speakers</span>
         </div>
 
-        <div className="mt-8 flex flex-wrap gap-3">
-          {isRegistered ? (
-            <Button
-              size="lg"
-              variant="soft"
-              className="bg-card text-foreground hover:bg-cream"
-              onClick={() => navigate(`/app/rooms/${room.id}/live`)}
-            >
-              Enter room
-            </Button>
-          ) : isWaitlisted ? (
-            <Button size="lg" variant="soft" className="bg-card text-foreground hover:bg-cream" disabled>
-              On waitlist
-            </Button>
-          ) : isWaitlistRoom ? (
-            <Button
-              size="lg"
-              variant="soft"
-              className="bg-card text-foreground hover:bg-cream"
-              onClick={handleWaitlist}
-              disabled={waitlisting}
-            >
-              {waitlisting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {waitlisting ? "Joining waitlist…" : "Join waitlist"}
-            </Button>
-          ) : (
-            <Button
-              size="lg"
-              variant="soft"
-              className="bg-card text-foreground hover:bg-cream"
-              onClick={handleJoin}
-              disabled={joining}
-            >
-              {joining ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {joining ? "Joining…" : "Join room"}
-            </Button>
-          )}
-          <Button size="lg" variant="ghost" className="text-clay-foreground hover:bg-card/15 hover:text-clay-foreground">
-            <Bookmark className="h-4 w-4" />Save room
-          </Button>
+        <div style={{ marginTop: 24, display: "flex", flexWrap: "wrap", gap: 10 }}>
+          {primaryCta}
+          <Btn kind="ghost" size="lg" icon={I.heart}>Save room</Btn>
         </div>
 
         {(isRegistered || isWaitlisted) && (
-          <p className="mt-3 text-sm opacity-80">
-            {isRegistered ? "✓ You're registered for this room." : "You're on the waitlist — we'll notify you if a spot opens."}
+          <p style={{ marginTop: 12, fontSize: 13, color: "var(--ink-mute)" }}>
+            {isRegistered
+              ? "✓ You're registered for this room."
+              : "You're on the waitlist — we'll notify you if a spot opens."}
           </p>
         )}
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
+      {/* Body */}
+      <div className="grid lg:grid-cols-[1fr_320px] gap-6 mt-8 items-start">
+        <div className="flex flex-col gap-6 min-w-0">
           {/* About */}
-          <section className="rounded-3xl bg-card border border-border p-6 md:p-8">
-            <h2 className="font-display text-2xl text-foreground">About this room</h2>
-            <div className="mt-4 space-y-3 text-foreground/80 leading-relaxed">
-              <p>
-                {room.description ||
-                  "This is a founding Hayy room built for anyone trying to break into corporate roles in Canada — whether you're an international student, a newcomer, or an early-career professional pivoting into a bigger company."}
-              </p>
-            </div>
-            <ul className="mt-6 grid sm:grid-cols-2 gap-3">
-              {[
-                "How warm referrals move through ATS systems",
-                "What hiring managers actually scan for",
-                "How to position your story for Canadian roles",
-                "How to ask for a referral without it feeling cold",
-              ].map((t) => (
-                <li key={t} className="flex items-start gap-2 text-sm text-foreground/80">
-                  <CheckCircle2 className="h-4 w-4 text-clay shrink-0 mt-0.5" />
+          <section className="hy-card" style={{ padding: "clamp(20px, 3vw, 32px)" }}>
+            {sectionHeading("About this room")}
+            <p style={{ marginTop: 14, color: "var(--ink-soft)", lineHeight: 1.6, fontSize: 15 }}>
+              {room.description ||
+                "This is a founding Hayy room built for anyone trying to break into corporate roles in Canada — whether you're an international student, a newcomer, or an early-career professional pivoting into a bigger company."}
+            </p>
+            <ul className="grid sm:grid-cols-2 gap-3 mt-6" style={{ padding: 0, listStyle: "none" }}>
+              {aboutBullets.map((t) => (
+                <li key={t} style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 13, color: "var(--ink-soft)" }}>
+                  <span style={{ color: "var(--clay)", flex: "none", marginTop: 1 }}>{I.check}</span>
                   {t}
                 </li>
               ))}
             </ul>
           </section>
 
-          {/* Agenda — TODO: load from DB when room_agenda table exists */}
-          <section className="rounded-3xl bg-card border border-border p-6 md:p-8">
-            <h2 className="font-display text-2xl text-foreground">Agenda</h2>
-            <ol className="mt-6 relative border-l border-border ml-3 space-y-6">
-              {agenda.map((a) => (
-                <li key={a.title} className="pl-6 relative">
-                  <span className="absolute -left-[7px] top-1.5 h-3 w-3 rounded-full bg-clay ring-4 ring-card" />
-                  <div className="flex flex-wrap items-baseline gap-x-3">
-                    <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{a.time}</span>
-                    <p className="font-display text-base font-semibold text-foreground">{a.title}</p>
+          {/* Agenda */}
+          <section className="hy-card" style={{ padding: "clamp(20px, 3vw, 32px)" }}>
+            {sectionHeading("Agenda")}
+            <div className="mt-4 flex flex-col">
+              {agenda.map((a, i) => (
+                <div
+                  key={a.title}
+                  className="grid grid-cols-1 md:grid-cols-[110px_1fr] gap-1 md:gap-4 py-4"
+                  style={{ borderTop: i === 0 ? "1px solid var(--line-soft)" : "1px dashed var(--line-soft)" }}
+                >
+                  <p className="mono" style={{ fontSize: 11, color: "var(--ink-mute)", letterSpacing: ".06em", paddingTop: 2 }}>
+                    {a.time}
+                  </p>
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: 99, background: "var(--clay)", flex: "none" }} />
+                      <p style={{ fontSize: 14, fontWeight: 600 }}>{a.title}</p>
+                    </div>
+                    <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 4, lineHeight: 1.5 }}>{a.desc}</p>
                   </div>
-                  <p className="mt-1 text-sm text-muted-foreground">{a.desc}</p>
-                </li>
+                </div>
               ))}
-            </ol>
+            </div>
           </section>
 
-          {/* Hosts — TODO: load from room_participants where role = host */}
-          <section className="rounded-3xl bg-card border border-border p-6 md:p-8">
-            <h2 className="font-display text-2xl text-foreground">Hosts</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Real people inside corporate Canada — here to help.</p>
-            <div className="mt-6 grid sm:grid-cols-2 gap-4">
-              {hostRoles.map((h) => {
-                const Icon = h.openTo === "coffee chats" ? Coffee : Handshake;
-                return (
-                  <div key={h.role} className="rounded-2xl border border-border bg-cream/40 p-4 flex gap-4">
-                    <UserAvatar user={h.user} size="lg" />
-                    <div className="min-w-0 flex-1">
-                      <p className="font-display text-base font-semibold text-foreground truncate">{h.user.name}</p>
-                      <p className="text-sm text-foreground/80">{h.role}</p>
-                      <p className="text-xs text-muted-foreground truncate">{h.company}</p>
-                      <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-olive/15 text-olive px-2.5 py-0.5 text-[11px] font-medium">
-                        <Icon className="h-3 w-3" />Open to {h.openTo}
-                      </span>
-                    </div>
+          {/* Hosts */}
+          <section className="hy-card" style={{ padding: "clamp(20px, 3vw, 32px)" }}>
+            {sectionHeading("Hosts")}
+            <p style={{ marginTop: 4, fontSize: 13, color: "var(--ink-mute)" }}>
+              Real people inside corporate Canada — here to help.
+            </p>
+            <div className="grid sm:grid-cols-2 gap-4 mt-6">
+              {hostRoles.map((h) => (
+                <div
+                  key={h.role}
+                  style={{
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--line)",
+                    background: "var(--cream)",
+                    padding: 16,
+                    display: "flex",
+                    gap: 14,
+                  }}
+                >
+                  <Avatar name={h.user.name} size={48} tone={toneFor(h.user.id)} />
+                  <div className="min-w-0 flex-1">
+                    <p style={{ fontFamily: "var(--display)", fontSize: 16, fontWeight: 600, lineHeight: 1.2 }} className="truncate">
+                      {h.user.name}
+                    </p>
+                    <p style={{ fontSize: 13, color: "var(--ink-soft)" }}>{h.role}</p>
+                    <p style={{ fontSize: 12, color: "var(--ink-mute)" }} className="truncate">{h.company}</p>
+                    <span className="mt-2 inline-flex">
+                      <Pill style={{ color: "var(--olive)" }}>
+                        <span style={{ display: "inline-flex", transform: "scale(0.7)" }}>
+                          {h.openTo === "coffee chats" ? I.msg : I.shake}
+                        </span>
+                        Open to {h.openTo}
+                      </Pill>
+                    </span>
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           </section>
         </div>
 
         {/* Sidebar */}
-        <aside className="space-y-6">
-          <section className="rounded-3xl bg-cream border border-border p-6">
-            <h3 className="font-display text-lg text-foreground">Who should join</h3>
-            <ul className="mt-4 space-y-3">
+        <aside className="flex flex-col gap-6 min-w-0">
+          <section className="hy-card" style={{ padding: 22, background: "var(--cream)" }}>
+            <h3 style={{ fontFamily: "var(--display)", fontSize: 18, fontWeight: 500 }}>Who should join</h3>
+            <ul className="mt-4 flex flex-col gap-3" style={{ padding: 0, listStyle: "none" }}>
               {audience.map((a) => (
-                <li key={a} className="flex items-start gap-2 text-sm text-foreground/80">
-                  <CheckCircle2 className="h-4 w-4 text-clay shrink-0 mt-0.5" />{a}
+                <li key={a} style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 13, color: "var(--ink-soft)" }}>
+                  <span style={{ color: "var(--clay)", flex: "none", marginTop: 1 }}>{I.check}</span>
+                  {a}
                 </li>
               ))}
             </ul>
           </section>
 
-          {/* Rules — TODO: load from DB when room_rules table exists */}
-          <section className="rounded-3xl bg-card border border-border p-6">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-clay" />
-              <h3 className="font-display text-lg text-foreground">Room rules</h3>
+          <section className="hy-card" style={{ padding: 22 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ color: "var(--clay)", display: "inline-flex" }}>{I.lock}</span>
+              <h3 style={{ fontFamily: "var(--display)", fontSize: 18, fontWeight: 500 }}>Room rules</h3>
             </div>
-            <ul className="mt-4 space-y-4">
+            <ul className="mt-4 flex flex-col gap-4" style={{ padding: 0, listStyle: "none" }}>
               {rules.map((r) => (
                 <li key={r.title}>
-                  <p className="text-sm font-medium text-foreground">{r.title}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{r.desc}</p>
+                  <p style={{ fontSize: 14, fontWeight: 600 }}>{r.title}</p>
+                  <p style={{ fontSize: 12, color: "var(--ink-mute)", marginTop: 2, lineHeight: 1.5 }}>{r.desc}</p>
                 </li>
               ))}
             </ul>
           </section>
 
-          <section className="rounded-3xl bg-cream border border-border p-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-clay">Topics</p>
+          <section className="hy-card" style={{ padding: 22, background: "var(--cream)" }}>
+            {eyebrow("Topics")}
             <div className="mt-3 flex flex-wrap gap-2">
               {room.tags.length > 0 ? (
                 room.tags.map((t) => (
-                  <span key={t} className="rounded-full border border-border bg-card px-3 py-1 text-xs">{t}</span>
+                  <span
+                    key={t}
+                    style={{
+                      borderRadius: 999,
+                      border: "1px solid var(--line)",
+                      background: "var(--paper)",
+                      padding: "4px 12px",
+                      fontSize: 12,
+                    }}
+                  >
+                    {t}
+                  </span>
                 ))
               ) : (
-                <span className="text-xs text-muted-foreground">No tags yet</span>
+                <span style={{ fontSize: 12, color: "var(--ink-mute)" }}>No tags yet</span>
               )}
             </div>
           </section>

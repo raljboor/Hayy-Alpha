@@ -23,6 +23,17 @@ export interface UserProfile {
   resume_url: string | null;
   video_intro_url: string | null;
   role_type: RoleType;
+  /**
+   * Set to true at the end of the role-aware onboarding flow.
+   * The post-login routing helper (src/lib/routing.ts) reads this to
+   * decide whether to send the user to /onboarding or /app/dashboard.
+   * Optional in TS so existing mock fixtures (which pre-date the
+   * column) still type-check; the helper treats `undefined` as
+   * "already onboarded" so mock-mode users don't get redirected to
+   * the intake forms.
+   * Backed by user_profiles.onboarding_completed (migration 007).
+   */
+  onboarding_completed?: boolean;
   created_at: string;
 }
 

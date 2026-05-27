@@ -12,6 +12,8 @@ import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Avatar, Btn, I } from "@/components/ui/primitives";
 import { loginUser } from "@/lib/api/auth";
+import { getProfile } from "@/lib/api/profiles";
+import { decideLandingRoute } from "@/lib/routing";
 
 interface LocationState {
   from?: string;
@@ -44,15 +46,29 @@ const Login = () => {
 
   const loginMutation = useMutation({
     mutationFn: (vars: { email: string; password: string }) => loginUser(vars),
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       if (result.error) {
         setErrorMsg(result.error.message);
         toast.error("Couldn't log you in", { description: result.error.message });
         return;
       }
       toast.success("Welcome back to Hayy");
-      const from = (location.state as LocationState | null)?.from;
-      navigate(from && from.startsWith("/app") ? from : "/app/dashboard");
+      const from = (location.state as LocationState | null)?.from ?? null;
+
+      // Pull the freshest profile so we can decide between /onboarding
+      // and /app/dashboard. Falls back to /onboarding if anything fails
+      // — that's the safer default than dropping a not-yet-set-up user
+      // straight into the app.
+      let profile = null;
+      const userId = result.data.user?.id;
+      if (userId) {
+        try {
+          profile = await getProfile(userId);
+        } catch (err) {
+          console.warn("[Login] getProfile failed, defaulting to /onboarding:", err);
+        }
+      }
+      navigate(decideLandingRoute({ profile, preferredFrom: from }), { replace: true });
     },
     onError: (error: Error) => {
       const message = error.message || "Something went wrong, please try again.";

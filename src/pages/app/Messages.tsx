@@ -1,42 +1,61 @@
-import { useState } from "react";
+/**
+ * Messages — ported from the redesign Messages mock
+ * (frontend-new/hayy/project/components/extra-screens.jsx → Messages).
+ *
+ * Two-pane layout: conversation list (320px sidebar) + open thread (right).
+ * On mobile, only the open thread is shown; tapping a list item navigates
+ * to the thread page (existing pattern).
+ *
+ * Real data via getReferralThreads + sendReferralMessage. The currently
+ * selected thread renders its full message history; reply via the composer
+ * uses the same Supabase mutation as ReferralThread.
+ */
+
+import { useMemo, useState, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
-import { Search, Send, MessageCircle } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { UserAvatar } from "@/components/hayy/UserAvatar";
-import { UnreadDot } from "@/components/hayy/InboxPrimitives";
-import { EmptyState } from "@/components/hayy/EmptyState";
-import { ErrorState } from "@/components/hayy/ErrorState";
-import type { ReferralThread } from "@/data/mockData";
+import { Avatar, Btn, I } from "@/components/ui/primitives";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { getReferralThreads } from "@/lib/api/referrals";
 import { sendReferralMessage } from "@/lib/api/messages";
-import { useAsync } from "@/lib/useAsync";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
+
+const sectionLabelStyle: CSSProperties = {
+  fontFamily: "var(--mono)",
+  fontSize: 11,
+  letterSpacing: ".12em",
+  color: "var(--clay)",
+  textTransform: "uppercase",
+  fontWeight: 600,
+  margin: 0,
+};
 
 const Messages = () => {
   const { userId } = useCurrentUser();
-  const { data, loading, error, refetch } = useAsync(
-    () => getReferralThreads(userId ?? undefined),
-    [userId],
-  );
-  const threads = data ?? [];
+  const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string>("");
   const [query, setQuery] = useState("");
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
 
-  const list = threads.filter(
-    (t) =>
-      t.person.name.toLowerCase().includes(query.toLowerCase()) ||
-      t.lastPreview.toLowerCase().includes(query.toLowerCase()),
+  const { data: threads = [], isLoading, error } = useQuery({
+    queryKey: ["messages-threads", userId],
+    queryFn: () => getReferralThreads(userId ?? undefined),
+    staleTime: 30_000,
+  });
+
+  const filtered = useMemo(
+    () =>
+      threads.filter(
+        (t) =>
+          t.person.name.toLowerCase().includes(query.toLowerCase()) ||
+          t.lastPreview.toLowerCase().includes(query.toLowerCase()),
+      ),
+    [threads, query],
   );
 
-  // Default selected to first in list when data arrives
   const selected = threads.find((t) => t.id === selectedId) ?? threads[0] ?? null;
+  const tones: ("clay" | "olive" | "sand" | "dark")[] = ["clay", "olive", "sand", "dark"];
 
   const handleSend = async () => {
     if (!reply.trim() || !selected || !userId) return;
@@ -44,7 +63,10 @@ const Messages = () => {
     try {
       await sendReferralMessage(selected.id, userId, reply.trim());
       setReply("");
-      await refetch();
+      queryClient.invalidateQueries({ queryKey: ["messages-threads"] });
+      queryClient.invalidateQueries({
+        queryKey: ["referral-messages", selected.id],
+      });
       toast.success("Reply sent");
     } catch {
       toast.error("Couldn't send reply");
@@ -53,184 +75,366 @@ const Messages = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-10 w-1/2" />
-        <Skeleton className="h-64 w-full rounded-3xl" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="w-full max-w-full space-y-6">
-        <header>
-          <p className="text-xs uppercase tracking-widest text-clay font-medium">Inbox</p>
-          <h1 className="font-display text-[30px] sm:text-4xl text-foreground leading-tight mt-1">Referral inbox</h1>
-        </header>
-        <ErrorState description="We couldn't load your messages." onRetry={refetch} />
-      </div>
-    );
-  }
-
   return (
-    <div className="w-full max-w-full space-y-6">
-      <header>
-        <p className="text-xs uppercase tracking-widest text-clay font-medium">Inbox</p>
-        <h1 className="font-display text-[30px] sm:text-4xl text-foreground leading-tight mt-1">
-          Referral inbox
-        </h1>
-        <p className="text-muted-foreground mt-2 max-w-xl">
-          All your warm intros, host replies, and referral conversations in one place.
-        </p>
-      </header>
+    <div
+      className="hy"
+      style={{
+        background: "var(--bg)",
+        color: "var(--ink)",
+        margin: "-24px -16px",
+        padding: 0,
+        minHeight: "calc(100vh - 64px)",
+        display: "flex",
+        overflow: "hidden",
+      }}
+    >
+      {/* Conversation list */}
+      <aside
+        className="messages-list"
+        style={{
+          width: 320,
+          borderRight: "1px solid var(--line)",
+          background: "var(--paper)",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+        }}
+      >
+        <div style={{ padding: "20px 18px 14px", borderBottom: "1px solid var(--line-soft)" }}>
+          <p style={sectionLabelStyle}>Conversations</p>
+          <div
+            style={{
+              marginTop: 10,
+              padding: "10px 12px",
+              borderRadius: 12,
+              background: "var(--cream)",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <span style={{ color: "var(--ink-mute)" }}>{I.search}</span>
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search messages"
+              style={{
+                flex: 1,
+                background: "transparent",
+                border: "none",
+                outline: "none",
+                fontSize: 13,
+                color: "var(--ink)",
+                fontFamily: "var(--sans)",
+              }}
+            />
+          </div>
+        </div>
 
-      {threads.length === 0 ? (
-        <EmptyState
-          icon={MessageCircle}
-          title="No messages yet"
-          description="Your referral conversations will appear here once you send or receive a request."
-        />
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
-          {/* Thread list */}
-          <div className="lg:col-span-2 space-y-3 min-w-0">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search messages..."
-                className="pl-9 bg-card"
-              />
+        <div style={{ flex: 1, overflow: "auto" }}>
+          {isLoading && (
+            <p style={{ padding: 24, fontSize: 13, color: "var(--ink-mute)" }}>Loading…</p>
+          )}
+          {!isLoading && filtered.length === 0 && (
+            <p style={{ padding: 24, fontSize: 13, color: "var(--ink-mute)" }}>
+              {query ? "No matches." : "No conversations yet."}
+            </p>
+          )}
+          {filtered.map((c, i) => {
+            const active = (selected?.id ?? "") === c.id;
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setSelectedId(c.id)}
+                style={{
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "14px 18px",
+                  display: "flex",
+                  gap: 12,
+                  alignItems: "center",
+                  background: active ? "var(--cream)" : "transparent",
+                  borderLeft: active ? "2px solid var(--clay)" : "2px solid transparent",
+                  border: "none",
+                  borderBottom: "1px solid var(--line-soft)",
+                  cursor: "pointer",
+                  fontFamily: "var(--sans)",
+                  color: "var(--ink)",
+                }}
+              >
+                <Avatar name={c.person.name} size={40} tone={tones[i % tones.length]} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "baseline",
+                      gap: 6,
+                    }}
+                  >
+                    <p style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>
+                      {c.person.name}
+                    </p>
+                    <span
+                      className="mono"
+                      style={{ fontSize: 10, color: "var(--ink-mute)", flex: "none" }}
+                    >
+                      {c.lastUpdated}
+                    </span>
+                  </div>
+                  <p
+                    style={{
+                      fontSize: 11,
+                      color: "var(--ink-mute)",
+                      marginTop: 1,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {c.roleCompany}
+                  </p>
+                  <p
+                    style={{
+                      fontSize: 12,
+                      color: c.unread ? "var(--ink)" : "var(--ink-soft)",
+                      fontWeight: c.unread ? 500 : 400,
+                      marginTop: 4,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {c.lastPreview}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </aside>
+
+      {/* Open thread */}
+      <main
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          background: "var(--bg)",
+        }}
+      >
+        {error && (
+          <div style={{ padding: 32 }}>
+            <p style={{ color: "var(--ink-soft)" }}>Couldn't load messages.</p>
+          </div>
+        )}
+        {!error && !selected && !isLoading && (
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 32,
+            }}
+          >
+            <div style={{ textAlign: "center", maxWidth: 360 }}>
+              <p style={sectionLabelStyle}>Inbox</p>
+              <h2
+                style={{
+                  fontFamily: "var(--display)",
+                  fontSize: 26,
+                  marginTop: 8,
+                  fontWeight: 500,
+                }}
+              >
+                Pick a thread to read.
+              </h2>
+              <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 8 }}>
+                Your warm intros, host replies, and follow-ups all live here.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {selected && (
+          <>
+            {/* Thread header */}
+            <div
+              style={{
+                padding: "20px 28px",
+                borderBottom: "1px solid var(--line-soft)",
+                display: "flex",
+                alignItems: "center",
+                gap: 14,
+                background: "var(--paper)",
+              }}
+            >
+              <Avatar name={selected.person.name} size={42} tone="clay" />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p
+                  style={{
+                    fontFamily: "var(--display)",
+                    fontSize: 20,
+                    fontWeight: 500,
+                    margin: 0,
+                  }}
+                >
+                  {selected.person.name}
+                </p>
+                <p
+                  style={{
+                    fontSize: 11,
+                    color: "var(--ink-mute)",
+                    marginTop: 2,
+                  }}
+                >
+                  {selected.roleCompany}
+                </p>
+              </div>
+              <Link to={`/app/referrals/${selected.id}`} style={{ textDecoration: "none" }}>
+                <Btn kind="soft" size="md" icon={I.cal}>
+                  Open thread
+                </Btn>
+              </Link>
             </div>
 
-            <ul className="rounded-3xl bg-card border border-border divide-y divide-border overflow-hidden">
-              {list.map((t) => (
-                <li key={t.id}>
-                  {/* Mobile: navigate to thread page */}
-                  <Link
-                    to={`/app/referrals/${t.id}`}
-                    className={cn(
-                      "lg:hidden flex items-start gap-3 p-4 transition-colors",
-                      t.unread ? "bg-clay/5" : "",
-                    )}
-                  >
-                    <InboxRowContent t={t} />
-                  </Link>
-                  {/* Desktop: select preview */}
-                  <button
-                    onClick={() => setSelectedId(t.id)}
-                    className={cn(
-                      "hidden lg:flex w-full text-left items-start gap-3 p-4 transition-colors",
-                      selectedId === t.id ? "bg-cream" : t.unread ? "bg-clay/5 hover:bg-cream/60" : "hover:bg-cream/60",
-                    )}
-                  >
-                    <InboxRowContent t={t} />
-                  </button>
-                </li>
-              ))}
-              {list.length === 0 && (
-                <li className="p-6 text-sm text-muted-foreground text-center">
-                  No messages match your search.
-                </li>
-              )}
-            </ul>
-          </div>
+            {/* Context strip */}
+            <div
+              style={{
+                padding: "10px 28px",
+                background: "var(--cream)",
+                borderBottom: "1px solid var(--line-soft)",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                fontSize: 12,
+                color: "var(--ink-soft)",
+              }}
+            >
+              <span style={{ color: "var(--clay)" }}>{I.shake}</span>
+              <span>
+                This thread is about{" "}
+                <strong style={{ color: "var(--ink)" }}>
+                  {selected.targetCompany} · {selected.targetRole}
+                </strong>
+              </span>
+            </div>
 
-          {/* Preview panel — desktop only */}
-          {selected ? (
-            <section className="hidden lg:flex lg:col-span-3 flex-col rounded-3xl bg-card border border-border shadow-soft min-w-0 overflow-hidden">
-              <div className="p-5 border-b border-border flex items-center gap-3">
-                <UserAvatar user={selected.person} size="md" />
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-foreground truncate">{selected.person.name}</p>
-                  <p className="text-xs text-muted-foreground truncate">{selected.inboxContext}</p>
-                </div>
-                <Button asChild variant="soft" size="sm">
-                  <Link to={`/app/referrals/${selected.id}`}>Open thread</Link>
-                </Button>
-              </div>
-
-              <div className="p-5 space-y-4 flex-1 overflow-y-auto max-h-[480px]">
-                {selected.messages.slice(-3).map((m) => {
-                  const mine = m.sender === "me";
-                  return (
-                    <div key={m.id} className={cn("flex gap-3", mine ? "flex-row-reverse" : "flex-row")}>
-                      <UserAvatar
-                        user={{ name: m.senderName, initials: m.initials, avatarColor: m.avatarColor }}
-                        size="sm"
-                      />
-                      <div className={cn("max-w-[75%] min-w-0", mine && "text-right")}>
-                        <p className="text-[11px] text-muted-foreground mb-1">
-                          <span className="font-medium text-foreground">{m.senderName}</span> · {m.time}
-                        </p>
-                        <div
-                          className={cn(
-                            "rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed border inline-block text-left",
-                            mine
-                              ? "bg-primary text-primary-foreground border-primary"
-                              : "bg-cream text-foreground border-border",
-                          )}
-                        >
-                          {m.body}
-                        </div>
-                      </div>
+            {/* Messages */}
+            <div
+              style={{
+                flex: 1,
+                overflow: "auto",
+                padding: "20px 28px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 12,
+              }}
+            >
+              {selected.messages.slice(-12).map((m) => {
+                const mine = m.sender === "me";
+                return (
+                  <div
+                    key={m.id}
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: mine ? "flex-end" : "flex-start",
+                      gap: 4,
+                    }}
+                  >
+                    <div
+                      style={{
+                        maxWidth: "78%",
+                        padding: "12px 16px",
+                        borderRadius: 18,
+                        background: mine ? "var(--clay)" : "var(--paper)",
+                        color: mine ? "var(--paper)" : "var(--ink)",
+                        border: mine ? "none" : "1px solid var(--line-soft)",
+                        borderBottomRightRadius: mine ? 6 : 18,
+                        borderBottomLeftRadius: mine ? 18 : 6,
+                        fontSize: 14,
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {m.body}
                     </div>
-                  );
-                })}
-              </div>
+                    <span
+                      className="mono"
+                      style={{
+                        fontSize: 10,
+                        color: "var(--ink-mute)",
+                        padding: "0 6px",
+                      }}
+                    >
+                      {m.time}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
 
-              <div className="p-4 border-t border-border bg-cream/40">
-                <Textarea
-                  value={reply}
-                  onChange={(e) => setReply(e.target.value)}
-                  placeholder={`Reply to ${selected.person.name.split(" ")[0]}...`}
-                  rows={2}
-                  className="bg-card resize-none"
-                  disabled={sending}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                      void handleSend();
-                    }
-                  }}
-                />
-                <div className="mt-2 flex justify-end">
-                  <Button
-                    variant="hero"
-                    size="sm"
-                    onClick={handleSend}
-                    disabled={sending || !reply.trim()}
-                  >
-                    <Send className="h-4 w-4" />
-                    {sending ? "Sending…" : "Send"}
-                  </Button>
-                </div>
-              </div>
-            </section>
-          ) : null}
-        </div>
-      )}
+            {/* Composer */}
+            <div
+              style={{
+                padding: "16px 28px 22px",
+                borderTop: "1px solid var(--line-soft)",
+                background: "var(--paper)",
+                display: "flex",
+                gap: 10,
+                alignItems: "flex-end",
+              }}
+            >
+              <textarea
+                value={reply}
+                onChange={(e) => setReply(e.target.value)}
+                rows={2}
+                placeholder={`Reply to ${selected.person.name.split(" ")[0]}…`}
+                disabled={sending}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                    void handleSend();
+                  }
+                }}
+                style={{
+                  flex: 1,
+                  padding: "10px 14px",
+                  borderRadius: 18,
+                  background: "var(--cream)",
+                  border: "1px solid var(--line)",
+                  fontSize: 14,
+                  color: "var(--ink)",
+                  outline: "none",
+                  fontFamily: "var(--sans)",
+                  resize: "none",
+                  lineHeight: 1.5,
+                }}
+              />
+              <Btn
+                kind="primary"
+                size="md"
+                onClick={handleSend}
+                disabled={sending || !reply.trim()}
+                iconRight={I.arrow}
+              >
+                {sending ? "…" : "Send"}
+              </Btn>
+            </div>
+          </>
+        )}
+      </main>
+
+      <style>{`
+        @media (max-width: 880px) {
+          .messages-list { display: none !important; }
+        }
+      `}</style>
     </div>
   );
 };
-
-const InboxRowContent = ({ t }: { t: ReferralThread }) => (
-  <>
-    <UserAvatar user={t.person} size="md" />
-    <div className="min-w-0 flex-1">
-      <div className="flex items-center gap-2">
-        <p className="font-medium text-foreground truncate">{t.person.name}</p>
-        {t.unread && <UnreadDot />}
-        <span className="ml-auto text-[11px] text-muted-foreground shrink-0">{t.lastUpdated}</span>
-      </div>
-      <p className="text-[11px] text-muted-foreground truncate mt-0.5">{t.inboxContext}</p>
-      <p className={cn("text-sm truncate mt-1", t.unread ? "text-foreground font-medium" : "text-muted-foreground")}>
-        {t.lastPreview}
-      </p>
-    </div>
-  </>
-);
 
 export default Messages;

@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { Home, Mic, Handshake, User, Briefcase, UserCheck, LogOut, Settings, X, MessageCircle, Bell } from "lucide-react";
+import { Home, Mic, Handshake, User, Briefcase, UserCheck, LogOut, Settings, X, MessageCircle, Bell, Sun, Moon } from "lucide-react";
 import { Logo } from "./Logo";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { getReferralThreads, getReferralRequests } from "@/lib/api/referrals";
 import { getNotifications } from "@/lib/api/notifications";
 import { useAsync } from "@/lib/useAsync";
+import { usePalette } from "@/lib/palette";
 
 const supplyNav = [
   { to: "/app/host", label: "Host dashboard", icon: UserCheck },
@@ -53,6 +54,9 @@ export const AppSidebar = ({ mobileOpen = false, onMobileOpenChange }: AppSideba
   const { signOut } = useAuthContext();
   const { userId } = useCurrentUser();
   const navigate = useNavigate();
+  const { palette, setPalette } = usePalette();
+  const togglePalette = () => setPalette(palette === "dusk" ? "warm" : "dusk");
+  const PaletteIcon = palette === "dusk" ? Sun : Moon;
 
   const { unreadMessages, unreadNotifications, pendingReferrals } = useBadgeCounts(userId);
 
@@ -90,13 +94,23 @@ export const AppSidebar = ({ mobileOpen = false, onMobileOpenChange }: AppSideba
       >
         <div className="h-16 flex items-center justify-between px-5 border-b border-border">
           <Logo />
-          <button
-            onClick={close}
-            className="lg:hidden p-2 -mr-2 rounded-lg hover:bg-card"
-            aria-label="Close menu"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={togglePalette}
+              className="p-2 rounded-lg hover:bg-card transition-colors"
+              aria-label={palette === "dusk" ? "Switch to warm palette" : "Switch to dusk palette"}
+              title={palette === "dusk" ? "Switch to warm" : "Switch to dusk"}
+            >
+              <PaletteIcon className="h-4 w-4" />
+            </button>
+            <button
+              onClick={close}
+              className="lg:hidden p-2 -mr-2 rounded-lg hover:bg-card"
+              aria-label="Close menu"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         <nav className="flex-1 overflow-y-auto p-4 space-y-6">

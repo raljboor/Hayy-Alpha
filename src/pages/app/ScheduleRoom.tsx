@@ -75,7 +75,8 @@ const ScheduleRoom = () => {
     });
 
   const selectedTags = [...tags];
-  const estimatedReach = 120 + selectedTags.length * 55;
+  const typeReach = roomType === "hiring" ? 90 : roomType === "referral" ? 60 : 0;
+  const estimatedReach = Math.max(60, 80 + selectedTags.length * 45 + typeReach);
 
   const startsAtIso = () => {
     if (!date) return new Date().toISOString();
@@ -86,6 +87,10 @@ const ScheduleRoom = () => {
   const handleSchedule = async () => {
     if (!title.trim()) {
       toast.error("Add a room title first.");
+      return;
+    }
+    if (!date) {
+      toast.error("Pick a date for the room.");
       return;
     }
     if (!userId) {
@@ -251,14 +256,10 @@ const ScheduleRoom = () => {
               {description || "A short, honest description of who this room is for."}
             </p>
             <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ display: "flex" }}>
-                {[{ n: profile?.full_name ?? "You", t: "dark" as const }, { n: "Rashid K", t: "olive" as const }].map((p, i) => (
-                  <div key={p.n} style={{ marginLeft: i === 0 ? 0 : -8, border: "2px solid var(--paper)", borderRadius: 999 }}>
-                    <Avatar name={p.n} size={30} tone={p.t} />
-                  </div>
-                ))}
-              </div>
-              <p style={{ fontSize: 12, color: "var(--ink-soft)" }}>You're hosting</p>
+              <Avatar name={profile?.full_name ?? "You"} size={30} tone="dark" />
+              <p style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                You're hosting · <span className="mono" style={{ color: "var(--ink-mute)", letterSpacing: ".06em", textTransform: "uppercase", fontSize: 11 }}>{format}</span>
+              </p>
             </div>
             {selectedTags.length > 0 && (
               <div style={{ marginTop: 14, display: "flex", flexWrap: "wrap", gap: 6 }}>

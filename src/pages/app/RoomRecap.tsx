@@ -6,10 +6,23 @@
  */
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { getRoomById } from "@/lib/api/rooms";
-import { getUser } from "@/lib/mockData";
+import { getRoomById, getRoomHosts } from "@/lib/api/rooms";
 import { useAsync } from "@/lib/useAsync";
 import { Avatar, Btn, Pill, Waveform, I, type AvatarTone } from "@/components/ui/primitives";
+
+const TONES: AvatarTone[] = ["clay", "olive", "sand", "dark"];
+const toneFor = (seed: string): AvatarTone => {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return TONES[h % TONES.length];
+};
+
+const fmtRecapDate = (iso: string | undefined) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+};
 
 const clips = [
   { t: "On the realistic timeline", who: "Maya N.", dur: "1:24", q: "It took me 14 months. Anyone telling you 3 is selling something." },
@@ -35,9 +48,17 @@ const RoomRecap = () => {
   const { id = "" } = useParams();
   const navigate = useNavigate();
   const { data: room } = useAsync(() => getRoomById(id), [id]);
-  const host = room ? getUser(room.hostId) : undefined;
+  const { data: hostsData } = useAsync(() => getRoomHosts(id), [id]);
 
+  const hosts = (hostsData ?? []).slice(0, 3);
   const title = room?.title ?? "Room recap";
+  const duration = room?.durationMin ?? 47;
+  const dateStr = fmtRecapDate(room?.startsAt);
+  const eyebrowParts = ["Recap", dateStr, `${duration} min`].filter(Boolean);
+  const mentionedTags = room?.tags && room.tags.length > 0 ? room.tags : mentioned;
+  const hostNamesLine = hosts.length > 0
+    ? hosts.map((h) => h.name.split(" ")[0]).join(", ")
+    : "the Hayy team";
 
   return (
     <div className="hy" style={{ background: "transparent", color: "var(--ink)" }}>
@@ -47,13 +68,23 @@ const RoomRecap = () => {
           Back to rooms
         </Btn>
         <div style={{ marginTop: 12 }}>
-          <SectionLabel>Recap · 47 min</SectionLabel>
+          <SectionLabel>{eyebrowParts.join(" · ")}</SectionLabel>
           <h1 style={{ fontSize: "clamp(28px, 5vw, 44px)", marginTop: 6, lineHeight: 1.05 }}>{title}</h1>
         </div>
         <div style={{ marginTop: 14, display: "flex", flexWrap: "wrap", gap: 14, alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Avatar name={host?.name ?? "Host"} size={28} tone="clay" />
-            <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>Hosted by {host?.name ?? "the Hayy team"}</span>
+            {hosts.length > 0 ? (
+              <div style={{ display: "flex" }}>
+                {hosts.map((h, i) => (
+                  <div key={h.id} style={{ marginLeft: i === 0 ? 0 : -8, border: "2px solid var(--paper)", borderRadius: 999 }}>
+                    <Avatar name={h.name} size={28} tone={toneFor(h.id)} />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <Avatar name="Host" size={28} tone="clay" />
+            )}
+            <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>Hosted by {hostNamesLine}</span>
           </div>
           <span style={{ width: 1, height: 16, background: "var(--line)" }} />
           <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>
@@ -123,14 +154,14 @@ const RoomRecap = () => {
           <div className="hy-card" style={{ padding: 18 }}>
             <SectionLabel>Mentioned in the room</SectionLabel>
             <div className="mt-2.5 flex flex-wrap gap-1.5">
-              {mentioned.map((t) => <Pill key={t}>{t}</Pill>)}
+              {mentionedTags.map((t) => <Pill key={t}>{t}</Pill>)}
             </div>
           </div>
 
           <div style={{ padding: 18, borderRadius: "var(--radius-lg)", background: "linear-gradient(135deg, var(--clay), var(--clay-2))", color: "var(--paper)", boxShadow: "var(--shadow-warm)" }}>
             <SectionLabel color="rgba(255,255,255,.85)">Replay</SectionLabel>
             <p style={{ marginTop: 8, fontFamily: "var(--display)", fontSize: 18, lineHeight: 1.3 }}>
-              Listen to the full 47 min — or skim from the transcript.
+              Listen to the full {duration} min — or skim from the transcript.
             </p>
             <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
               <Btn kind="soft" size="md" style={{ background: "var(--paper)", color: "var(--ink)", borderColor: "transparent" }} onClick={() => toast("Replay", { description: "Full replay lands in a later phase." })}>Play full</Btn>

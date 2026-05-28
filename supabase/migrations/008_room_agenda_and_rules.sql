@@ -1,12 +1,12 @@
 -- =============================================================================
 -- Hayy – Room agenda + rules, and host participant backfill
--- Migration: 007_room_agenda_and_rules.sql
+-- Migration: 008_room_agenda_and_rules.sql
 --
 -- Supersedes the hardcoded agenda / rules content in RoomDetail and lets the
 -- Hosts section load from room_participants where participant_role = 'host'.
 --
--- Run AFTER 006. This file is idempotent: tables use IF NOT EXISTS and
--- policies are dropped before being recreated.
+-- Run AFTER 007 (007_add_onboarding_completed). This file is idempotent:
+-- tables use IF NOT EXISTS and policies are dropped before being recreated.
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------

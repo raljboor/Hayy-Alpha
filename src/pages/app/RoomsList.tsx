@@ -283,74 +283,92 @@ const RoomsList = () => {
         background: "var(--bg)",
         color: "var(--ink)",
         margin: "-24px -16px",
-        padding: "32px 16px",
+        padding: "24px 0 0",
       }}
     >
-      {/* Sticky header */}
+      {/* Page header */}
       <div
         style={{
-          paddingBottom: 20,
           borderBottom: "1px solid var(--line-soft)",
           display: "flex",
           flexDirection: "column",
-          gap: 16,
+          gap: 14,
+          padding: "0 16px 16px",
         }}
       >
         <div
           style={{
             display: "flex",
             justifyContent: "space-between",
-            alignItems: "flex-end",
-            flexWrap: "wrap",
+            alignItems: "flex-start",
             gap: 12,
           }}
         >
           <div>
             <p style={sectionLabelStyle}>The agenda</p>
-            <h1 style={{ fontSize: "clamp(28px, 4vw, 42px)", marginTop: 6, lineHeight: 1.05 }}>
+            <h1 style={{ fontSize: "clamp(24px, 5vw, 42px)", marginTop: 6, lineHeight: 1.05 }}>
               What's <span className="display-italic">happening</span> next.
             </h1>
           </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <Btn kind="ghost" size="md" icon={I.search}>
+        </div>
+
+        {/* Search + action row */}
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={{ flex: 1 }}>
+            <Btn kind="ghost" size="md" icon={I.search} style={{ width: "100%" }}>
               <input
                 type="text"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Search…"
+                placeholder="Search rooms…"
                 style={{
                   border: "none",
                   background: "transparent",
                   outline: "none",
                   fontSize: 13,
                   color: "var(--ink)",
-                  width: 140,
+                  width: "100%",
                   fontFamily: "var(--sans)",
                 }}
               />
             </Btn>
-            {isAuthenticated && (
-              <Btn kind="soft" size="md" icon={I.plus} onClick={() => setDialogOpen(true)}>
-                Propose a room
-              </Btn>
-            )}
           </div>
+          {isAuthenticated && (
+            <Btn kind="soft" size="md" icon={I.plus} onClick={() => setDialogOpen(true)}>
+              <span className="rooms-propose-label">Propose a room</span>
+            </Btn>
+          )}
         </div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+
+        {/* Filter pills — horizontal scroll on mobile */}
+        <div
+          style={{
+            display: "flex",
+            gap: 6,
+            overflowX: "auto",
+            WebkitOverflowScrolling: "touch" as never,
+            scrollbarWidth: "none" as never,
+            msOverflowStyle: "none" as never,
+            paddingBottom: 2,
+          }}
+        >
           {FILTERS.map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
               style={{
-                padding: "6px 12px",
+                padding: "8px 14px",
                 borderRadius: "var(--radius-pill)",
-                fontSize: 12,
+                fontSize: 13,
                 fontWeight: 500,
                 background: filter === f ? "var(--ink)" : "transparent",
                 color: filter === f ? "var(--paper)" : "var(--ink-soft)",
                 border: `1px solid ${filter === f ? "var(--ink)" : "var(--line)"}`,
                 cursor: "pointer",
                 fontFamily: "var(--sans)",
+                whiteSpace: "nowrap",
+                flexShrink: 0,
+                minHeight: 40,
               }}
             >
               {f}
@@ -364,7 +382,7 @@ const RoomsList = () => {
         {isLoading && (
           <p
             style={{
-              padding: "32px 0",
+              padding: "32px 16px",
               color: "var(--ink-mute)",
               fontFamily: "var(--mono)",
               fontSize: 12,
@@ -378,12 +396,12 @@ const RoomsList = () => {
         {!isLoading && buckets.length === 0 && (
           <div
             style={{
-              padding: 40,
+              margin: "24px 16px",
+              padding: 32,
               borderRadius: "var(--radius-xl)",
               background: "var(--cream)",
               border: "1px dashed var(--line)",
               textAlign: "center",
-              marginTop: 24,
             }}
           >
             <p style={{ ...sectionLabelStyle, fontSize: 10 }}>Quiet on the agenda</p>
@@ -417,19 +435,16 @@ const RoomsList = () => {
         {buckets.map((day) => (
           <section
             key={day.label}
+            className="rooms-day"
             style={{
-              display: "grid",
-              gridTemplateColumns: "180px 1fr",
-              gap: 28,
-              paddingTop: 18,
-              paddingBottom: 4,
               borderTop: "1px solid var(--line-soft)",
               marginTop: 6,
+              padding: "16px 16px 4px",
             }}
-            className="rooms-day"
           >
-            <div style={{ position: "sticky", top: 0 }}>
-              <h2 style={{ fontSize: 28, lineHeight: 1.1, fontFamily: "var(--display)" }}>
+            {/* Day label */}
+            <div className="rooms-day-header" style={{ marginBottom: 8 }}>
+              <h2 style={{ fontSize: 26, lineHeight: 1.1, fontFamily: "var(--display)", margin: 0 }}>
                 {day.label}
               </h2>
               <p
@@ -437,7 +452,7 @@ const RoomsList = () => {
                 style={{
                   fontSize: 11,
                   color: "var(--ink-mute)",
-                  marginTop: 4,
+                  marginTop: 2,
                   letterSpacing: ".06em",
                   textTransform: "uppercase",
                 }}
@@ -446,6 +461,7 @@ const RoomsList = () => {
               </p>
             </div>
 
+            {/* Room items */}
             <div style={{ display: "flex", flexDirection: "column" }}>
               {day.items.map((r, i) => {
                 const isLive = r.status === "live";
@@ -454,36 +470,37 @@ const RoomsList = () => {
                     key={r.id}
                     className="rooms-item"
                     style={{
-                      display: "grid",
-                      gridTemplateColumns: "92px 1fr auto",
-                      gap: 20,
-                      alignItems: "center",
-                      padding: "18px 0",
+                      padding: "16px 0",
                       borderTop: i === 0 ? "0" : "1px dashed var(--line-soft)",
                     }}
                   >
-                    <div>
+                    {/* Mobile: time + live tag row */}
+                    <div
+                      className="rooms-item-meta"
+                      style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}
+                    >
                       <p
                         className="mono"
                         style={{
-                          fontSize: 13,
-                          color: isLive ? "var(--clay)" : "var(--ink)",
+                          fontSize: 12,
+                          color: isLive ? "var(--clay)" : "var(--ink-mute)",
                           fontWeight: 600,
-                          letterSpacing: ".02em",
+                          letterSpacing: ".04em",
                           margin: 0,
                         }}
                       >
                         {timeLabel(r)}
                       </p>
-                      {r.tags[0] && (
+                      {isLive && <LiveTag>Live · {liveDuration(r)}</LiveTag>}
+                      {r.tags[0] && !isLive && (
                         <p
                           className="mono"
                           style={{
                             fontSize: 10,
                             color: "var(--ink-mute)",
-                            marginTop: 3,
                             letterSpacing: ".08em",
                             textTransform: "uppercase",
+                            margin: 0,
                           }}
                         >
                           {r.tags[0]}
@@ -491,58 +508,59 @@ const RoomsList = () => {
                       )}
                     </div>
 
-                    <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 8 }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        {isLive && <LiveTag>Live · {liveDuration(r)}</LiveTag>}
+                    {/* Title + action row */}
+                    <div
+                      className="rooms-item-body"
+                      style={{ display: "flex", alignItems: "flex-start", gap: 12 }}
+                    >
+                      <div style={{ minWidth: 0, flex: 1 }}>
                         <h3
                           style={{
                             fontFamily: "var(--display)",
-                            fontSize: 22,
+                            fontSize: "clamp(18px, 4vw, 22px)",
                             fontWeight: 500,
-                            lineHeight: 1.15,
+                            lineHeight: 1.2,
+                            margin: 0,
                           }}
                         >
                           {r.title}
                         </h3>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            color: "var(--ink-soft)",
+                            fontSize: 12,
+                            marginTop: 6,
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <Avatar name={r.company} size={20} tone={tones[i % tones.length]} />
+                          <span>
+                            {r.company}
+                            {r.category && (
+                              <span style={{ color: "var(--ink-mute)" }}> · {r.category}</span>
+                            )}
+                          </span>
+                          <span style={{ color: "var(--ink-mute)" }}>· {r.attendees} going</span>
+                        </div>
                       </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                          color: "var(--ink-soft)",
-                          fontSize: 12,
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        <Avatar name={r.company} size={22} tone={tones[i % tones.length]} />
-                        <span>
-                          {r.company}{" "}
-                          <span style={{ color: "var(--ink-mute)" }}>· {r.category}</span>
-                        </span>
-                        <span style={{ color: "var(--ink-mute)" }}>·</span>
-                        <span style={{ color: "var(--ink-mute)" }}>
-                          {r.attendees} going
-                        </span>
-                      </div>
-                    </div>
 
-                    <Link to={`/app/rooms/${r.id}`} style={{ textDecoration: "none" }}>
-                      <Btn
-                        kind={isLive ? "primary" : "soft"}
-                        size="md"
-                        iconRight={isLive ? I.arrow : undefined}
+                      <Link
+                        to={`/app/rooms/${r.id}`}
+                        style={{ textDecoration: "none", flexShrink: 0 }}
                       >
-                        {isLive ? "Join now" : "RSVP"}
-                      </Btn>
-                    </Link>
+                        <Btn
+                          kind={isLive ? "primary" : "soft"}
+                          size="md"
+                          iconRight={isLive ? I.arrow : undefined}
+                          style={{ minWidth: 76, minHeight: 40 }}
+                        >
+                          {isLive ? "Join" : "RSVP"}
+                        </Btn>
+                      </Link>
+                    </div>
                   </article>
                 );
               })}
@@ -666,11 +684,20 @@ const RoomsList = () => {
       </Modal>
 
       <style>{`
-        @media (max-width: 720px) {
-          .rooms-day { grid-template-columns: 1fr !important; gap: 12px !important; }
-          .rooms-item { grid-template-columns: 70px 1fr !important; }
-          .rooms-item > a { grid-column: 1 / -1; justify-self: flex-end; }
+        /* Mobile-first: items are stacked by default */
+        .rooms-propose-label { display: none; }
+
+        /* Desktop layout: two-column day sections, inline room rows */
+        @media (min-width: 768px) {
+          .rooms-propose-label { display: inline; }
+          .rooms-day { display: grid; grid-template-columns: 160px 1fr; gap: 24px; padding: 18px 16px 4px; }
+          .rooms-day-header { margin-bottom: 0; }
+          .rooms-item-meta { margin-bottom: 4px; }
+          .rooms-item-body { align-items: center; }
         }
+
+        /* Hide filter pill scrollbar on webkit */
+        div::-webkit-scrollbar { display: none; }
       `}</style>
     </div>
   );

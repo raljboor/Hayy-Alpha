@@ -516,10 +516,8 @@ const Dashboard = () => {
       </div>
 
       <style>{`
-        @media (max-width: 880px) {
+        @media (max-width: 767px) {
           .dashboard-grid { grid-template-columns: 1fr !important; }
-        }
-        @media (max-width: 720px) {
           .suggested-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>
@@ -882,12 +880,15 @@ const HeroRoomCard = ({ room, loading }: { room: Room | null; loading: boolean }
         </div>
       </div>
 
-      {/* Tag chip column — uses the room's own tags so it's not fixture data */}
-      <HeroTagsColumn tags={room.tags} />
+      {/* Tag chip column — decorative, hidden on mobile */}
+      <div className="hero-tags">
+        <HeroTagsColumn tags={room.tags} />
+      </div>
 
       <style>{`
-        @media (max-width: 720px) {
+        @media (max-width: 767px) {
           .dashboard-hero { grid-template-columns: 1fr !important; }
+          .dashboard-hero .hero-tags { display: none; }
         }
       `}</style>
     </div>

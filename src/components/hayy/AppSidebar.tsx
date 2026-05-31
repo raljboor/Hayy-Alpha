@@ -5,10 +5,6 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { NavBadge } from "./InboxPrimitives";
 import { useAuthContext } from "@/context/AuthContext";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { getReferralThreads, getReferralRequests } from "@/lib/api/referrals";
-import { getNotifications } from "@/lib/api/notifications";
-import { useAsync } from "@/lib/useAsync";
 import { usePalette } from "@/lib/palette";
 
 const supplyNav = [
@@ -20,45 +16,20 @@ const supplyNav = [
 interface AppSidebarProps {
   mobileOpen?: boolean;
   onMobileOpenChange?: (open: boolean) => void;
+  badges?: { unreadMessages: number; unreadNotifications: number; pendingReferrals: number };
 }
 
-/**
- * Derives live badge counts from API data.
- * Falls back to 0 while loading so the sidebar never shows stale fixture numbers.
- */
-function useBadgeCounts(userId: string | null) {
-  const { data: threads } = useAsync(
-    () => getReferralThreads(userId ?? undefined),
-    [userId],
-  );
-  const { data: referrals } = useAsync(
-    () => getReferralRequests(userId ?? undefined),
-    [userId],
-  );
-  const { data: notifications } = useAsync(
-    () => getNotifications(userId ?? undefined),
-    [userId],
-  );
-
-  const unreadMessages = (threads ?? []).filter((t) => t.unread).length;
-  const unreadNotifications = (notifications ?? []).filter((n) => n.unread).length;
-  const pendingReferrals = (referrals ?? []).filter(
-    (r) => r.status === "pending",
-  ).length;
-
-  return { unreadMessages, unreadNotifications, pendingReferrals };
-}
-
-export const AppSidebar = ({ mobileOpen = false, onMobileOpenChange }: AppSidebarProps) => {
+export const AppSidebar = ({ mobileOpen = false, onMobileOpenChange, badges }: AppSidebarProps) => {
   const close = () => onMobileOpenChange?.(false);
   const { signOut } = useAuthContext();
-  const { userId } = useCurrentUser();
   const navigate = useNavigate();
   const { palette, setPalette } = usePalette();
   const togglePalette = () => setPalette(palette === "dusk" ? "warm" : "dusk");
   const PaletteIcon = palette === "dusk" ? Sun : Moon;
 
-  const { unreadMessages, unreadNotifications, pendingReferrals } = useBadgeCounts(userId);
+  const unreadMessages = badges?.unreadMessages ?? 0;
+  const unreadNotifications = badges?.unreadNotifications ?? 0;
+  const pendingReferrals = badges?.pendingReferrals ?? 0;
 
   const mainNav = [
     { to: "/app", label: "Home", icon: Home, end: true, badge: 0 },

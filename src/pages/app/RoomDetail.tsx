@@ -138,13 +138,16 @@ const RoomDetail = () => {
   const isWaitlistRoom = room.access === "waitlist";
 
   return (
-    <div className="space-y-10">
-      <Link to="/app/rooms" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+    <div className="space-y-6 md:space-y-10">
+      <Link
+        to="/app/rooms"
+        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground min-h-[44px] -ml-2 px-2 rounded-xl"
+      >
         <ArrowLeft className="h-4 w-4" />Back to rooms
       </Link>
 
       {/* Hero */}
-      <div className={`${room.coverColor} rounded-3xl p-8 md:p-12 text-clay-foreground relative overflow-hidden shadow-warm`}>
+      <div className={`${room.coverColor} rounded-2xl md:rounded-3xl p-6 md:p-12 text-clay-foreground relative overflow-hidden shadow-warm`}>
         <div className="flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-card/95 text-foreground px-3 py-1 text-[11px] font-medium uppercase tracking-wider">
             Founding Room
@@ -152,37 +155,37 @@ const RoomDetail = () => {
           <StatusBadge status={room.status} className="bg-card/90 text-foreground border-transparent" />
         </div>
 
-        <h1 className="font-display text-3xl md:text-5xl mt-5 max-w-3xl leading-tight">{room.title}</h1>
-        <p className="mt-4 max-w-2xl text-base md:text-lg opacity-95">
+        <h1 className="font-display text-2xl md:text-5xl mt-4 max-w-3xl leading-tight">{room.title}</h1>
+        <p className="mt-3 max-w-2xl text-sm md:text-lg opacity-95">
           Meet professionals inside target companies, ask questions, and learn how to turn a conversation into a warm intro.
         </p>
 
-        <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm opacity-95">
+        <div className="mt-4 md:mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm opacity-90">
           <span className="flex items-center gap-1.5"><Calendar className="h-4 w-4" />{fmtDateTime(room.startsAt)}</span>
-          <span className="flex items-center gap-1.5"><Video className="h-4 w-4" />Online · Hayy live room</span>
+          <span className="hidden sm:flex items-center gap-1.5"><Video className="h-4 w-4" />Online · Hayy live room</span>
           <span className="flex items-center gap-1.5"><Users className="h-4 w-4" />{room.attendees} going</span>
           <span className="flex items-center gap-1.5"><Mic className="h-4 w-4" />{room.speakers} speakers</span>
         </div>
 
-        <div className="mt-8 flex flex-wrap gap-3">
+        <div className="mt-6 flex flex-wrap gap-3">
           {isRegistered ? (
             <Button
               size="lg"
               variant="soft"
-              className="bg-card text-foreground hover:bg-cream"
+              className="bg-card text-foreground hover:bg-cream flex-1 sm:flex-none min-h-[48px]"
               onClick={() => navigate(`/app/rooms/${room.id}/live`)}
             >
               Enter room
             </Button>
           ) : isWaitlisted ? (
-            <Button size="lg" variant="soft" className="bg-card text-foreground hover:bg-cream" disabled>
+            <Button size="lg" variant="soft" className="bg-card text-foreground hover:bg-cream flex-1 sm:flex-none min-h-[48px]" disabled>
               On waitlist
             </Button>
           ) : isWaitlistRoom ? (
             <Button
               size="lg"
               variant="soft"
-              className="bg-card text-foreground hover:bg-cream"
+              className="bg-card text-foreground hover:bg-cream flex-1 sm:flex-none min-h-[48px]"
               onClick={handleWaitlist}
               disabled={waitlisting}
             >
@@ -193,7 +196,7 @@ const RoomDetail = () => {
             <Button
               size="lg"
               variant="soft"
-              className="bg-card text-foreground hover:bg-cream"
+              className="bg-card text-foreground hover:bg-cream flex-1 sm:flex-none min-h-[48px]"
               onClick={handleJoin}
               disabled={joining}
             >
@@ -201,8 +204,8 @@ const RoomDetail = () => {
               {joining ? "Joining…" : "Join room"}
             </Button>
           )}
-          <Button size="lg" variant="ghost" className="text-clay-foreground hover:bg-card/15 hover:text-clay-foreground">
-            <Bookmark className="h-4 w-4" />Save room
+          <Button size="lg" variant="ghost" className="text-clay-foreground hover:bg-card/15 hover:text-clay-foreground min-h-[48px]">
+            <Bookmark className="h-4 w-4" />Save
           </Button>
         </div>
 

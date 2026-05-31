@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider } from "@/context/AuthContext";
+import { AuthProvider, useAuthContext } from "@/context/AuthContext";
+import { isOnboarded } from "@/lib/routing";
 
 import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
@@ -33,6 +34,30 @@ import RequireOnboarded from "./components/RequireOnboarded.tsx";
 
 const queryClient = new QueryClient();
 
+// Redirects authenticated users away from the public landing page.
+// - Logged in + onboarded  → /app/dashboard
+// - Logged in + not done   → /onboarding (let RequireOnboarded handle it)
+// - Not logged in          → show the landing page
+const RootRoute = () => {
+  const { isAuthenticated, profile, loading } = useAuthContext();
+
+  if (loading) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-background">
+        <span className="h-8 w-8 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
+  if (isAuthenticated) {
+    return isOnboarded(profile)
+      ? <Navigate to="/app/dashboard" replace />
+      : <Navigate to="/onboarding" replace />;
+  }
+
+  return <Index />;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -41,8 +66,8 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
         <Routes>
-          {/* Public */}
-          <Route path="/" element={<Index />} />
+          {/* Public — redirects to /app/dashboard if already signed in */}
+          <Route path="/" element={<RootRoute />} />
 
           {/* Auth */}
           <Route element={<AuthLayout />}>

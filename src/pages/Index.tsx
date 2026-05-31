@@ -17,6 +17,7 @@
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Avatar, Btn, I, LiveTag, Waveform } from "@/components/ui/primitives";
+import { HayyMark } from "@/components/hayy/HayyLogo";
 import { getRooms } from "@/lib/api/rooms";
 import type { Room } from "@/data/mockData";
 import type { CSSProperties } from "react";
@@ -33,25 +34,8 @@ const HeroNav = () => (
     }}
   >
     <Link to="/" style={{ textDecoration: "none", color: "inherit" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span
-          style={{
-            width: 30,
-            height: 30,
-            borderRadius: 10,
-            background: "var(--clay)",
-            color: "var(--paper)",
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontFamily: "var(--display)",
-            fontWeight: 600,
-            fontSize: 18,
-            fontStyle: "italic",
-          }}
-        >
-          h
-        </span>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <HayyMark size={28} style={{ color: "var(--clay)" }} />
         <span style={{ fontFamily: "var(--display)", fontSize: 22, fontWeight: 500 }}>
           Hayy
         </span>
@@ -77,7 +61,7 @@ const HeroNav = () => (
     </nav>
 
     <div style={{ display: "flex", gap: 8 }}>
-      <Link to="/login" className="hidden md:inline-flex" style={{ textDecoration: "none" }}>
+      <Link to="/login" style={{ textDecoration: "none" }}>
         <Btn kind="ghost">Sign in</Btn>
       </Link>
       <Link to="/signup" style={{ textDecoration: "none" }}>

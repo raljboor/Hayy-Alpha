@@ -58,6 +58,18 @@ const Signup = () => {
   const [params] = useSearchParams();
   const [role, setRole] = useState<string>("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  /**
+   * When Supabase has email confirmation enabled, signUp() returns
+   * `data.session === null` — the user must click the email link to
+   * activate a session. In that case we can't navigate to /onboarding
+   * (RequireAuth will bounce them to /login), so we show a "check your
+   * inbox" panel and let /auth/confirm handle the redirect to onboarding
+   * once the email is confirmed.
+   */
+  const [awaitingConfirm, setAwaitingConfirm] = useState<{
+    email: string;
+    roleType: string;
+  } | null>(null);
 
   // Pre-select the role from the ?type= query param if present.
   useEffect(() => {
@@ -74,6 +86,17 @@ const Signup = () => {
         toast.error("Couldn't create your account", { description: result.error.message });
         return;
       }
+      // Email confirmation enabled → no session yet → don't navigate to a
+      // protected route. Show the "check your inbox" panel; /auth/confirm
+      // will route to /onboarding after the user clicks the email link.
+      if (!result.data.session) {
+        setAwaitingConfirm({ email: vars.email, roleType: vars.roleType });
+        toast.success("Account created", {
+          description: "Check your inbox to confirm your email and finish setup.",
+        });
+        return;
+      }
+      // Email confirmation disabled → session exists → go straight to onboarding.
       toast.success("Welcome to Hayy", { description: "Let's set up your founding profile." });
       navigate(`/onboarding?role=${encodeURIComponent(vars.roleType)}`);
     },
@@ -130,6 +153,93 @@ const Signup = () => {
         }}
       >
         <div style={{ maxWidth: 460, width: "100%", display: "flex", flexDirection: "column", gap: 18 }}>
+          {awaitingConfirm ? (
+            <>
+              <div>
+                <p
+                  className="mono"
+                  style={{
+                    fontSize: 11,
+                    color: "var(--clay)",
+                    letterSpacing: ".12em",
+                    textTransform: "uppercase",
+                    fontWeight: 600,
+                  }}
+                >
+                  Check your inbox
+                </p>
+                <h2 style={{ fontSize: 38, marginTop: 8, lineHeight: 1.1 }}>
+                  One <span className="display-italic">click</span> away.
+                </h2>
+                <p
+                  style={{
+                    marginTop: 14,
+                    fontSize: 15,
+                    color: "var(--ink-soft)",
+                    lineHeight: 1.55,
+                    maxWidth: 440,
+                  }}
+                >
+                  We sent a confirmation link to{" "}
+                  <strong style={{ color: "var(--ink)", fontFamily: "var(--mono)" }}>
+                    {awaitingConfirm.email}
+                  </strong>
+                  . Click it to activate your account — you'll land back here ready to set
+                  up your founding profile.
+                </p>
+              </div>
+
+              <div
+                style={{
+                  padding: "16px 18px",
+                  borderRadius: 16,
+                  background: "var(--cream)",
+                  border: "1px solid var(--line-soft)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                }}
+              >
+                <p
+                  className="mono"
+                  style={{
+                    fontSize: 10,
+                    color: "var(--clay)",
+                    letterSpacing: ".12em",
+                    textTransform: "uppercase",
+                    fontWeight: 600,
+                    margin: 0,
+                  }}
+                >
+                  Tip
+                </p>
+                <p style={{ fontSize: 13, color: "var(--ink-soft)", margin: 0, lineHeight: 1.5 }}>
+                  Don't see the email? Check spam, or wait a minute and try signing up again
+                  with the same address — we'll resend the link.
+                </p>
+              </div>
+
+              <Btn
+                kind="soft"
+                size="lg"
+                onClick={() => setAwaitingConfirm(null)}
+                style={{ justifyContent: "center", width: "100%" }}
+              >
+                Use a different email
+              </Btn>
+
+              <p style={{ fontSize: 13, color: "var(--ink-soft)", textAlign: "center", marginTop: 4 }}>
+                Already confirmed?{" "}
+                <Link
+                  to="/login"
+                  style={{ color: "var(--clay)", fontWeight: 500, textDecoration: "none" }}
+                >
+                  Log in →
+                </Link>
+              </p>
+            </>
+          ) : (
+            <>
           <div>
             <p
               className="mono"
@@ -306,6 +416,8 @@ const Signup = () => {
               Log in →
             </Link>
           </p>
+            </>
+          )}
         </div>
       </main>
 

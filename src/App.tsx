@@ -32,6 +32,7 @@ import RecruiterDashboard from "./pages/app/RecruiterDashboard.tsx";
 import Settings from "./pages/app/Settings.tsx";
 
 import RequireAuth from "./components/RequireAuth.tsx";
+import RequireOnboarded from "./components/RequireOnboarded.tsx";
 
 const queryClient = new QueryClient();
 
@@ -65,12 +66,14 @@ const App = () => (
             }
           />
 
-          {/* App (authed) */}
+          {/* App (authed + onboarded) */}
           <Route
             path="/app"
             element={
               <RequireAuth>
-                <AppLayout />
+                <RequireOnboarded>
+                  <AppLayout />
+                </RequireOnboarded>
               </RequireAuth>
             }
           >
@@ -90,12 +93,14 @@ const App = () => (
             <Route path="settings" element={<Settings />} />
           </Route>
 
-          {/* Green room + live room: full-screen, no sidebar — auth required */}
+          {/* Green room + live room: full-screen, no sidebar — auth + onboarding required */}
           <Route
             path="/app/rooms/:id/green"
             element={
               <RequireAuth>
-                <GreenRoom />
+                <RequireOnboarded>
+                  <GreenRoom />
+                </RequireOnboarded>
               </RequireAuth>
             }
           />
@@ -103,7 +108,9 @@ const App = () => (
             path="/app/rooms/:id/live"
             element={
               <RequireAuth>
-                <LiveRoom />
+                <RequireOnboarded>
+                  <LiveRoom />
+                </RequireOnboarded>
               </RequireAuth>
             }
           />

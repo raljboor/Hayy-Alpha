@@ -248,6 +248,64 @@
     color: var(--clay);
     font-weight: 700;
   }
+
+  /* ============================================================
+     PRINT STYLES
+     ============================================================ */
+  @media print {
+    @page {
+      size: A4 portrait;
+      margin: 1.2cm;
+    }
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    html, body { background: var(--bg) !important; }
+    .wrap { max-width: none; padding: 0; }
+    /* Hero stays together */
+    body > .wrap > header {
+      page-break-inside: avoid;
+      break-inside: avoid;
+      padding-bottom: 32px;
+    }
+    /* Each section on its own page */
+    section {
+      break-before: page;
+      page-break-inside: auto;
+      border-bottom: none !important;
+      padding: 0 !important;
+    }
+    section > header {
+      page-break-after: avoid;
+      break-after: avoid;
+      margin-bottom: 24px;
+    }
+    /* Don't split cards across pages */
+    .asset, .swatch, .rule, .scale-strip .item, .code-col {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .asset .meta a { pointer-events: none; }
+    /* Code blocks: legible on paper */
+    pre {
+      background: #faf7f1 !important;
+      color: #0e0f14 !important;
+      border: 1px solid var(--line);
+      font-size: 11px;
+      padding: 18px 22px;
+    }
+    pre .tag-c, pre .attr { color: #8a3a1f !important; }
+    pre .str { color: #5e4d40 !important; }
+    pre .com { color: #a89685 !important; }
+    /* Dark previews keep their drama */
+    .asset .preview.dark {
+      background: #0e0f14 !important;
+      color: #f7f1e4 !important;
+    }
+    /* Reasonable hero height for portrait */
+    header .showcase { aspect-ratio: 5/4; max-height: 360px; }
+  }
 </style>
 </head>
 <body>
@@ -610,4 +668,11 @@
 </div>
 
 </body>
+<script>
+  // Auto-print once fonts have settled.
+  (async () => {
+    try { await document.fonts.ready; } catch (e) {}
+    setTimeout(() => window.print(), 500);
+  })();
+</script>
 </html>

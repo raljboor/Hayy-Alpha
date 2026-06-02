@@ -346,7 +346,7 @@ const Index = () => {
             <div style={{ display: "flex" }}>
               {(["clay", "olive", "sand", "dark"] as const).map((tone, i) => (
                 <span key={tone} style={{ marginLeft: i === 0 ? 0 : -10 }}>
-                  <Avatar name={["AB", "MN", "RK", "JS"][i]} size={34} tone={tone} />
+                  <Avatar name={["MN", "RK", "PS", "HY"][i]} size={34} tone={tone} />
                 </span>
               ))}
             </div>
@@ -354,10 +354,55 @@ const Index = () => {
               className="mono"
               style={{ fontSize: 12, color: "var(--ink-soft)", lineHeight: 1.4 }}
             >
-              Founding cohort of newcomers,
+              Founding cohort of seekers,
               <br />
-              hosts &amp; operators.
+              hosts &amp; recruiters.
             </div>
+          </div>
+
+          {/* Community stats */}
+          <div
+            style={{
+              display: "flex",
+              gap: 28,
+              marginTop: 40,
+              paddingTop: 28,
+              borderTop: "1px solid var(--line-soft)",
+              flexWrap: "wrap",
+            }}
+          >
+            {[
+              { n: "412", label: "members" },
+              { n: "38", label: "companies" },
+              { n: "61", label: "warm intros" },
+            ].map(({ n, label }) => (
+              <div key={label}>
+                <span
+                  style={{
+                    fontFamily: "var(--display)",
+                    fontSize: 28,
+                    fontWeight: 500,
+                    lineHeight: 1,
+                    display: "block",
+                  }}
+                >
+                  {n}
+                </span>
+                <span
+                  className="mono"
+                  style={{
+                    fontSize: 10,
+                    color: "var(--ink-mute)",
+                    letterSpacing: ".1em",
+                    textTransform: "uppercase",
+                    marginTop: 4,
+                    display: "block",
+                  }}
+                >
+                  {label}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
 

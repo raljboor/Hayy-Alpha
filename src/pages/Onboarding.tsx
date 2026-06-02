@@ -13,7 +13,7 @@
  *   - two-pane main area (form left / contextual preview right) on desktop;
  *     single-column on mobile
  *   - native <input>/<textarea>/<select> styled with redesign tokens
- *   - primitives.tsx Btn / Avatar / LiveTag / I (no Lovable shadcn imports)
+ *   - primitives.tsx Btn / Avatar / LiveTag / I (design-system primitives only)
  *
  * src/lib/api/profiles + hostSettings calls are preserved exactly.
  */

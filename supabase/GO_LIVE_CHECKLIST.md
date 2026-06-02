@@ -151,6 +151,68 @@ Or trigger a manual redeploy in the Vercel dashboard.
 
 ---
 
+## 9a. Configure domain — hayy.ca
+
+**Production domain: `hayy.ca`**
+
+These settings must be updated manually in external dashboards — they cannot be set from code.
+
+### Supabase dashboard — Authentication → URL Configuration
+
+| Setting | Value |
+|---|---|
+| Site URL | `https://hayy.ca` |
+| Additional redirect URLs | `https://hayy.ca/auth/confirm` |
+| Additional redirect URLs | `https://hayy.ca/**` *(optional wildcard for Vercel previews)* |
+
+- [ ] Site URL set to `https://hayy.ca`
+- [ ] Redirect URLs include `https://hayy.ca/auth/confirm`
+
+### Supabase dashboard — API → CORS Allowed Origins
+
+| Origin | Purpose |
+|---|---|
+| `https://hayy.ca` | Production web app |
+| `https://*.vercel.app` | Preview deployments (optional) |
+
+- [ ] `https://hayy.ca` added to allowed origins
+
+### Supabase dashboard — Authentication → Email Templates
+
+All email template action URLs (confirm signup, magic link, change email, reset password) must use `https://hayy.ca/auth/confirm` — not `localhost` or any Supabase default placeholder.
+
+- [ ] Confirm signup URL → `https://hayy.ca/auth/confirm`
+- [ ] Magic link URL → `https://hayy.ca/auth/confirm`
+- [ ] Change email URL → `https://hayy.ca/auth/confirm`
+- [ ] Reset password URL → `https://hayy.ca/auth/confirm`
+
+### Supabase dashboard — Authentication → Providers (OAuth, if enabled)
+
+If Google or Apple OAuth is configured:
+
+| Provider | Redirect URI to add |
+|---|---|
+| Google | `https://hayy.ca/auth/confirm` |
+| Apple | `https://hayy.ca/auth/confirm` |
+
+Also add `https://hayy.ca` to the OAuth app's **Authorized JavaScript origins** in the Google Cloud Console / Apple Developer portal.
+
+- [ ] OAuth redirect URIs updated to `https://hayy.ca/auth/confirm`
+- [ ] OAuth authorized origins include `https://hayy.ca`
+
+### Vercel — Custom Domain
+
+- [ ] `hayy.ca` added as custom domain in Vercel project settings
+- [ ] DNS records (A / CNAME) pointed to Vercel per their dashboard instructions
+- [ ] HTTPS / TLS certificate provisioned (Vercel handles this automatically)
+
+### LiveKit Cloud (if using live audio)
+
+- [ ] `hayy.ca` added to allowed origins in LiveKit Cloud project settings
+- [ ] `VITE_LIVEKIT_URL` in Vercel env vars set to your LiveKit `wss://` endpoint
+
+---
+
 ## 10. Test production
 
 Repeat the smoke tests from Step 6 against the production URL.

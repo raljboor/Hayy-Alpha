@@ -31,9 +31,9 @@ export const LiveRoomCard = () => {
         </div>
 
         <h3 className="font-display text-xl sm:text-2xl font-semibold text-foreground leading-tight mb-1">
-          Breaking Into Corporate Roles in Canada
+          Breaking into Product at Big Tech
         </h3>
-        <p className="text-sm text-muted-foreground mb-5">Hosted by Hayy Community</p>
+        <p className="text-sm text-muted-foreground mb-5">Hosted by Maya Nasrallah · AWS</p>
 
         <div className="grid grid-cols-6 gap-2 mb-5">
           {participants.map((p, i) => (
@@ -51,9 +51,9 @@ export const LiveRoomCard = () => {
         </div>
 
         <div className="flex items-center justify-between text-xs text-muted-foreground mb-5 pb-5 border-b border-border/60">
-          <span><span className="font-semibold text-foreground">8</span> speakers</span>
+          <span><span className="font-semibold text-foreground">4</span> speakers</span>
           <span className="h-1 w-1 rounded-full bg-border" />
-          <span><span className="font-semibold text-foreground">64</span> listening</span>
+          <span><span className="font-semibold text-foreground">42</span> listening</span>
           <span className="h-1 w-1 rounded-full bg-border" />
           <span className="text-clay font-medium">Live now</span>
         </div>

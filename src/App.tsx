@@ -155,6 +155,29 @@ const App = () => (
               <Route path="saved" element={lazyPage(() => import('./pages/app/SavedRooms.tsx'))} />
               <Route path="help" element={lazyPage(() => import('./pages/app/Help.tsx'))} />
 
+              {/* Search states */}
+              <Route path="search/results" element={lazyPage(() => import('./pages/app/SearchResults.tsx'))} />
+              <Route path="search/empty" element={lazyPage(() => import('./pages/app/NoResults.tsx'))} />
+
+              {/* Call */}
+              <Route path="users/:id/call" element={lazyPage(() => import('./pages/app/CallScreen.tsx'))} />
+
+              {/* Live room — speaking view */}
+              <Route path="rooms/:id/speaking" element={lazyPage(() => import('./pages/app/LiveRoomSpeaking.tsx'))} />
+
+              {/* Empty states */}
+              <Route path="inbox/empty" element={lazyPage(() => import('./pages/app/EmptyInbox.tsx'))} />
+              <Route path="schedule/empty" element={lazyPage(() => import('./pages/app/EmptySchedule.tsx'))} />
+
+              {/* System screens */}
+              <Route path="loading" element={lazyPage(() => import('./pages/app/LoadingScreen.tsx'))} />
+              <Route path="offline" element={lazyPage(() => import('./pages/app/Offline.tsx'))} />
+              <Route path="lock" element={lazyPage(() => import('./pages/app/LockScreen.tsx'))} />
+
+              {/* Auth screens (also accessible standalone for design preview) */}
+              <Route path="auth/email" element={lazyPage(() => import('./pages/app/EmailLogin.tsx'))} />
+              <Route path="auth/verify" element={lazyPage(() => import('./pages/app/VerifyCode.tsx'))} />
+
               {/* Legacy dashboards */}
               <Route path="host" element={<HostDashboard />} />
               <Route path="recruiter" element={<RecruiterDashboard />} />

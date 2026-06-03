@@ -36,9 +36,19 @@ const ROUTES: Record<string, string> = {
   referrals:      '/app/referrals',
   referralDetail: '/app/referrals/r1',
   saved:          '/app/saved',
-  speaking:       '/app/rooms/r1/live',
+  speaking:       '/app/rooms/r1/speaking',
   nextRoom:       '/app/rooms/r2/live',
   report:         '/app/profile',
+  call:           '/app/users/u2/call',
+  searchResults:  '/app/search/results',
+  searchEmpty:    '/app/search/empty',
+  emptyInbox:     '/app/inbox/empty',
+  emptySchedule:  '/app/schedule/empty',
+  loading:        '/app/loading',
+  offline:        '/app/offline',
+  lock:           '/app/lock',
+  emailLogin:     '/app/auth/email',
+  verify:         '/app/auth/verify',
 };
 
 export function useNav() {

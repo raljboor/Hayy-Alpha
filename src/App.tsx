@@ -62,6 +62,9 @@ const App = () => (
             {/* Onboarding */}
             <Route path="/onboarding" element={<RequireAuth><Onboarding /></RequireAuth>} />
 
+            {/* Dashboard — authenticated landing */}
+            <Route path="/dashboard" element={<RequireAuth><Index /></RequireAuth>} />
+
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

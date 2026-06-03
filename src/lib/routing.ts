@@ -32,7 +32,7 @@ export interface DecideLandingRouteArgs {
   preferredFrom?: string | null;
 }
 
-const DEFAULT_LANDING = "/dashboard";
+const DEFAULT_LANDING = "/";
 
 export function decideLandingRoute({
   profile,

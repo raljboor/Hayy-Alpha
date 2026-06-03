@@ -1782,8 +1782,8 @@ const Onboarding = () => {
   const urlRole = searchParams.get("role");
   const effectiveRole: RoleType = (urlRole ?? profile?.role_type ?? "job_seeker") as RoleType;
 
-  const onDone = () => navigate("/app/dashboard");
-  const onSkip = () => navigate("/app/dashboard");
+  const onDone = () => navigate("/");
+  const onSkip = () => navigate("/");
   const fullName = profile?.full_name ?? "";
 
   if (!userId) return <OnboardingLoading />;

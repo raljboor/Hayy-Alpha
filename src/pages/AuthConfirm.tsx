@@ -51,7 +51,7 @@ const AuthConfirm = () => {
       // Mock mode short-circuit
       // -----------------------------------------------------------------
       if (!isSupabaseConfigured || !supabase) {
-        const dest = isAuthed() ? "/app/dashboard" : "/login";
+        const dest = isAuthed() ? "/" : "/login";
         console.log(LOG, "mock mode → navigating to", dest);
         navigate(dest, { replace: true });
         return;

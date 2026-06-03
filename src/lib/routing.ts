@@ -7,9 +7,9 @@
  *
  * Rule (fail-closed — safer default is to nudge users through onboarding):
  *   - profile is missing                          → /onboarding?role=job_seeker
- *   - profile.onboarding_completed === true       → /app/dashboard
+ *   - profile.onboarding_completed === true       → /dashboard
  *                                                   (or preferredFrom if it
- *                                                    starts with /app/)
+ *                                                    starts with /dashboard)
  *   - anything else (false, null, undefined)      → /onboarding?role=<role>
  *
  * Why fail-closed: if migration 007 hasn't been applied yet, or the column
@@ -32,7 +32,7 @@ export interface DecideLandingRouteArgs {
   preferredFrom?: string | null;
 }
 
-const DEFAULT_LANDING = "/app/dashboard";
+const DEFAULT_LANDING = "/dashboard";
 
 export function decideLandingRoute({
   profile,
@@ -47,8 +47,8 @@ export function decideLandingRoute({
     return `/onboarding?role=${encodeURIComponent(role)}`;
   }
 
-  // Onboarded — honour the redirect-after-login path if it's under /app/.
-  if (preferredFrom && preferredFrom.startsWith("/app")) {
+  // Onboarded — honour the redirect-after-login path if it starts with /dashboard.
+  if (preferredFrom && preferredFrom.startsWith("/dashboard")) {
     return preferredFrom;
   }
   return DEFAULT_LANDING;

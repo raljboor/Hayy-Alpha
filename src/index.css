@@ -483,3 +483,24 @@
 
 .hy ::-webkit-scrollbar { display: none; }
 .hy { scrollbar-width: none; }
+
+/* --body: alias for --sans so reference JSX using var(--body) resolves */
+.hy { --body: var(--sans); }
+
+/* Skeleton shimmer */
+.hy-skel {
+  background: linear-gradient(90deg, var(--line) 25%, var(--line-soft) 50%, var(--line) 75%);
+  background-size: 200% 100%;
+  animation: hy-skel-shine 1.4s ease infinite;
+  border-radius: 8px;
+}
+@keyframes hy-skel-shine {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Rise-in for floating live comments */
+@keyframes hy-rise-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

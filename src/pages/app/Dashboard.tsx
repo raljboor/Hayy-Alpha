@@ -1,949 +1,120 @@
-/**
- * Dashboard — ported from the redesign DashboardA mock
- * (frontend-new/hayy/project/components/dashboard.jsx → DashboardA).
- *
- * AppLayout owns the desktop sidebar and the mobile top bar / dropdown
- * nav, so the redesign's internal Sidebar / MobileTopbar / MobileTabbar
- * are intentionally NOT included here.
- *
- * Layout:
- *   1. Greeting (real date, real first name)
- *   2. Today's room — hero card pulled from the next live or upcoming
- *      room (getRooms)
- *   3. Two columns:
- *      left  → activity timeline backed by real notifications
- *      right → profile-completion donut + founding-member card
- *
- * No fixture data: every count, name, room, and timeline event is
- * derived from the existing src/lib/api/* layer.
- */
+import { cloneElement } from 'react';
+import { AppScreen, RoundBtn } from '@/components/hayy/AppShell';
+import { I, Avatar, LiveTag, Btn, Card, Meta, Stack } from '@/components/hayy/HayyPrimitives';
+import { useNav } from '@/hooks/useNav';
 
-import { useMemo, type CSSProperties, type ReactNode } from "react";
-import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { Avatar, Btn, I, LiveTag, Pill } from "@/components/ui/primitives";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { getRooms } from "@/lib/api/rooms";
-import { getNotifications } from "@/lib/api/notifications";
-import { getReferralRequests } from "@/lib/api/referrals";
-import {
-  getSuggestedProfiles,
-  type SuggestedProfile,
-} from "@/lib/api/profiles";
-import type { Room } from "@/data/mockData";
+const liveNow = [
+  { t: 'Portfolio teardowns, live', host: 'Layla Park', n: 31, tone: 'olive' },
+  { t: 'Cracking the PM case', host: 'Maya Nasrallah', n: 42, tone: 'clay' },
+  { t: 'Bootcamp → backend', host: 'Omar Aziz', n: 17, tone: 'sand' },
+];
 
-// ---------------------------------------------------------------------------
-// Profile-completion checklist (same logic as the previous Dashboard but
-// surfaced via the redesign's donut card)
-// ---------------------------------------------------------------------------
+const upcoming = [
+  { t: 'Design portfolios that get callbacks', host: 'Layla Park', co: 'Figma', time: '8:30 PM', n: 28, tone: 'olive' },
+  { t: 'New grad → first eng role', host: 'Rashid Khoury', co: 'Amazon', time: 'Tomorrow', n: 61, tone: 'dark' },
+];
 
-interface ChecklistItem {
-  label: string;
-  done: boolean;
-}
+const meet = [
+  { n: 'Jenna Sun', r: 'Talent · Shopify', tone: 'olive' },
+  { n: 'Rashid Khoury', r: 'Eng Mgr · Amazon', tone: 'dark' },
+];
 
-function buildChecklist(profile: {
-  bio?: string | null;
-  headline?: string | null;
-  skills?: string[];
-  linkedin_url?: string | null;
-  resume_url?: string | null;
-  video_intro_url?: string | null;
-} | null): ChecklistItem[] {
-  if (!profile) {
-    return [
-      { label: "Add headline", done: false },
-      { label: "Add bio", done: false },
-      { label: "Add skills", done: false },
-      { label: "Add LinkedIn", done: false },
-      { label: "Add resume", done: false },
-      { label: "Add video intro", done: false },
-    ];
-  }
-  return [
-    { label: "Add headline", done: !!profile.headline },
-    { label: "Add bio", done: !!profile.bio },
-    { label: "Add skills", done: !!(profile.skills && profile.skills.length > 0) },
-    { label: "Add LinkedIn", done: !!profile.linkedin_url },
-    { label: "Add resume", done: !!profile.resume_url },
-    { label: "Add video intro", done: !!profile.video_intro_url },
-  ];
-}
-
-// ---------------------------------------------------------------------------
-// Hero room — pick the most relevant single room to surface
-// ---------------------------------------------------------------------------
-
-function pickHeroRoom(rooms: Room[]): Room | null {
-  if (rooms.length === 0) return null;
-  // Prefer live rooms first, then nearest upcoming, then anything that hasn't ended.
-  const live = rooms.find((r) => r.status === "live");
-  if (live) return live;
-  const upcoming = rooms
-    .filter((r) => r.status === "upcoming")
-    .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
-  return upcoming[0] ?? rooms[0] ?? null;
-}
-
-function formatStartTime(room: Room): string {
-  if (room.status === "live") return "Live now";
-  const start = new Date(room.startsAt);
-  const now = Date.now();
-  const diffMin = Math.round((start.getTime() - now) / 60_000);
-  if (diffMin < 0) return "Starting soon";
-  if (diffMin < 60) return `Starting in ${diffMin} min`;
-  if (diffMin < 24 * 60) return `Starting in ${Math.round(diffMin / 60)}h`;
-  return start.toLocaleString(undefined, {
-    weekday: "short",
-    hour: "numeric",
-    minute: "numeric",
-  });
-}
-
-function formatToday(): string {
-  const d = new Date();
-  return d.toLocaleDateString(undefined, {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Timeline dot colour by notification type
-// ---------------------------------------------------------------------------
-
-function dotForType(type: string): string {
-  const t = type.toLowerCase();
-  if (t.includes("accept") || t.includes("referral")) return "var(--clay)";
-  if (t.includes("room") || t.includes("speak")) return "var(--olive)";
-  if (t.includes("message") || t.includes("reply")) return "var(--ink)";
-  return "var(--clay-2)";
-}
-
-// ---------------------------------------------------------------------------
-// Donut SVG — exact port of the redesign's DonutPct
-// ---------------------------------------------------------------------------
-
-const DonutPct = ({ pct = 60, size = 72 }: { pct?: number; size?: number }) => {
-  const stroke = 8;
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
+export default function Dashboard() {
+  const nav = useNav();
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flex: "none" }}>
-      <circle cx={size / 2} cy={size / 2} r={r} stroke="var(--line)" strokeWidth={stroke} fill="none" />
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={r}
-        stroke="var(--clay)"
-        strokeWidth={stroke}
-        fill="none"
-        strokeDasharray={c}
-        strokeDashoffset={c * (1 - pct / 100)}
-        strokeLinecap="round"
-        transform={`rotate(-90 ${size / 2} ${size / 2})`}
-      />
-      <text
-        x="50%"
-        y="54%"
-        textAnchor="middle"
-        fontFamily="var(--display)"
-        fontSize="16"
-        fill="var(--ink)"
-      >
-        {pct}
-      </text>
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Shared style tokens
-// ---------------------------------------------------------------------------
-
-const sectionLabelStyle: CSSProperties = {
-  fontFamily: "var(--mono)",
-  fontSize: 11,
-  letterSpacing: ".12em",
-  color: "var(--clay)",
-  textTransform: "uppercase",
-  fontWeight: 600,
-  margin: 0,
-};
-
-const cardStyle: CSSProperties = {
-  background: "var(--paper)",
-  border: "1px solid var(--line-soft)",
-  borderRadius: "var(--radius-xl)",
-  boxShadow: "var(--shadow-soft)",
-};
-
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
-
-const Dashboard = () => {
-  const { userId, profile } = useCurrentUser();
-  const fullName = profile?.full_name ?? "";
-  const firstName = fullName.trim().split(/\s+/)[0] || "there";
-
-  const roomsQ = useQuery({
-    queryKey: ["dashboard-rooms"],
-    queryFn: getRooms,
-    staleTime: 60_000,
-  });
-  const notificationsQ = useQuery({
-    queryKey: ["dashboard-notifications", userId],
-    queryFn: () => getNotifications(userId ?? undefined),
-    staleTime: 30_000,
-  });
-  const referralsQ = useQuery({
-    queryKey: ["dashboard-referrals", userId],
-    queryFn: () => getReferralRequests(userId ?? undefined),
-    staleTime: 30_000,
-  });
-
-  // "People to meet" — hosts/recruiters whose tokens overlap with the
-  // current user's target_roles + skills. Falls back to any hosts/recruiters
-  // when the user has no overlap yet (fresh accounts).
-  const interests = useMemo(
-    () => [...(profile?.target_roles ?? []), ...(profile?.skills ?? [])],
-    [profile?.target_roles, profile?.skills],
-  );
-  const suggestionsQ = useQuery({
-    queryKey: ["dashboard-suggestions", userId, interests],
-    queryFn: () =>
-      getSuggestedProfiles({ interests, selfId: userId, limit: 6 }),
-    staleTime: 60_000,
-  });
-
-  const rooms = roomsQ.data ?? [];
-  const notifications = notificationsQ.data ?? [];
-  const referrals = referralsQ.data ?? [];
-  const suggestions = suggestionsQ.data ?? [];
-
-  const heroRoom = useMemo(() => pickHeroRoom(rooms), [rooms]);
-  const checklist = useMemo(() => buildChecklist(profile ?? null), [profile]);
-  const completedCount = checklist.filter((c) => c.done).length;
-  const pct = Math.round((completedCount / checklist.length) * 100);
-
-  // Live activity timeline: the last 4 notifications, sorted by recency
-  // (the API already returns them newest-first in mock mode).
-  const timelineEvents = notifications.slice(0, 4);
-
-  // Pending follow-ups for the secondary headline "X are waiting on you"
-  const pendingCount = referrals.filter((r) => r.status === "pending").length;
-
-  const greetingSubtitle =
-    pendingCount > 0
-      ? `${pendingCount} ${pendingCount === 1 ? "person is" : "people are"} waiting on you today.`
-      : heroRoom
-        ? "One room is calling your name today."
-        : "Calm inbox. Quiet day. Make it count.";
-
-  return (
-    <div
-      className="hy"
-      style={{
-        background: "var(--bg)",
-        color: "var(--ink)",
-        // AppLayout already constrains width; let the redesign breathe inside it.
-        margin: "-24px -16px",
-        padding: "32px 16px",
-      }}
-    >
-      <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-        {/* Greeting */}
+    <AppScreen tab="home">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
-          <p style={sectionLabelStyle}>{formatToday()}</p>
-          <h1 style={{ fontSize: "clamp(28px, 4vw, 44px)", marginTop: 6, lineHeight: 1.05 }}>
-            Good day, <span className="display-italic">{firstName}.</span>
+          <Meta>TUESDAY · MAY 31</Meta>
+          <h1 style={{ fontSize: 30, lineHeight: 1.05, marginTop: 6 }}>
+            Evening, <span className="display-italic">Adam.</span>
           </h1>
-          <p style={{ marginTop: 8, color: "var(--ink-soft)", fontSize: 16, margin: "8px 0 0" }}>
-            {greetingSubtitle}
-          </p>
         </div>
+        <RoundBtn icon={cloneElement(I.search as React.ReactElement, { size: 18 })} onClick={() => nav.go('search')} />
+      </div>
 
-        {/* Hero room */}
-        <HeroRoomCard room={heroRoom} loading={roomsQ.isLoading} />
-
-        {/* Two-column grid */}
-        <div
-          className="dashboard-grid"
-          style={{
-            display: "grid",
-            gap: 24,
-            gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr)",
-            alignItems: "start",
-          }}
-        >
-          {/* Activity timeline */}
-          <div
-            style={{
-              ...cardStyle,
-              padding: 24,
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              <h3 style={{ fontSize: 20, fontFamily: "var(--display)", fontWeight: 500, margin: 0 }}>
-                Your warm activity
-              </h3>
-              <span
-                className="mono"
-                style={{ fontSize: 11, color: "var(--ink-mute)", letterSpacing: ".08em" }}
-              >
-                LAST UPDATES
-              </span>
+      {/* live now strip */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <span className="hy-livedot" />
+          <h3 style={{ fontSize: 14, fontWeight: 700 }}>Live now</h3>
+        </span>
+        <span onClick={() => nav.go('liveRoom')} style={{ fontSize: 13, color: 'var(--clay)', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+          {cloneElement(I.shuffle as React.ReactElement, { size: 14 })} Shuffle
+        </span>
+      </div>
+      <div style={{ display: 'flex', gap: 12, overflowX: 'auto', margin: '0 -22px 26px', padding: '0 22px 4px' }}>
+        {liveNow.map((r, i) => (
+          <Card key={i} onClick={() => nav.go('liveRoom')} pad={14} style={{ flex: 'none', width: 198, cursor: 'pointer' }}>
+            <LiveTag>Live</LiveTag>
+            <p style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.25, margin: '12px 0 14px', minHeight: 38 }}>{r.t}</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Avatar name={r.host} size={26} tone={r.tone} />
+              <Meta>{r.n} listening</Meta>
             </div>
+          </Card>
+        ))}
+      </div>
 
-            {notificationsQ.isLoading ? (
-              <TimelineSkeleton />
-            ) : timelineEvents.length === 0 ? (
-              <EmptyTimeline />
-            ) : (
-              <div style={{ marginTop: 16, position: "relative", paddingLeft: 22 }}>
-                <span
-                  style={{
-                    position: "absolute",
-                    top: 6,
-                    bottom: 6,
-                    left: 6,
-                    width: 1,
-                    background: "var(--line)",
-                  }}
-                />
-                {timelineEvents.map((n) => {
-                  const dot = dotForType(n.type);
-                  return (
-                    <div key={n.id} style={{ position: "relative", paddingBottom: 16 }}>
-                      <span
-                        style={{
-                          position: "absolute",
-                          left: -22,
-                          top: 4,
-                          width: 13,
-                          height: 13,
-                          borderRadius: 999,
-                          background: dot,
-                          border: "2px solid var(--paper)",
-                          boxShadow: `0 0 0 1px ${dot}`,
-                        }}
-                      />
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                        <p style={{ fontSize: 14, fontWeight: 500, margin: 0 }}>{n.title}</p>
-                        <span
-                          className="mono"
-                          style={{
-                            fontSize: 10,
-                            color: "var(--ink-mute)",
-                            flex: "none",
-                            letterSpacing: ".05em",
-                          }}
-                        >
-                          {n.time}
-                        </span>
-                      </div>
-                      {n.body && (
-                        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 2 }}>{n.body}</p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            <Link
-              to="/app/notifications"
-              style={{
-                marginTop: 8,
-                fontSize: 13,
-                color: "var(--clay)",
-                textDecoration: "none",
-                fontWeight: 500,
-              }}
-            >
-              See everything →
-            </Link>
+      {/* up next — reserved room */}
+      <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>Up next for you</h3>
+      <Card pad={0} onClick={() => nav.go('roomDetail')} style={{ overflow: 'hidden', marginBottom: 26, cursor: 'pointer' }}>
+        <div style={{ padding: '18px 18px 16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+            <span className="hy-pill" style={{ textTransform: 'none', letterSpacing: 0, fontSize: 11, fontWeight: 600, background: 'color-mix(in oklab, var(--clay) 12%, var(--paper))', color: 'var(--clay)', borderColor: 'color-mix(in oklab, var(--clay) 24%, var(--line))' }}>Reserved</span>
+            <Meta>TODAY · 7:00 PM · ROOM 04</Meta>
           </div>
-
-          {/* Side panel */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            {/* Profile completion donut */}
-            <div style={{ ...cardStyle, padding: 22, background: "var(--cream)" }}>
-              <div style={{ display: "flex", gap: 18, alignItems: "center" }}>
-                <DonutPct pct={pct} />
-                <div>
-                  <p style={{ ...sectionLabelStyle, fontSize: 10 }}>Profile</p>
-                  <p
-                    style={{
-                      fontFamily: "var(--display)",
-                      fontSize: 24,
-                      marginTop: 2,
-                      lineHeight: 1,
-                    }}
-                  >
-                    {pct}% warm
-                  </p>
-                  <p style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 6 }}>
-                    {completedCount === checklist.length
-                      ? "Your profile is complete — hosts say yes faster."
-                      : `${checklist.length - completedCount} thing${
-                          checklist.length - completedCount === 1 ? "" : "s"
-                        } left. Each one helps hosts say yes.`}
-                  </p>
-                </div>
-              </div>
-
-              {/* Mini checklist preview */}
-              <ul
-                style={{
-                  marginTop: 14,
-                  listStyle: "none",
-                  padding: 0,
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 6,
-                }}
-              >
-                {checklist.slice(0, 4).map((c) => (
-                  <li
-                    key={c.label}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      fontSize: 13,
-                      color: c.done ? "var(--ink-mute)" : "var(--ink)",
-                      textDecoration: c.done ? "line-through" : "none",
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: 16,
-                        height: 16,
-                        borderRadius: 999,
-                        background: c.done ? "var(--clay)" : "transparent",
-                        border: `1.5px solid ${c.done ? "var(--clay)" : "var(--line)"}`,
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: "var(--paper)",
-                        flex: "none",
-                      }}
-                    >
-                      {c.done && I.check}
-                    </span>
-                    {c.label}
-                  </li>
-                ))}
-              </ul>
-
-              <Link
-                to="/app/profile"
-                style={{ display: "block", textDecoration: "none", marginTop: 14 }}
-              >
-                <Btn
-                  kind="soft"
-                  size="md"
-                  style={{ width: "100%", justifyContent: "center" }}
-                >
-                  Complete your profile
-                </Btn>
-              </Link>
-            </div>
-
-            {/* Founding-member card */}
-            <div
-              style={{
-                ...cardStyle,
-                padding: 22,
-                background: "var(--clay)",
-                color: "var(--paper)",
-                borderColor: "transparent",
-              }}
-            >
-              <p
-                className="mono"
-                style={{
-                  fontSize: 10,
-                  letterSpacing: ".1em",
-                  textTransform: "uppercase",
-                  opacity: 0.85,
-                  margin: 0,
-                }}
-              >
-                Founding member
-              </p>
-              <p
-                style={{
-                  fontFamily: "var(--display)",
-                  fontSize: 20,
-                  marginTop: 6,
-                  lineHeight: 1.2,
-                }}
-              >
-                You're shaping what Hayy becomes next.
-              </p>
-              <Link
-                to="/app/settings"
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  marginTop: 14,
-                  fontSize: 13,
-                  color: "var(--paper)",
-                  textDecoration: "none",
-                  fontWeight: 500,
-                  opacity: 0.95,
-                }}
-              >
-                Share feedback {I.arrow}
-              </Link>
+          <h2 style={{ fontSize: 23, lineHeight: 1.12, marginBottom: 16 }}>Breaking into Product at Big&nbsp;Tech</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+            <Avatar name="Maya Nasrallah" size={38} tone="clay" />
+            <div>
+              <p style={{ fontSize: 14, fontWeight: 600 }}>Maya Nasrallah</p>
+              <p style={{ fontSize: 12, color: 'var(--ink-mute)' }}>Sr PM · AWS · hosting</p>
             </div>
           </div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Stack names={['A B', 'C D', 'E F', 'G H']} n={42} />
+              <Meta>42 going</Meta>
+            </div>
+            <Btn kind="primary" iconRight={I.arrow} onClick={(e) => { e.stopPropagation(); nav.go('greenRoom'); }}>View</Btn>
+          </div>
         </div>
+      </Card>
 
-        {/* People to meet */}
-        <SuggestedPeopleSection
-          suggestions={suggestions}
-          loading={suggestionsQ.isLoading}
-          hasInterests={interests.length > 0}
-        />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <h3 style={{ fontSize: 14, color: 'var(--ink-soft)', fontWeight: 600 }}>Later this week</h3>
+        <span onClick={() => nav.go('rooms')} style={{ fontSize: 13, color: 'var(--clay)', fontWeight: 600, cursor: 'pointer' }}>See all</span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 26 }}>
+        {upcoming.map((r, i) => (
+          <Card key={i} onClick={() => nav.go('roomDetail')} style={{ display: 'flex', gap: 14, alignItems: 'center', cursor: 'pointer' }}>
+            <Avatar name={r.host} size={44} tone={r.tone} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.2, marginBottom: 4 }}>{r.t}</p>
+              <Meta>{r.host} · {r.co}</Meta>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--clay)' }}>{r.time}</p>
+              <Meta>{r.n} going</Meta>
+            </div>
+          </Card>
+        ))}
       </div>
 
-      <style>{`
-        @media (max-width: 880px) {
-          .dashboard-grid { grid-template-columns: 1fr !important; }
-        }
-        @media (max-width: 720px) {
-          .suggested-grid { grid-template-columns: 1fr !important; }
-        }
-      `}</style>
-    </div>
+      <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>People to meet</h3>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingBottom: 16 }}>
+        {meet.map((p, i) => (
+          <div key={i} onClick={() => nav.go('publicProfile')} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 4px', cursor: 'pointer', borderBottom: i < meet.length - 1 ? '1px solid var(--line-soft)' : 'none' }}>
+            <Avatar name={p.n} size={44} tone={p.tone} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 15, fontWeight: 600 }}>{p.n}</p>
+              <Meta>{p.r}</Meta>
+            </div>
+            <Btn kind="soft" size="md" onClick={(e) => e.stopPropagation()}>Follow</Btn>
+          </div>
+        ))}
+      </div>
+    </AppScreen>
   );
-};
-
-// ---------------------------------------------------------------------------
-// Suggested people section
-// ---------------------------------------------------------------------------
-
-const SuggestedPeopleSection = ({
-  suggestions,
-  loading,
-  hasInterests,
-}: {
-  suggestions: SuggestedProfile[];
-  loading: boolean;
-  hasInterests: boolean;
-}) => {
-  // Section is hidden entirely when the API returns nothing AND we're not
-  // loading — happens only when there are zero hosts/recruiters in the DB.
-  if (!loading && suggestions.length === 0) return null;
-
-  const tones: ("clay" | "olive" | "sand" | "dark")[] = [
-    "clay",
-    "olive",
-    "sand",
-    "dark",
-  ];
-  const anyMatched = suggestions.some((s) => s.match_score > 0);
-
-  return (
-    <section style={{ marginTop: 24 }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "baseline",
-          marginBottom: 16,
-        }}
-      >
-        <div>
-          <p style={sectionLabelStyle}>People to meet</p>
-          <h3
-            style={{
-              fontSize: 24,
-              marginTop: 6,
-              fontFamily: "var(--display)",
-              fontWeight: 500,
-              lineHeight: 1.15,
-            }}
-          >
-            {anyMatched ? (
-              <>
-                Hosts &amp; recruiters who match{" "}
-                <span className="display-italic">your shape</span>.
-              </>
-            ) : hasInterests ? (
-              <>
-                Some hosts <span className="display-italic">to start with</span>.
-              </>
-            ) : (
-              <>
-                Build your <span className="display-italic">target roles</span> for
-                better matches.
-              </>
-            )}
-          </h3>
-        </div>
-        <Link
-          to="/app/referrals"
-          style={{
-            fontSize: 13,
-            color: "var(--clay)",
-            textDecoration: "none",
-            fontWeight: 500,
-            whiteSpace: "nowrap",
-          }}
-        >
-          See all →
-        </Link>
-      </div>
-
-      {loading ? (
-        <div
-          style={{
-            display: "grid",
-            gap: 12,
-            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-          }}
-          className="suggested-grid"
-        >
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div
-              key={i}
-              style={{
-                height: 180,
-                borderRadius: "var(--radius-xl)",
-                background: "var(--line-soft)",
-                opacity: 0.6,
-              }}
-            />
-          ))}
-        </div>
-      ) : (
-        <div
-          style={{
-            display: "grid",
-            gap: 12,
-            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-          }}
-          className="suggested-grid"
-        >
-          {suggestions.map((p, i) => (
-            <SuggestedProfileCard
-              key={p.id}
-              profile={p}
-              tone={tones[i % tones.length]}
-            />
-          ))}
-        </div>
-      )}
-    </section>
-  );
-};
-
-const SuggestedProfileCard = ({
-  profile,
-  tone,
-}: {
-  profile: SuggestedProfile;
-  tone: "clay" | "olive" | "sand" | "dark";
-}) => {
-  const subtitle =
-    profile.headline ||
-    [profile.role_type === "recruiter" ? "Recruiter" : "Host", profile.company_name]
-      .filter(Boolean)
-      .join(" · ");
-
-  // Prefer the shared tokens (the actual overlap) over generic skills, so the
-  // card surfaces *why* this person matched. Fall back to skills.
-  const chips =
-    profile.shared_tokens.length > 0
-      ? profile.shared_tokens.slice(0, 2)
-      : profile.skills.slice(0, 2);
-
-  return (
-    <article
-      style={{
-        background: "var(--paper)",
-        border: "1px solid var(--line-soft)",
-        borderRadius: "var(--radius-xl)",
-        padding: 18,
-        boxShadow: "var(--shadow-soft)",
-        display: "flex",
-        flexDirection: "column",
-        gap: 12,
-        minHeight: 180,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        {profile.avatar_url ? (
-          <img
-            src={profile.avatar_url}
-            alt={profile.full_name}
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: "50%",
-              objectFit: "cover",
-            }}
-          />
-        ) : (
-          <Avatar name={profile.full_name || "Hayy member"} size={44} tone={tone} />
-        )}
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <p
-            style={{
-              fontSize: 14,
-              fontWeight: 600,
-              margin: 0,
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}
-          >
-            {profile.full_name || "Hayy member"}
-          </p>
-          <p
-            style={{
-              fontSize: 11,
-              color: "var(--ink-mute)",
-              margin: 0,
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}
-          >
-            {subtitle || "—"}
-          </p>
-        </div>
-      </div>
-
-      {chips.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-          {chips.map((c) => (
-            <Pill key={c}>{c}</Pill>
-          ))}
-        </div>
-      )}
-
-      <Link
-        to={`/app/referrals?host=${encodeURIComponent(profile.id)}`}
-        style={{ marginTop: "auto", textDecoration: "none" }}
-      >
-        <Btn
-          kind="primary"
-          size="md"
-          icon={I.shake}
-          style={{ width: "100%", justifyContent: "center" }}
-        >
-          Request intro
-        </Btn>
-      </Link>
-    </article>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Hero room card
-// ---------------------------------------------------------------------------
-
-const HeroRoomCard = ({ room, loading }: { room: Room | null; loading: boolean }) => {
-  if (loading) {
-    return (
-      <div
-        style={{
-          ...cardStyle,
-          padding: 26,
-          minHeight: 220,
-          background: "linear-gradient(135deg, var(--paper), var(--cream))",
-        }}
-      >
-        <p
-          className="mono"
-          style={{ fontSize: 11, color: "var(--ink-mute)", letterSpacing: ".08em" }}
-        >
-          LOADING TODAY'S ROOM…
-        </p>
-      </div>
-    );
-  }
-
-  if (!room) {
-    return (
-      <div
-        style={{
-          ...cardStyle,
-          padding: 26,
-          background: "linear-gradient(135deg, var(--paper), var(--cream))",
-        }}
-      >
-        <p style={{ ...sectionLabelStyle, fontSize: 10 }}>Quiet today</p>
-        <h2
-          style={{
-            fontSize: 28,
-            marginTop: 12,
-            lineHeight: 1.1,
-            fontFamily: "var(--display)",
-            fontWeight: 500,
-          }}
-        >
-          No live or upcoming rooms <span className="display-italic">yet</span>.
-        </h2>
-        <p style={{ marginTop: 10, color: "var(--ink-soft)", fontSize: 14 }}>
-          Browse the rooms feed to RSVP — we'll surface the next one here.
-        </p>
-        <Link to="/app/rooms" style={{ display: "inline-block", marginTop: 18, textDecoration: "none" }}>
-          <Btn kind="primary" iconRight={I.arrow}>
-            Browse rooms
-          </Btn>
-        </Link>
-      </div>
-    );
-  }
-
-  const startsLabel = formatStartTime(room);
-
-  return (
-    <div
-      className="dashboard-hero"
-      style={{
-        ...cardStyle,
-        padding: 26,
-        display: "grid",
-        gridTemplateColumns: "minmax(0, 1fr) 240px",
-        gap: 24,
-        alignItems: "center",
-        background: "linear-gradient(135deg, var(--paper), var(--cream))",
-      }}
-    >
-      <div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          {room.status === "live" ? (
-            <LiveTag>{startsLabel}</LiveTag>
-          ) : (
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "4px 10px",
-                borderRadius: "var(--radius-pill)",
-                background: "var(--paper)",
-                border: "1px solid var(--line)",
-                fontSize: 11,
-                fontFamily: "var(--mono)",
-                color: "var(--ink-soft)",
-                letterSpacing: ".06em",
-                textTransform: "uppercase",
-              }}
-            >
-              {startsLabel}
-            </span>
-          )}
-          <span
-            className="mono"
-            style={{ fontSize: 11, color: "var(--ink-mute)", letterSpacing: ".08em" }}
-          >
-            {room.company.toUpperCase()}
-          </span>
-        </div>
-        <h2
-          style={{
-            fontSize: "clamp(22px, 3vw, 32px)",
-            marginTop: 12,
-            lineHeight: 1.05,
-            fontFamily: "var(--display)",
-            fontWeight: 500,
-          }}
-        >
-          {room.title}
-        </h2>
-        <p style={{ marginTop: 10, color: "var(--ink-soft)", fontSize: 14 }}>
-          {room.attendees > 0 && `${room.attendees} attending · `}
-          {room.speakers} speaker{room.speakers === 1 ? "" : "s"} · {room.durationMin} min
-        </p>
-        <div style={{ display: "flex", gap: 10, marginTop: 18, flexWrap: "wrap" }}>
-          <Link to={`/app/rooms/${room.id}`} style={{ textDecoration: "none" }}>
-            <Btn kind="primary" iconRight={I.arrow}>
-              {room.status === "live" ? "Join the room" : "View details"}
-            </Btn>
-          </Link>
-          {room.status === "upcoming" && (
-            <Link to={`/app/rooms/${room.id}`} style={{ textDecoration: "none" }}>
-              <Btn kind="ghost">Remind me</Btn>
-            </Link>
-          )}
-        </div>
-      </div>
-
-      {/* Tag chip column — uses the room's own tags so it's not fixture data */}
-      <HeroTagsColumn tags={room.tags} />
-
-      <style>{`
-        @media (max-width: 720px) {
-          .dashboard-hero { grid-template-columns: 1fr !important; }
-        }
-      `}</style>
-    </div>
-  );
-};
-
-const HeroTagsColumn = ({ tags }: { tags: string[] }) => {
-  if (!tags.length) return <span />;
-  const tones = ["clay", "olive", "sand"] as const;
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {tags.slice(0, 3).map((t, i) => (
-        <div
-          key={t}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            padding: "10px 12px",
-            borderRadius: 14,
-            background: "var(--paper)",
-            border: "1px solid var(--line-soft)",
-          }}
-        >
-          <Avatar name={t} size={28} tone={tones[i % tones.length]} />
-          <span style={{ fontSize: 12, fontWeight: 500 }}>{t}</span>
-        </div>
-      ))}
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Empty / loading bits
-// ---------------------------------------------------------------------------
-
-const TimelineSkeleton = (): ReactNode => (
-  <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-    {Array.from({ length: 3 }).map((_, i) => (
-      <div
-        key={i}
-        style={{
-          height: 36,
-          borderRadius: 8,
-          background: "var(--line-soft)",
-          opacity: 0.6,
-        }}
-      />
-    ))}
-  </div>
-);
-
-const EmptyTimeline = (): ReactNode => (
-  <p style={{ marginTop: 16, fontSize: 14, color: "var(--ink-soft)" }}>
-    No activity yet. Join your first room to start filling this timeline.
-  </p>
-);
-
-export default Dashboard;
+}

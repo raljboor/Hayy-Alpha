@@ -1,440 +1,180 @@
-/**
- * Messages — ported from the redesign Messages mock
- * (frontend-new/hayy/project/components/extra-screens.jsx → Messages).
- *
- * Two-pane layout: conversation list (320px sidebar) + open thread (right).
- * On mobile, only the open thread is shown; tapping a list item navigates
- * to the thread page (existing pattern).
- *
- * Real data via getReferralThreads + sendReferralMessage. The currently
- * selected thread renders its full message history; reply via the composer
- * uses the same Supabase mutation as ReferralThread.
- */
+import { cloneElement } from 'react';
+import { AppScreen, ScreenHead, TabBar } from '@/components/hayy/AppShell';
+import { I, Avatar, HayyMark } from '@/components/hayy/HayyPrimitives';
+import { useNav } from '@/hooks/useNav';
 
-import { useMemo, useState, type CSSProperties } from "react";
-import { Link } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { Avatar, Btn, I } from "@/components/ui/primitives";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { getReferralThreads } from "@/lib/api/referrals";
-import { sendReferralMessage } from "@/lib/api/messages";
+const THREADS = [
+  { n: 'Maya Nasrallah', co: 'AWS', msg: "Loved your question tonight — let's talk referral.", t: '2m', unread: 2, tone: 'clay', on: true },
+  { n: 'Layla Park', co: 'Figma', msg: 'Sending your portfolio to our recruiter 🤝', t: '1h', unread: 0, tone: 'olive' },
+  { n: 'Hayy', co: 'Team', msg: 'Your seat for Room 04 is confirmed.', t: '3h', unread: 0, tone: 'dark', system: true },
+  { n: 'Omar Aziz', co: 'RBC', msg: 'Happy to do a warm intro to the hiring mgr.', t: 'Yesterday', unread: 0, tone: 'sand' },
+  { n: 'Priya Shah', co: 'Stripe', msg: 'You: Thank you — that means a lot.', t: 'Mon', unread: 0, tone: 'clay' },
+] as const;
 
-const sectionLabelStyle: CSSProperties = {
-  fontFamily: "var(--mono)",
-  fontSize: 11,
-  letterSpacing: ".12em",
-  color: "var(--clay)",
-  textTransform: "uppercase",
-  fontWeight: 600,
-  margin: 0,
-};
-
-const Messages = () => {
-  const { userId } = useCurrentUser();
-  const queryClient = useQueryClient();
-  const [selectedId, setSelectedId] = useState<string>("");
-  const [query, setQuery] = useState("");
-  const [reply, setReply] = useState("");
-  const [sending, setSending] = useState(false);
-
-  const { data: threads = [], isLoading, error } = useQuery({
-    queryKey: ["messages-threads", userId],
-    queryFn: () => getReferralThreads(userId ?? undefined),
-    staleTime: 30_000,
-  });
-
-  const filtered = useMemo(
-    () =>
-      threads.filter(
-        (t) =>
-          t.person.name.toLowerCase().includes(query.toLowerCase()) ||
-          t.lastPreview.toLowerCase().includes(query.toLowerCase()),
-      ),
-    [threads, query],
-  );
-
-  const selected = threads.find((t) => t.id === selectedId) ?? threads[0] ?? null;
-  const tones: ("clay" | "olive" | "sand" | "dark")[] = ["clay", "olive", "sand", "dark"];
-
-  const handleSend = async () => {
-    if (!reply.trim() || !selected || !userId) return;
-    setSending(true);
-    try {
-      await sendReferralMessage(selected.id, userId, reply.trim());
-      setReply("");
-      queryClient.invalidateQueries({ queryKey: ["messages-threads"] });
-      queryClient.invalidateQueries({
-        queryKey: ["referral-messages", selected.id],
-      });
-      toast.success("Reply sent");
-    } catch {
-      toast.error("Couldn't send reply");
-    } finally {
-      setSending(false);
-    }
-  };
+export default function Messages() {
+  const nav = useNav();
 
   return (
-    <div
-      className="hy"
-      style={{
-        background: "var(--bg)",
-        color: "var(--ink)",
-        margin: "-24px -16px",
-        padding: 0,
-        minHeight: "calc(100vh - 64px)",
-        display: "flex",
-        overflow: "hidden",
-      }}
-    >
-      {/* Conversation list */}
-      <aside
-        className="messages-list"
-        style={{
-          width: 320,
-          borderRight: "1px solid var(--line)",
-          background: "var(--paper)",
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-        }}
-      >
-        <div style={{ padding: "20px 18px 14px", borderBottom: "1px solid var(--line-soft)" }}>
-          <p style={sectionLabelStyle}>Conversations</p>
-          <div
+    <AppScreen tab="inbox">
+      <ScreenHead eyebrow="WARM INTROS" title="Inbox" />
+
+      {/* Referrals banner */}
+      <div style={{ padding: '0 20px 16px' }}>
+        <button
+          onClick={() => nav.go('referrals')}
+          style={{
+            width: '100%',
+            background: 'var(--clay)',
+            border: 'none',
+            borderRadius: 14,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '14px 16px',
+            textAlign: 'left',
+          }}
+        >
+          <span style={{ color: 'var(--paper)', display: 'flex', alignItems: 'center' }}>
+            {cloneElement(I.shake as React.ReactElement, { size: 22 })}
+          </span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: 'var(--sans)', fontWeight: 700, fontSize: 14, color: 'var(--paper)' }}>
+              2 referrals in motion
+            </div>
+            <div style={{ fontFamily: 'var(--sans)', fontSize: 12, color: 'var(--paper)', opacity: 0.75 }}>
+              Track your warm intros
+            </div>
+          </div>
+          <span style={{ color: 'var(--paper)', opacity: 0.8, display: 'flex', alignItems: 'center' }}>
+            {cloneElement(I.arrow as React.ReactElement, { size: 16 })}
+          </span>
+        </button>
+      </div>
+
+      {/* Thread list */}
+      <div style={{ display: 'flex', flexDirection: 'column', padding: '0 20px 100px' }}>
+        {THREADS.map((thread, idx) => (
+          <button
+            key={idx}
+            onClick={() => nav.go('thread')}
             style={{
-              marginTop: 10,
-              padding: "10px 12px",
-              borderRadius: 12,
-              background: "var(--cream)",
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
+              width: '100%',
+              background: 'transparent',
+              border: 'none',
+              borderBottom: idx < THREADS.length - 1 ? '1px solid var(--line-soft)' : 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              padding: '14px 0',
+              textAlign: 'left',
             }}
           >
-            <span style={{ color: "var(--ink-mute)" }}>{I.search}</span>
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search messages"
-              style={{
-                flex: 1,
-                background: "transparent",
-                border: "none",
-                outline: "none",
-                fontSize: 13,
-                color: "var(--ink)",
-                fontFamily: "var(--sans)",
-              }}
-            />
-          </div>
-        </div>
-
-        <div style={{ flex: 1, overflow: "auto" }}>
-          {isLoading && (
-            <p style={{ padding: 24, fontSize: 13, color: "var(--ink-mute)" }}>Loading…</p>
-          )}
-          {!isLoading && filtered.length === 0 && (
-            <p style={{ padding: 24, fontSize: 13, color: "var(--ink-mute)" }}>
-              {query ? "No matches." : "No conversations yet."}
-            </p>
-          )}
-          {filtered.map((c, i) => {
-            const active = (selected?.id ?? "") === c.id;
-            return (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setSelectedId(c.id)}
-                style={{
-                  width: "100%",
-                  textAlign: "left",
-                  padding: "14px 18px",
-                  display: "flex",
-                  gap: 12,
-                  alignItems: "center",
-                  background: active ? "var(--cream)" : "transparent",
-                  borderLeft: active ? "2px solid var(--clay)" : "2px solid transparent",
-                  border: "none",
-                  borderBottom: "1px solid var(--line-soft)",
-                  cursor: "pointer",
-                  fontFamily: "var(--sans)",
-                  color: "var(--ink)",
-                }}
-              >
-                <Avatar name={c.person.name} size={40} tone={tones[i % tones.length]} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "baseline",
-                      gap: 6,
-                    }}
-                  >
-                    <p style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>
-                      {c.person.name}
-                    </p>
-                    <span
-                      className="mono"
-                      style={{ fontSize: 10, color: "var(--ink-mute)", flex: "none" }}
-                    >
-                      {c.lastUpdated}
-                    </span>
-                  </div>
-                  <p
-                    style={{
-                      fontSize: 11,
-                      color: "var(--ink-mute)",
-                      marginTop: 1,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {c.roleCompany}
-                  </p>
-                  <p
-                    style={{
-                      fontSize: 12,
-                      color: c.unread ? "var(--ink)" : "var(--ink-soft)",
-                      fontWeight: c.unread ? 500 : 400,
-                      marginTop: 4,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {c.lastPreview}
-                  </p>
+            {/* Avatar or system icon */}
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              {(thread as any).system ? (
+                <div
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 12,
+                    background: 'var(--ink)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <HayyMark size={0.4} />
                 </div>
-              </button>
-            );
-          })}
-        </div>
-      </aside>
-
-      {/* Open thread */}
-      <main
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          background: "var(--bg)",
-        }}
-      >
-        {error && (
-          <div style={{ padding: 32 }}>
-            <p style={{ color: "var(--ink-soft)" }}>Couldn't load messages.</p>
-          </div>
-        )}
-        {!error && !selected && !isLoading && (
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 32,
-            }}
-          >
-            <div style={{ textAlign: "center", maxWidth: 360 }}>
-              <p style={sectionLabelStyle}>Inbox</p>
-              <h2
-                style={{
-                  fontFamily: "var(--display)",
-                  fontSize: 26,
-                  marginTop: 8,
-                  fontWeight: 500,
-                }}
-              >
-                Pick a thread to read.
-              </h2>
-              <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 8 }}>
-                Your warm intros, host replies, and follow-ups all live here.
-              </p>
+              ) : (
+                <Avatar name={thread.n} tone={thread.tone as any} size={44} />
+              )}
+              {(thread as any).on && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    bottom: 1,
+                    right: 1,
+                    width: 10,
+                    height: 10,
+                    borderRadius: '50%',
+                    background: '#22c55e',
+                    border: '2px solid var(--paper)',
+                  }}
+                />
+              )}
             </div>
-          </div>
-        )}
 
-        {selected && (
-          <>
-            {/* Thread header */}
-            <div
-              style={{
-                padding: "20px 28px",
-                borderBottom: "1px solid var(--line-soft)",
-                display: "flex",
-                alignItems: "center",
-                gap: 14,
-                background: "var(--paper)",
-              }}
-            >
-              <Avatar name={selected.person.name} size={42} tone="clay" />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p
+            {/* Text */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+                <span
                   style={{
-                    fontFamily: "var(--display)",
-                    fontSize: 20,
-                    fontWeight: 500,
-                    margin: 0,
+                    fontFamily: 'var(--sans)',
+                    fontSize: 14,
+                    fontWeight: thread.unread > 0 ? 700 : 500,
+                    color: 'var(--ink)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
                   }}
                 >
-                  {selected.person.name}
-                </p>
-                <p
+                  {thread.n}
+                </span>
+                <span
                   style={{
-                    fontSize: 11,
-                    color: "var(--ink-mute)",
-                    marginTop: 2,
+                    fontFamily: 'var(--sans)',
+                    fontSize: 12,
+                    color: 'var(--ink-mute)',
+                    flexShrink: 0,
                   }}
                 >
-                  {selected.roleCompany}
-                </p>
+                  {thread.t}
+                </span>
               </div>
-              <Link to={`/app/referrals/${selected.id}`} style={{ textDecoration: "none" }}>
-                <Btn kind="soft" size="md" icon={I.cal}>
-                  Open thread
-                </Btn>
-              </Link>
-            </div>
-
-            {/* Context strip */}
-            <div
-              style={{
-                padding: "10px 28px",
-                background: "var(--cream)",
-                borderBottom: "1px solid var(--line-soft)",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                fontSize: 12,
-                color: "var(--ink-soft)",
-              }}
-            >
-              <span style={{ color: "var(--clay)" }}>{I.shake}</span>
-              <span>
-                This thread is about{" "}
-                <strong style={{ color: "var(--ink)" }}>
-                  {selected.targetCompany} · {selected.targetRole}
-                </strong>
-              </span>
-            </div>
-
-            {/* Messages */}
-            <div
-              style={{
-                flex: 1,
-                overflow: "auto",
-                padding: "20px 28px",
-                display: "flex",
-                flexDirection: "column",
-                gap: 12,
-              }}
-            >
-              {selected.messages.slice(-12).map((m) => {
-                const mine = m.sender === "me";
-                return (
-                  <div
-                    key={m.id}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 2 }}>
+                <span
+                  style={{
+                    fontFamily: 'var(--sans)',
+                    fontSize: 13,
+                    color: thread.unread > 0 ? 'var(--ink)' : 'var(--ink-soft)',
+                    fontWeight: thread.unread > 0 ? 600 : 400,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    flex: 1,
+                  }}
+                >
+                  {thread.msg}
+                </span>
+                {thread.unread > 0 && (
+                  <span
                     style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: mine ? "flex-end" : "flex-start",
-                      gap: 4,
+                      flexShrink: 0,
+                      width: 20,
+                      height: 20,
+                      borderRadius: '50%',
+                      background: 'var(--clay)',
+                      color: 'var(--paper)',
+                      fontFamily: 'var(--sans)',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                     }}
                   >
-                    <div
-                      style={{
-                        maxWidth: "78%",
-                        padding: "12px 16px",
-                        borderRadius: 18,
-                        background: mine ? "var(--clay)" : "var(--paper)",
-                        color: mine ? "var(--paper)" : "var(--ink)",
-                        border: mine ? "none" : "1px solid var(--line-soft)",
-                        borderBottomRightRadius: mine ? 6 : 18,
-                        borderBottomLeftRadius: mine ? 18 : 6,
-                        fontSize: 14,
-                        lineHeight: 1.5,
-                      }}
-                    >
-                      {m.body}
-                    </div>
-                    <span
-                      className="mono"
-                      style={{
-                        fontSize: 10,
-                        color: "var(--ink-mute)",
-                        padding: "0 6px",
-                      }}
-                    >
-                      {m.time}
-                    </span>
-                  </div>
-                );
-              })}
+                    {thread.unread}
+                  </span>
+                )}
+              </div>
             </div>
+          </button>
+        ))}
+      </div>
 
-            {/* Composer */}
-            <div
-              style={{
-                padding: "16px 28px 22px",
-                borderTop: "1px solid var(--line-soft)",
-                background: "var(--paper)",
-                display: "flex",
-                gap: 10,
-                alignItems: "flex-end",
-              }}
-            >
-              <textarea
-                value={reply}
-                onChange={(e) => setReply(e.target.value)}
-                rows={2}
-                placeholder={`Reply to ${selected.person.name.split(" ")[0]}…`}
-                disabled={sending}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                    void handleSend();
-                  }
-                }}
-                style={{
-                  flex: 1,
-                  padding: "10px 14px",
-                  borderRadius: 18,
-                  background: "var(--cream)",
-                  border: "1px solid var(--line)",
-                  fontSize: 14,
-                  color: "var(--ink)",
-                  outline: "none",
-                  fontFamily: "var(--sans)",
-                  resize: "none",
-                  lineHeight: 1.5,
-                }}
-              />
-              <Btn
-                kind="primary"
-                size="md"
-                onClick={handleSend}
-                disabled={sending || !reply.trim()}
-                iconRight={I.arrow}
-              >
-                {sending ? "…" : "Send"}
-              </Btn>
-            </div>
-          </>
-        )}
-      </main>
-
-      <style>{`
-        @media (max-width: 880px) {
-          .messages-list { display: none !important; }
-        }
-      `}</style>
-    </div>
+      <TabBar tab="inbox" />
+    </AppScreen>
   );
-};
-
-export default Messages;
+}

@@ -20,24 +20,26 @@ import Dashboard from "./pages/app/Dashboard.tsx";
 import RoomsList from "./pages/app/RoomsList.tsx";
 import RoomDetail from "./pages/app/RoomDetail.tsx";
 import LiveRoom from "./pages/app/LiveRoom.tsx";
+import GreenRoom from "./pages/app/GreenRoom.tsx";
+import RoomRecap from "./pages/app/RoomRecap.tsx";
 import Referrals from "./pages/app/Referrals.tsx";
 import ReferralThread from "./pages/app/ReferralThread.tsx";
 import Messages from "./pages/app/Messages.tsx";
 import Notifications from "./pages/app/Notifications.tsx";
 import Profile from "./pages/app/Profile.tsx";
+import Settings from "./pages/app/Settings.tsx";
+import Search from "./pages/app/Search.tsx";
+import PublicProfile from "./pages/app/PublicProfile.tsx";
+import Schedule from "./pages/app/Schedule.tsx";
 import HostDashboard from "./pages/app/HostDashboard.tsx";
 import RecruiterDashboard from "./pages/app/RecruiterDashboard.tsx";
-import Settings from "./pages/app/Settings.tsx";
 
+// Lazy-imported secondary pages (exist or will be created)
 import RequireAuth from "./components/RequireAuth.tsx";
 import RequireOnboarded from "./components/RequireOnboarded.tsx";
 
 const queryClient = new QueryClient();
 
-// Redirects authenticated users away from the public landing page.
-// - Logged in + onboarded  → /app/dashboard
-// - Logged in + not done   → /onboarding (let RequireOnboarded handle it)
-// - Not logged in          → show the landing page
 const RootRoute = () => {
   const { isAuthenticated, profile, loading } = useAuthContext();
 
@@ -51,12 +53,24 @@ const RootRoute = () => {
 
   if (isAuthenticated) {
     return isOnboarded(profile)
-      ? <Navigate to="/app/dashboard" replace />
+      ? <Navigate to="/app" replace />
       : <Navigate to="/onboarding" replace />;
   }
 
   return <Index />;
 };
+
+// Lazy load secondary pages to avoid breaking the build if any are missing
+const lazyPage = (importFn: () => Promise<{ default: React.ComponentType }>) => {
+  const Comp = React.lazy(importFn);
+  return (
+    <React.Suspense fallback={<div style={{ padding: 40, color: 'var(--ink-mute)' }}>Loading…</div>}>
+      <Comp />
+    </React.Suspense>
+  );
+};
+
+import React from "react";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -65,69 +79,111 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-        <Routes>
-          {/* Public — redirects to /app/dashboard if already signed in */}
-          <Route path="/" element={<RootRoute />} />
+          <Routes>
+            {/* Public */}
+            <Route path="/" element={<RootRoute />} />
 
-          {/* Auth */}
-          <Route element={<AuthLayout />}>
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-          </Route>
+            {/* Auth */}
+            <Route element={<AuthLayout />}>
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
+            </Route>
 
-          {/* Email confirmation callback — no layout wrapper needed */}
-          <Route path="/auth/confirm" element={<AuthConfirm />} />
+            <Route path="/auth/confirm" element={<AuthConfirm />} />
 
-          {/* Onboarding (full-screen, own layout) — auth required */}
-          <Route
-            path="/onboarding"
-            element={
-              <RequireAuth>
-                <Onboarding />
-              </RequireAuth>
-            }
-          />
+            {/* Onboarding */}
+            <Route path="/onboarding" element={<RequireAuth><Onboarding /></RequireAuth>} />
 
-          {/* App (authed + onboarded) */}
-          <Route
-            path="/app"
-            element={
-              <RequireAuth>
-                <RequireOnboarded>
-                  <AppLayout />
-                </RequireOnboarded>
-              </RequireAuth>
-            }
-          >
-            <Route index element={<Dashboard />} />
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="rooms" element={<RoomsList />} />
-            <Route path="rooms/:id" element={<RoomDetail />} />
-            <Route path="referrals" element={<Referrals />} />
-            <Route path="referrals/:id" element={<ReferralThread />} />
-            <Route path="messages" element={<Messages />} />
-            <Route path="notifications" element={<Notifications />} />
-            <Route path="profile" element={<Profile />} />
-            <Route path="host" element={<HostDashboard />} />
-            <Route path="recruiter" element={<RecruiterDashboard />} />
-            <Route path="settings" element={<Settings />} />
-          </Route>
+            {/* App — all routes share the AppLayout (sidebar desktop / bare mobile) */}
+            <Route
+              path="/app"
+              element={
+                <RequireAuth>
+                  <RequireOnboarded>
+                    <AppLayout />
+                  </RequireOnboarded>
+                </RequireAuth>
+              }
+            >
+              {/* Root tabs */}
+              <Route index element={<Dashboard />} />
+              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="rooms" element={<RoomsList />} />
+              <Route path="search" element={<Search />} />
+              <Route path="inbox" element={<Messages />} />
+              <Route path="messages" element={<Messages />} />
+              <Route path="activity" element={<Notifications />} />
+              <Route path="notifications" element={<Notifications />} />
+              <Route path="profile" element={<Profile />} />
+              <Route path="settings" element={<Settings />} />
 
-          {/* Live room: full-screen, no sidebar — auth + onboarding required */}
-          <Route
-            path="/app/rooms/:id/live"
-            element={
-              <RequireAuth>
-                <RequireOnboarded>
-                  <LiveRoom />
-                </RequireOnboarded>
-              </RequireAuth>
-            }
-          />
+              {/* Rooms */}
+              <Route path="rooms/:id" element={<RoomDetail />} />
+              <Route path="rooms/:id/green" element={<GreenRoom />} />
+              <Route path="rooms/:id/recap" element={<RoomRecap />} />
 
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+              {/* Schedule / host */}
+              <Route path="schedule" element={<Schedule />} />
+              <Route path="schedule/done" element={lazyPage(() => import('./pages/app/ScheduleDone.tsx'))} />
+              <Route path="schedule/mine" element={lazyPage(() => import('./pages/app/YourSchedule.tsx'))} />
+
+              {/* Referrals */}
+              <Route path="referrals" element={<Referrals />} />
+              <Route path="referrals/:id" element={lazyPage(() => import('./pages/app/ReferralDetail.tsx'))} />
+              <Route path="refer" element={lazyPage(() => import('./pages/app/ReferCompose.tsx'))} />
+              <Route path="intro" element={lazyPage(() => import('./pages/app/RequestIntro.tsx'))} />
+
+              {/* Messages / threads */}
+              <Route path="messages/:id" element={<ReferralThread />} />
+
+              {/* People */}
+              <Route path="users/:id" element={<PublicProfile />} />
+              <Route path="users/:id/book" element={lazyPage(() => import('./pages/app/BookOneOnOne.tsx'))} />
+              <Route path="connections" element={lazyPage(() => import('./pages/app/Connections.tsx'))} />
+
+              {/* Profile sub-pages */}
+              <Route path="profile/edit" element={lazyPage(() => import('./pages/app/EditProfile.tsx'))} />
+              <Route path="profile/follows" element={lazyPage(() => import('./pages/app/Follows.tsx'))} />
+
+              {/* Wins / outcomes */}
+              <Route path="wins" element={lazyPage(() => import('./pages/app/Wins.tsx'))} />
+
+              {/* Settings sub-pages */}
+              <Route path="notifications/settings" element={lazyPage(() => import('./pages/app/NotificationsSettings.tsx'))} />
+              <Route path="privacy" element={lazyPage(() => import('./pages/app/Privacy.tsx'))} />
+              <Route path="invite" element={lazyPage(() => import('./pages/app/InviteFriends.tsx'))} />
+              <Route path="saved" element={lazyPage(() => import('./pages/app/SavedRooms.tsx'))} />
+              <Route path="help" element={lazyPage(() => import('./pages/app/Help.tsx'))} />
+
+              {/* Legacy dashboards */}
+              <Route path="host" element={<HostDashboard />} />
+              <Route path="recruiter" element={<RecruiterDashboard />} />
+            </Route>
+
+            {/* Live room & host view — full-screen, no sidebar */}
+            <Route
+              path="/app/rooms/:id/live"
+              element={
+                <RequireAuth>
+                  <RequireOnboarded>
+                    <LiveRoom />
+                  </RequireOnboarded>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/app/rooms/:id/host"
+              element={
+                <RequireAuth>
+                  <RequireOnboarded>
+                    {lazyPage(() => import('./pages/app/LiveRoomHost.tsx'))}
+                  </RequireOnboarded>
+                </RequireAuth>
+              }
+            />
+
+            <Route path="*" element={<NotFound />} />
+          </Routes>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

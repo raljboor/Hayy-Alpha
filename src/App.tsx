@@ -1,8 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuthContext } from "@/context/AuthContext";
 import { isOnboarded } from "@/lib/routing";
 
@@ -13,7 +10,6 @@ import Signup from "./pages/Signup.tsx";
 import Onboarding from "./pages/Onboarding.tsx";
 import AuthConfirm from "./pages/AuthConfirm.tsx";
 
-import AuthLayout from "./layouts/AuthLayout.tsx";
 import AppLayout from "./layouts/AppLayout.tsx";
 
 import Dashboard from "./pages/app/Dashboard.tsx";
@@ -28,23 +24,21 @@ import Profile from "./pages/app/Profile.tsx";
 import HostDashboard from "./pages/app/HostDashboard.tsx";
 import RecruiterDashboard from "./pages/app/RecruiterDashboard.tsx";
 import Settings from "./pages/app/Settings.tsx";
+import RolesBoard from "./pages/app/RolesBoard.tsx";
 
 import RequireAuth from "./components/RequireAuth.tsx";
 import RequireOnboarded from "./components/RequireOnboarded.tsx";
 
 const queryClient = new QueryClient();
 
-// Redirects authenticated users away from the public landing page.
-// - Logged in + onboarded  → /app/dashboard
-// - Logged in + not done   → /onboarding (let RequireOnboarded handle it)
-// - Not logged in          → show the landing page
 const RootRoute = () => {
   const { isAuthenticated, profile, loading } = useAuthContext();
 
   if (loading) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center bg-background">
-        <span className="h-8 w-8 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+      <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
+        <span style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid var(--clay)', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite', display: 'block' }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
       </div>
     );
   }
@@ -60,33 +54,21 @@ const RootRoute = () => {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
+    <BrowserRouter>
+      <AuthProvider>
         <Routes>
-          {/* Public — redirects to /app/dashboard if already signed in */}
+          {/* Public landing */}
           <Route path="/" element={<RootRoute />} />
 
-          {/* Auth */}
-          <Route element={<AuthLayout />}>
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-          </Route>
+          {/* Auth pages */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
 
-          {/* Email confirmation callback — no layout wrapper needed */}
+          {/* Email confirmation callback */}
           <Route path="/auth/confirm" element={<AuthConfirm />} />
 
-          {/* Onboarding (full-screen, own layout) — auth required */}
-          <Route
-            path="/onboarding"
-            element={
-              <RequireAuth>
-                <Onboarding />
-              </RequireAuth>
-            }
-          />
+          {/* Onboarding */}
+          <Route path="/onboarding" element={<RequireAuth><Onboarding /></RequireAuth>} />
 
           {/* App (authed + onboarded) */}
           <Route
@@ -111,9 +93,11 @@ const App = () => (
             <Route path="host" element={<HostDashboard />} />
             <Route path="recruiter" element={<RecruiterDashboard />} />
             <Route path="settings" element={<Settings />} />
+            <Route path="roles" element={<RolesBoard />} />
+            <Route path="search" element={<RoomsList />} />
           </Route>
 
-          {/* Live room: full-screen, no sidebar — auth + onboarding required */}
+          {/* Live room: full-screen (always dusk, no sidebar) */}
           <Route
             path="/app/rooms/:id/live"
             element={
@@ -125,12 +109,10 @@ const App = () => (
             }
           />
 
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
+      </AuthProvider>
+    </BrowserRouter>
   </QueryClientProvider>
 );
 

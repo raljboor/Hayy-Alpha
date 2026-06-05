@@ -21,7 +21,7 @@
  * is verified end-to-end.
  */
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
 import { isAuthed } from "@/lib/auth";
@@ -243,40 +243,43 @@ const AuthConfirm = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const centeredStyle: React.CSSProperties = {
+    minHeight: '100%', display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24,
+    background: 'var(--bg)',
+  };
+
   if (status === "loading") {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background px-4">
-        <span className="h-10 w-10 rounded-full border-4 border-primary border-t-transparent animate-spin" />
-        <p className="text-muted-foreground text-sm">Confirming your account…</p>
+      <div className="hy" data-palette="dawn" style={centeredStyle}>
+        <span style={{ width: 36, height: 36, borderRadius: '50%', border: '3px solid var(--clay)', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite', display: 'block' }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+        <p style={{ color: 'var(--ink-soft)', fontSize: 14 }}>Confirming your account…</p>
       </div>
     );
   }
 
   if (status === "success") {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-background px-4">
-        <span className="h-10 w-10 rounded-full bg-olive/15 flex items-center justify-center text-olive text-2xl">
-          ✓
-        </span>
-        <p className="font-display text-xl text-foreground">Email confirmed!</p>
-        <p className="text-muted-foreground text-sm">Setting up your founding profile…</p>
+      <div className="hy" data-palette="dawn" style={centeredStyle}>
+        <span style={{ width: 48, height: 48, borderRadius: '50%', background: 'color-mix(in oklab, var(--clay) 14%, var(--paper))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, color: 'var(--clay)' }}>✓</span>
+        <p style={{ fontFamily: 'var(--display)', fontSize: 22 }}>Email confirmed!</p>
+        <p style={{ color: 'var(--ink-soft)', fontSize: 14 }}>Setting up your founding profile…</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-5 bg-background px-4">
-      <div className="rounded-3xl bg-card border border-border p-8 max-w-sm w-full text-center space-y-4">
-        <p className="font-display text-xl text-foreground">Confirmation failed</p>
-        <p className="text-sm text-muted-foreground leading-relaxed">
+    <div className="hy" data-palette="dawn" style={centeredStyle}>
+      <div style={{ padding: 32, borderRadius: 24, background: 'var(--paper)', border: '1px solid var(--line)', maxWidth: 380, width: '100%', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <p style={{ fontFamily: 'var(--display)', fontSize: 22 }}>Confirmation failed</p>
+        <p style={{ color: 'var(--ink-soft)', fontSize: 14, lineHeight: 1.6 }}>
           {errorMsg ?? "The confirmation link may have expired or already been used."}
-        </p>
-        <p className="text-[11px] text-muted-foreground/80">
-          Open the browser console for a detailed trace (look for "[AuthConfirm]").
         </p>
         <button
           onClick={() => navigate("/login", { replace: true })}
-          className="inline-flex items-center justify-center rounded-xl bg-primary text-primary-foreground px-6 py-2.5 text-sm font-medium hover:bg-primary/90 transition-colors"
+          className="hy-btn hy-btn-primary"
+          style={{ justifyContent: 'center' }}
         >
           Back to login
         </button>

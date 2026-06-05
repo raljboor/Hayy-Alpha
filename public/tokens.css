@@ -1,0 +1,305 @@
+/* Hayy Design Tokens — single source of truth
+   Always reference var(--token). Never hardcode hex values.
+   Set data-palette="dawn" (default) or data-palette="dusk" on root element.
+*/
+
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* ── Dawn palette (light, default) ─────────────────────────────── */
+:root,
+[data-palette="dawn"] {
+  --bg:        #f9f4ef;
+  --paper:     #fffdfb;
+  --cream:     #f2ead9;
+  --sand:      #e6dac8;
+  --clay:      #c2683f;
+  --clay-2:    color-mix(in oklab, #c2683f 60%, #f9f4ef);
+  --olive:     #6b7a4a;
+  --ink:       #2a2622;
+  --ink-soft:  #6f6557;
+  --ink-mute:  #8a7f70;
+  --line:      rgba(42, 38, 34, 0.10);
+  --line-soft: rgba(42, 38, 34, 0.06);
+  --spotlight: radial-gradient(80% 60% at 50% -10%, color-mix(in oklab, #c2683f 18%, #f9f4ef) 0%, #f9f4ef 60%);
+
+  --dusk-bg:       #111318;
+  --dusk-paper:    #1a1d24;
+  --dusk-clay:     #d4724a;
+  --dusk-ink:      #e8e4dc;
+  --dusk-ink-soft: #a39a8b;
+  --dusk-ink-mute: #7a7165;
+  --dusk-line:     rgba(232, 228, 220, 0.12);
+}
+
+/* ── Dusk palette (dark) ─────────────────────────────────────────── */
+[data-palette="dusk"] {
+  --bg:        #111318;
+  --paper:     #1a1d24;
+  --cream:     #1e2129;
+  --sand:      #252830;
+  --clay:      #d4724a;
+  --clay-2:    color-mix(in oklab, #d4724a 50%, #1a1d24);
+  --olive:     #8fa86e;
+  --ink:       #e8e4dc;
+  --ink-soft:  #a39a8b;
+  --ink-mute:  #7a7165;
+  --line:      rgba(232, 228, 220, 0.12);
+  --line-soft: rgba(232, 228, 220, 0.07);
+  --spotlight: radial-gradient(80% 60% at 50% -10%, color-mix(in oklab, #d4724a 22%, #111318) 0%, #111318 60%);
+}
+
+/* ── Typography ─────────────────────────────────────────────────── */
+:root {
+  --display: 'Fraunces', Georgia, serif;
+  --body:    'Inter', system-ui, -apple-system, sans-serif;
+  --tight:   'Inter Tight', 'Inter', system-ui, sans-serif;
+  --mono:    'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* Type scale variants */
+[data-type="serif-mono"] { --display: 'Fraunces', Georgia, serif; --body: 'Inter', system-ui, sans-serif; }
+[data-type="grotesk"]    { --display: 'Instrument Serif', Georgia, serif; --body: 'Inter Tight', 'Inter', sans-serif; }
+[data-type="all-sans"]   { --display: 'Inter Tight', 'Inter', sans-serif; --body: 'Inter', sans-serif; }
+
+/* ── Spacing scale ──────────────────────────────────────────────── */
+:root {
+  --d-1:  4px;
+  --d-2:  8px;
+  --d-3:  12px;
+  --d-4:  16px;
+  --d-5:  20px;
+  --d-6:  24px;
+  --d-7:  32px;
+  --d-8:  40px;
+  --d-9:  48px;
+  --d-10: 56px;
+  --d-11: 64px;
+  --d-12: 80px;
+}
+
+/* Compact density */
+[data-density="compact"] {
+  --d-4:  14px;
+  --d-5:  16px;
+  --d-6:  20px;
+  --d-7:  26px;
+  --d-8:  32px;
+  --d-9:  40px;
+}
+
+/* ── Border radii ───────────────────────────────────────────────── */
+:root {
+  --radius-xs:   8px;
+  --radius-sm:   12px;
+  --radius-md:   16px;
+  --radius-lg:   22px;
+  --radius-xl:   28px;
+  --radius-pill: 999px;
+}
+
+/* ── Shadows ────────────────────────────────────────────────────── */
+:root {
+  --shadow-soft: 0 4px 20px -4px rgba(42, 38, 34, 0.08);
+  --shadow-warm: 0 10px 40px -10px rgba(194, 104, 63, 0.18);
+  --shadow-glow: 0 20px 60px -20px rgba(194, 104, 63, 0.25);
+}
+
+/* ── Global reset ───────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root {
+  height: 100%;
+  font-family: var(--body);
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--display);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; cursor: pointer; border: none; background: none; }
+input, textarea { font-family: inherit; }
+
+/* ── Root scope ─────────────────────────────────────────────────── */
+.hy {
+  font-family: var(--body);
+  color: var(--ink);
+  background: var(--bg);
+}
+
+/* ── Avatar ─────────────────────────────────────────────────────── */
+.hy-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-weight: 700;
+  font-family: var(--body);
+  flex: none;
+  user-select: none;
+}
+.hy-avatar.clay  { background: color-mix(in oklab, var(--clay) 20%, var(--bg)); color: var(--clay); }
+.hy-avatar.olive { background: color-mix(in oklab, var(--olive) 20%, var(--bg)); color: var(--olive); }
+.hy-avatar.sand  { background: var(--sand); color: var(--ink-soft); }
+.hy-avatar.dark  { background: color-mix(in oklab, var(--ink) 16%, var(--bg)); color: var(--ink); }
+
+/* ── Buttons ────────────────────────────────────────────────────── */
+.hy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 18px;
+  height: 40px;
+  border-radius: var(--radius-pill);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--body);
+  white-space: nowrap;
+  transition: opacity .15s, transform .1s;
+  cursor: pointer;
+}
+.hy-btn:active { transform: scale(.97); }
+
+.hy-btn-primary {
+  background: var(--clay);
+  color: var(--paper);
+  border: none;
+}
+.hy-btn-primary:hover { opacity: .92; }
+
+.hy-btn-soft {
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+.hy-btn-soft:hover { background: var(--cream); }
+
+.hy-btn-ghost {
+  background: transparent;
+  color: var(--ink-soft);
+  border: none;
+}
+.hy-btn-ghost:hover { color: var(--ink); }
+
+.hy-btn-lg  { height: 48px; padding: 0 24px; font-size: 15px; }
+.hy-btn-xl  { height: 56px; padding: 0 30px; font-size: 16px; }
+
+/* ── Pills / chips ──────────────────────────────────────────────── */
+.hy-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--mono);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  background: var(--paper);
+  white-space: nowrap;
+}
+
+.hy-pill-live {
+  background: #e53e1a;
+  color: white;
+  border-color: transparent;
+}
+
+.hy-pill-topic {
+  background: color-mix(in oklab, var(--clay) 12%, var(--paper));
+  color: var(--clay);
+  border-color: color-mix(in oklab, var(--clay) 22%, var(--line));
+}
+
+/* ── Live dot pulse ─────────────────────────────────────────────── */
+.hy-livedot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #e53e1a;
+  animation: hy-livedot 1.8s ease-in-out infinite;
+}
+
+@keyframes hy-livedot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: .6; transform: scale(.75); }
+}
+
+/* ── Rise-in animation (live chat) ─────────────────────────────── */
+@keyframes hy-rise-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Audio bar animation ────────────────────────────────────────── */
+@keyframes hy-bar {
+  from { transform: scaleY(.4); }
+  to   { transform: scaleY(1); }
+}
+
+/* ── Card ───────────────────────────────────────────────────────── */
+.hy-card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+}
+
+/* ── Image placeholder ──────────────────────────────────────────── */
+.hy-img-ph {
+  background: var(--sand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--ink-mute);
+  font-family: var(--mono);
+  letter-spacing: .06em;
+}
+
+/* ── Typography utilities ───────────────────────────────────────── */
+.mono {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.display-italic {
+  font-family: var(--display);
+  font-style: italic;
+  color: var(--clay);
+}
+
+/* ── Skeleton shimmer ───────────────────────────────────────────── */
+@keyframes hy-shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position: 200% 0; }
+}
+.hy-skeleton {
+  background: linear-gradient(90deg, var(--sand) 25%, var(--cream) 50%, var(--sand) 75%);
+  background-size: 200% 100%;
+  animation: hy-shimmer 1.6s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+
+/* ── Hero background ────────────────────────────────────────────── */
+.hy-bg-hero {
+  background: radial-gradient(120% 70% at 50% -8%, color-mix(in oklab, var(--clay) 14%, var(--bg)) 0%, var(--bg) 60%);
+}
+
+/* ── Scrollbar ──────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 2px; }

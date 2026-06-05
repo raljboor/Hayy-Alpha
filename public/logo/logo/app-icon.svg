@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Hayy app icon">
+  
+  <rect width="1024" height="1024" rx="228" fill="#8A3A1F"></rect>
+  
+  <g fill="#F7F1E4" transform="translate(176 176) scale(10.5)">
+    <rect x="12" y="9" width="9" height="46" rx="2.2"></rect>
+    <rect x="43" y="9" width="9" height="46" rx="2.2"></rect>
+    <circle cx="32" cy="32" r="7"></circle>
+  </g>
+</svg>

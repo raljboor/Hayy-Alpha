@@ -16,8 +16,9 @@ const RequireAuth = ({ children }: { children: React.ReactNode }) => {
 
   if (loading) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center bg-background">
-        <span className="h-8 w-8 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+      <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
+        <span style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid var(--clay)', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite', display: 'block' }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
       </div>
     );
   }

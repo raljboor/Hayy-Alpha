@@ -1,379 +1,184 @@
-/**
- * Public landing page — ported from the redesign HeroA + HeroNav mocks
- * (frontend-new/hayy/project/components/hero.jsx).
- *
- * Wraps in `.hy hy-bg-hero` so redesign tokens + warm radial gradient resolve.
- *
- * The LiveRoomPreview card pulls a real room (live > nearest upcoming) via
- * useQuery(getRooms) — no fixture data. If no rooms are loaded yet, falls
- * back to a placeholder card so the layout never collapses.
- *
- * The previous Index sections (PublicHeader, ProblemSolution, HowItWorks,
- * UpcomingRooms, ForHosts, ForRecruiters, JoinSection, Footer) are
- * intentionally removed — the redesign's hero IS the landing page in this
- * direction. Those sections can be re-added in their own redesign pass.
- */
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { I, Avatar, Btn, LiveTag, Waveform, HayyMark, Meta } from '@/shared/primitives';
+import { COMMUNITY_STATS, COMPANY_WALL, PEOPLE } from '@/shared/data';
 
-import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { Avatar, Btn, I, LiveTag, Waveform } from "@/components/ui/primitives";
-import { HayyMark } from "@/components/hayy/HayyLogo";
-import { getRooms } from "@/lib/api/rooms";
-import type { Room } from "@/data/mockData";
-import type { CSSProperties } from "react";
-
-const HeroNav = () => (
-  <header
-    style={{
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingBottom: 8,
-      gap: 16,
-      flexWrap: "wrap",
-    }}
-  >
-    <Link to="/" style={{ textDecoration: "none", color: "inherit" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <HayyMark size={28} style={{ color: "var(--clay)" }} />
-        <span style={{ fontFamily: "var(--display)", fontSize: 22, fontWeight: 500 }}>
-          Hayy
-        </span>
+const HeroNav = () => {
+  const navigate = useNavigate();
+  return (
+    <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <HayyMark size={32} color="var(--clay)" />
+        <span style={{ fontFamily: 'var(--display)', fontSize: 22, fontWeight: 500, letterSpacing: '0.12em' }}>HAYY</span>
       </div>
-    </Link>
+      <nav style={{ display: 'none', gap: 28, fontSize: 14, color: 'var(--ink-soft)' }} className="hero-nav">
+        <span style={{ cursor: 'pointer' }}>Rooms</span>
+        <span style={{ cursor: 'pointer' }}>Hosts</span>
+        <span style={{ cursor: 'pointer' }}>For recruiters</span>
+      </nav>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <Btn kind="ghost" onClick={() => navigate('/login')}>Sign in</Btn>
+        <Btn kind="primary" onClick={() => navigate('/signup')}>Join Hayy</Btn>
+      </div>
+      <style>{`@media(min-width:769px){.hero-nav{display:flex!important}}`}</style>
+    </header>
+  );
+};
 
-    <nav
-      className="hidden md:flex"
-      style={{ gap: 28, fontSize: 14, color: "var(--ink-soft)" }}
-    >
-      <Link to="/login" style={{ color: "inherit", textDecoration: "none" }}>
-        Rooms
-      </Link>
-      <Link to="/signup?type=host" style={{ color: "inherit", textDecoration: "none" }}>
-        Hosts
-      </Link>
-      <Link
-        to="/signup?type=recruiter"
-        style={{ color: "inherit", textDecoration: "none" }}
-      >
-        For recruiters
-      </Link>
-    </nav>
-
-    <div style={{ display: "flex", gap: 8 }}>
-      <Link to="/login" style={{ textDecoration: "none" }}>
-        <Btn kind="ghost">Sign in</Btn>
-      </Link>
-      <Link to="/signup" style={{ textDecoration: "none" }}>
-        <Btn kind="primary">Join Hayy</Btn>
-      </Link>
+const LiveRoomCard = () => (
+  <div className="hy-card" style={{ padding: 24, borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-warm)' }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+      <LiveTag>Live · 18 listening</LiveTag>
+      <span className="mono" style={{ fontSize: 11, color: 'var(--ink-mute)' }}>ROOM 04</span>
     </div>
-  </header>
+    <h3 style={{ fontSize: 24, lineHeight: 1.1, marginBottom: 8 }}>
+      Breaking into Product at Big Tech
+    </h3>
+    <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginBottom: 18 }}>Hosted by Maya · 3 referral hosts on stage</p>
+
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 18 }}>
+      {[
+        { n: 'Maya N.', r: 'Sr PM · AWS', active: true, tone: 'clay' as const },
+        { n: 'Rashid K.', r: 'Eng Mgr · Amazon', active: true, tone: 'dark' as const },
+        { n: 'Jenna S.', r: 'Recruiter', active: false, tone: 'sand' as const },
+        { n: 'Omar A.', r: 'Listener', active: false, tone: 'olive' as const },
+      ].map((p, i) => (
+        <div key={i} style={{ textAlign: 'center' }}>
+          <div style={{ position: 'relative', display: 'inline-block' }}>
+            <Avatar name={p.n} size={52} tone={p.tone} />
+            {p.active && <span style={{ position: 'absolute', inset: -4, borderRadius: '50%', border: '2px solid var(--clay)' }} />}
+          </div>
+          <p style={{ fontSize: 11, marginTop: 6, fontWeight: 500 }}>{p.n.split(' ')[0]}</p>
+          <p style={{ fontSize: 10, color: 'var(--ink-mute)' }}>{p.r}</p>
+        </div>
+      ))}
+    </div>
+
+    <div style={{ padding: '12px 14px', borderRadius: 'var(--radius-md)', background: 'var(--cream)', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+      <Waveform bars={20} height={22} color="var(--clay)" />
+      <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>"I joined Amazon two years ago through a Hayy room…"</span>
+    </div>
+
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Meta>Started 14 min ago · ends in ~30</Meta>
+      <Btn kind="primary" iconRight={React.cloneElement(I.arrow as React.ReactElement<{size?:number}>, { size: 16 })}>Tap to join</Btn>
+    </div>
+  </div>
 );
 
-// ---------------------------------------------------------------------------
-// LiveRoomPreview — pulled from real rooms, not fixture content
-// ---------------------------------------------------------------------------
-
-function pickFeaturedRoom(rooms: Room[]): Room | null {
-  if (rooms.length === 0) return null;
-  const live = rooms.find((r) => r.status === "live");
-  if (live) return live;
-  const upcoming = rooms
-    .filter((r) => r.status === "upcoming")
-    .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
-  return upcoming[0] ?? rooms[0] ?? null;
-}
-
-const cardStyle: CSSProperties = {
-  background: "var(--paper)",
-  border: "1px solid var(--line-soft)",
-  borderRadius: "var(--radius-xl)",
-  boxShadow: "var(--shadow-warm)",
-  position: "relative",
-  padding: 24,
-};
-
-const LiveRoomPreview = ({ room }: { room: Room | null }) => {
-  if (!room) {
-    return (
-      <div style={cardStyle}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <span
-            className="mono"
-            style={{
-              fontSize: 11,
-              color: "var(--ink-mute)",
-              letterSpacing: ".08em",
-            }}
-          >
-            ROOMS LOADING…
-          </span>
-        </div>
-        <h3 style={{ fontSize: 26, marginTop: 14, lineHeight: 1.1 }}>
-          Live rooms appear here as soon as a host opens one.
-        </h3>
-        <p style={{ marginTop: 8, fontSize: 13, color: "var(--ink-soft)" }}>
-          Sign up to be in the founding cohort.
-        </p>
-      </div>
-    );
-  }
-
-  const isLive = room.status === "live";
-  const tones: ("clay" | "olive" | "sand" | "dark")[] = ["clay", "olive", "sand", "dark"];
-  const speakerSlots = Array.from({ length: Math.min(room.speakers || 4, 4) });
+export default function Index() {
+  const navigate = useNavigate();
 
   return (
-    <div style={cardStyle}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        {isLive ? (
-          <LiveTag>Live · {room.attendees} listening</LiveTag>
-        ) : (
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "4px 10px",
-              borderRadius: "var(--radius-pill)",
-              background: "var(--cream)",
-              border: "1px solid var(--line)",
-              fontSize: 11,
-              fontFamily: "var(--mono)",
-              color: "var(--ink-soft)",
-              letterSpacing: ".06em",
-              textTransform: "uppercase",
-            }}
-          >
-            Upcoming · {new Date(room.startsAt).toLocaleDateString()}
-          </span>
-        )}
-        <span
-          className="mono"
-          style={{ fontSize: 11, color: "var(--ink-soft)", letterSpacing: ".06em" }}
-        >
-          {room.company.toUpperCase()}
-        </span>
-      </div>
+    <div className="hy" data-palette="dawn" style={{ minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* Hero */}
+      <section style={{ padding: '28px 44px 64px', position: 'relative', overflow: 'hidden' }}>
+        <div style={{
+          position: 'absolute', inset: 0, pointerEvents: 'none',
+          background: 'radial-gradient(80% 60% at 60% -10%, color-mix(in oklab, var(--clay) 14%, var(--bg)) 0%, var(--bg) 60%)',
+        }} />
+        <div style={{ position: 'relative', zIndex: 1, maxWidth: 1200, margin: '0 auto' }}>
+          <HeroNav />
 
-      <h3 style={{ fontSize: 26, marginTop: 14, lineHeight: 1.1 }}>{room.title}</h3>
-      <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 8 }}>
-        {room.speakers} speaker{room.speakers === 1 ? "" : "s"} · {room.durationMin} min
-      </p>
-
-      <div
-        style={{
-          marginTop: 18,
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: 14,
-        }}
-      >
-        {speakerSlots.map((_, i) => {
-          const tag = room.tags[i] ?? `Tag ${i + 1}`;
-          const tone = tones[i % tones.length];
-          const speaking = isLive && i < 2;
-          return (
-            <div key={i} style={{ textAlign: "center" }}>
-              <div style={{ position: "relative", display: "inline-block" }}>
-                <Avatar name={tag} size={52} tone={tone} />
-                {speaking && (
-                  <span
-                    style={{
-                      position: "absolute",
-                      inset: -4,
-                      borderRadius: "50%",
-                      border: "2px solid var(--clay)",
-                    }}
-                  />
-                )}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 56, alignItems: 'center', marginTop: 64 }} className="hero-grid">
+            <div>
+              <span className="hy-pill" style={{ marginBottom: 22, display: 'inline-flex' }}>
+                <span className="hy-livedot" /> 4 rooms live now
+              </span>
+              <h1 style={{ fontSize: 80, lineHeight: 0.98, letterSpacing: '-0.035em', marginBottom: 24 }}>
+                Careers grow<br />
+                <span className="display-italic">in conversation.</span>
+              </h1>
+              <p style={{ fontSize: 18, color: 'var(--ink-soft)', maxWidth: 460, lineHeight: 1.5, marginBottom: 32 }}>
+                Meet the people inside companies you care about — not their inboxes.
+                Drop into a room, get warm, then ask for the referral.
+              </p>
+              <div style={{ display: 'flex', gap: 12, marginBottom: 36, flexWrap: 'wrap' }}>
+                <Btn kind="primary" size="xl" iconRight={React.cloneElement(I.arrow as React.ReactElement<{size?:number}>, { size: 18 })} onClick={() => navigate('/signup')}>
+                  Join the next room
+                </Btn>
+                <Btn kind="soft" size="xl" onClick={() => navigate('/signup')}>Become a host</Btn>
               </div>
-              <p style={{ fontSize: 11, marginTop: 6, fontWeight: 500 }}>{tag}</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{ display: 'flex' }}>
+                  {PEOPLE.slice(0, 4).map((p, i) => (
+                    <span key={i} style={{ marginLeft: i === 0 ? 0 : -10 }}>
+                      <Avatar name={p.name} size={34} tone={p.tone} />
+                    </span>
+                  ))}
+                </div>
+                <p className="mono" style={{ fontSize: 12, color: 'var(--ink-soft)', lineHeight: 1.5 }}>
+                  {COMMUNITY_STATS.members} members<br />from {COMMUNITY_STATS.companies} companies
+                </p>
+              </div>
             </div>
-          );
-        })}
-      </div>
-
-      {isLive && (
-        <div
-          style={{
-            marginTop: 18,
-            padding: "12px 14px",
-            borderRadius: "var(--radius-md)",
-            background: "var(--cream)",
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-          }}
-        >
-          <Waveform bars={20} height={22} color="var(--clay)" />
-          <span style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-            Live audio in this room.
-          </span>
+            <div className="hero-card-col">
+              <LiveRoomCard />
+            </div>
+          </div>
         </div>
-      )}
+        <style>{`
+          .hero-grid { grid-template-columns: 1fr 1fr; }
+          .hero-card-col { display: block; }
+          @media(max-width:900px){
+            .hero-grid { grid-template-columns: 1fr; }
+            .hero-card-col { display: none; }
+            h1 { font-size: 52px !important; }
+          }
+        `}</style>
+      </section>
 
-      <div
-        style={{
-          marginTop: 16,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <span
-          className="mono"
-          style={{ fontSize: 11, color: "var(--ink-mute)", letterSpacing: ".06em" }}
-        >
-          {isLive ? "Join in seconds" : "RSVP to be notified"}
-        </span>
-        <Link to="/signup" style={{ textDecoration: "none" }}>
-          <Btn kind="primary" iconRight={I.arrow}>
-            {isLive ? "Tap to join" : "Reserve a seat"}
-          </Btn>
-        </Link>
-      </div>
-    </div>
-  );
-};
+      {/* Community stats */}
+      <section style={{ background: 'var(--cream)', borderTop: '1px solid var(--line)', borderBottom: '1px solid var(--line)', padding: '32px 44px' }}>
+        <div style={{ maxWidth: 800, margin: '0 auto', display: 'flex', gap: 48, justifyContent: 'center' }}>
+          {[
+            { value: COMMUNITY_STATS.members, label: 'Members' },
+            { value: COMMUNITY_STATS.companies, label: 'Companies' },
+            { value: COMMUNITY_STATS.intros, label: 'Warm intros made' },
+          ].map((s, i) => (
+            <div key={i} style={{ textAlign: 'center' }}>
+              <p style={{ fontFamily: 'var(--display)', fontSize: 48, lineHeight: 1 }}>{s.value}</p>
+              <Meta style={{ display: 'block', marginTop: 6 }}>{s.label}</Meta>
+            </div>
+          ))}
+        </div>
+      </section>
 
-// ---------------------------------------------------------------------------
-// Page
-// ---------------------------------------------------------------------------
+      {/* Company wall */}
+      <section style={{ padding: '48px 44px', textAlign: 'center' }}>
+        <p className="mono" style={{ fontSize: 11, color: 'var(--ink-mute)', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 24 }}>
+          Hosts from
+        </p>
+        <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center' }}>
+          {COMPANY_WALL.map(co => (
+            <span key={co} style={{ fontFamily: 'var(--display)', fontSize: 18, color: 'var(--ink-soft)', fontWeight: 500 }}>{co}</span>
+          ))}
+        </div>
+      </section>
 
-const Index = () => {
-  const { data: rooms = [] } = useQuery({
-    queryKey: ["public-rooms"],
-    queryFn: getRooms,
-    staleTime: 60_000,
-  });
-  const featured = pickFeaturedRoom(rooms);
-  const liveCount = rooms.filter((r) => r.status === "live").length;
-
-  return (
-    <div
-      className="hy hy-bg-hero"
-      style={{
-        minHeight: "100vh",
-        width: "100%",
-        padding: "clamp(20px, 4vw, 56px)",
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-      }}
-    >
-      <HeroNav />
-
-      <div
-        className="landing-hero-grid"
-        style={{
-          flex: 1,
-          display: "grid",
-          gap: "clamp(24px, 4vw, 56px)",
-          gridTemplateColumns: "1.05fr 1fr",
-          alignItems: "center",
-          marginTop: 40,
-        }}
-      >
-        <div>
-          <span
-            className="hy-pill"
-            style={{ marginBottom: 22, display: "inline-flex" }}
-          >
-            <span className="hy-livedot" />
-            {liveCount > 0
-              ? `${liveCount} room${liveCount === 1 ? "" : "s"} live now`
-              : "Rooms open daily"}
-          </span>
-          <h1
-            style={{
-              fontSize: "clamp(44px, 7vw, 84px)",
-              fontWeight: 500,
-              lineHeight: 0.98,
-              letterSpacing: "-0.035em",
-            }}
-          >
-            Careers grow
-            <br />
-            <span className="display-italic">in conversation.</span>
-          </h1>
-          <p
-            style={{
-              marginTop: 24,
-              fontSize: "clamp(16px, 2vw, 19px)",
-              color: "var(--ink-soft)",
-              maxWidth: 480,
-              lineHeight: 1.5,
-            }}
-          >
-            Hayy is a live community where you meet the people inside companies you care about
-            — not their inboxes. Drop into a room, get warm, then ask for the referral.
+      {/* CTA section */}
+      <section style={{ padding: '64px 44px', background: 'var(--cream)', borderTop: '1px solid var(--line)', textAlign: 'center' }}>
+        <div style={{ maxWidth: 560, margin: '0 auto' }}>
+          <h2 style={{ fontSize: 48, lineHeight: 1.05, marginBottom: 16 }}>
+            You're <span className="display-italic">two rooms</span> from your next yes.
+          </h2>
+          <p style={{ fontSize: 16, color: 'var(--ink-soft)', marginBottom: 32, lineHeight: 1.5 }}>
+            Meet the people inside the companies you care about — not their inboxes.
           </p>
-          <div style={{ display: "flex", gap: 10, marginTop: 32, flexWrap: "wrap" }}>
-            <Link to="/signup" style={{ textDecoration: "none" }}>
-              <Btn kind="primary" size="xl" iconRight={I.arrow}>
-                Join the next room
-              </Btn>
-            </Link>
-            <Link to="/signup?type=host" style={{ textDecoration: "none" }}>
-              <Btn kind="soft" size="xl">
-                Become a host
-              </Btn>
-            </Link>
-          </div>
-          <div
-            style={{
-              display: "flex",
-              gap: 22,
-              marginTop: 36,
-              alignItems: "center",
-              flexWrap: "wrap",
-            }}
-          >
-            <div style={{ display: "flex" }}>
-              {(["clay", "olive", "sand", "dark"] as const).map((tone, i) => (
-                <span key={tone} style={{ marginLeft: i === 0 ? 0 : -10 }}>
-                  <Avatar name={["AB", "MN", "RK", "JS"][i]} size={34} tone={tone} />
-                </span>
-              ))}
-            </div>
-            <div
-              className="mono"
-              style={{ fontSize: 12, color: "var(--ink-soft)", lineHeight: 1.4 }}
-            >
-              Founding cohort of newcomers,
-              <br />
-              hosts &amp; operators.
-            </div>
-          </div>
+          <Btn kind="primary" size="xl" iconRight={React.cloneElement(I.arrow as React.ReactElement<{size?:number}>, { size: 18 })} onClick={() => navigate('/signup')}>
+            Join Hayy
+          </Btn>
         </div>
+      </section>
 
-        <div className="landing-hero-preview">
-          <LiveRoomPreview room={featured} />
+      {/* Footer */}
+      <footer style={{ padding: '24px 44px', borderTop: '1px solid var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <HayyMark size={20} color="var(--clay)" />
+          <span style={{ fontFamily: 'var(--display)', fontSize: 15 }}>Hayy</span>
         </div>
-      </div>
-
-      <style>{`
-        @media (max-width: 880px) {
-          .landing-hero-grid { grid-template-columns: 1fr !important; margin-top: 24px !important; }
-          .landing-hero-preview { margin-top: 12px; }
-        }
-      `}</style>
+        <p style={{ fontSize: 12, color: 'var(--ink-mute)' }}>Careers grow in conversation. © 2026 Hayy</p>
+      </footer>
     </div>
   );
-};
-
-export default Index;
+}

@@ -1,150 +1,273 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { I, Avatar, LiveTag, Meta, Waveform, FloatingComments, RoundBtn } from '@/shared/primitives';
-import { Icon } from '@/shared/primitives';
+import { I, Avatar, LiveTag, Waveform } from '@/shared/primitives';
 
-const speakers = [
-  { n: 'Maya Nasrallah', r: 'Host · AWS', tone: 'clay' as const, big: true, talking: true },
-  { n: 'Rashid Khoury',  r: 'Amazon', tone: 'dark' as const },
-  { n: 'Jenna Sun',      r: 'Shopify', tone: 'olive' as const, talking: true },
-  { n: 'Omar Aziz',      r: 'RBC', tone: 'sand' as const },
-  { n: 'Priya Shah',     r: 'Stripe', tone: 'clay' as const },
+type Tone = 'clay' | 'olive' | 'sand' | 'dark';
+
+const SPEAKERS: { n: string; r: string; tone: Tone; on: boolean; host?: boolean }[] = [
+  { n: 'Maya Nasrallah', r: 'Sr PM · AWS', tone: 'clay', on: true, host: true },
+  { n: 'Rashid Khoury', r: 'Eng Mgr · Amazon', tone: 'olive', on: true },
+  { n: 'Jenna Sun', r: 'Talent · Shopify', tone: 'sand', on: false },
+  { n: 'Omar Aziz', r: 'Data · RBC', tone: 'dark', on: true },
+  { n: 'Layla Park', r: 'Designer · Figma', tone: 'clay', on: false },
+  { n: 'Diego Rivas', r: 'PM · Notion', tone: 'olive', on: false },
 ];
 
-const SpeakerBubble = ({ s, size }: { s: typeof speakers[0]; size: number }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, width: size + 18 }}>
-    <div style={{
-      position: 'relative', borderRadius: 999,
-      padding: 3,
-      background: s.talking ? 'var(--clay)' : 'transparent',
-      boxShadow: s.talking ? '0 0 0 3px color-mix(in oklab, var(--clay) 22%, transparent)' : 'none',
-      transition: 'all .3s',
-    }}>
+const LISTENERS: { n: string; tone: Tone; hand?: boolean }[] = [
+  { n: 'Amira Hassan', tone: 'clay', hand: true },
+  { n: 'Ben Lee', tone: 'sand' },
+  { n: 'Carla Mu', tone: 'olive' },
+  { n: 'Dev Patel', tone: 'dark', hand: true },
+  { n: 'Eli Frey', tone: 'clay' },
+  { n: 'Faye Lin', tone: 'olive' },
+  { n: 'Gus Ono', tone: 'sand' },
+  { n: 'Hina K.', tone: 'dark' },
+];
+
+const CHAT: { n: string; tone: Tone; m: string }[] = [
+  { n: 'Carla M.', tone: 'olive', m: 'Maya — what should the first message after the room say?' },
+  { n: 'Maya N.', tone: 'clay', m: "I usually say 'thank you for what you said about X' first." },
+  { n: 'Dev P.', tone: 'dark', m: 'Raised my hand 🤚' },
+  { n: 'Amira H.', tone: 'clay', m: 'This is exactly what I needed today.' },
+];
+
+const SpeakerTile = ({ s, size = 92 }: { s: typeof SPEAKERS[0]; size?: number }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+    <div style={{ position: 'relative' }}>
       <Avatar name={s.n} size={size} tone={s.tone} />
-      {s.r.startsWith('Host') && (
+      {s.on && (
+        <span style={{ position: 'absolute', inset: -5, borderRadius: '50%', border: '2px solid var(--clay)', pointerEvents: 'none' }} />
+      )}
+      {s.host && (
         <span style={{
-          position: 'absolute', bottom: -2, right: -2, width: 22, height: 22, borderRadius: 999,
-          background: 'var(--clay)', color: 'var(--paper)', border: '2px solid var(--bg)',
+          position: 'absolute', top: -2, right: -2,
+          background: 'var(--clay)', color: 'var(--paper)',
+          borderRadius: 999, padding: '2px 7px', fontSize: 9, fontWeight: 600,
+          letterSpacing: '.05em', textTransform: 'uppercase' as const,
+          border: '2px solid var(--paper)',
+        }}>Host</span>
+      )}
+      {s.on ? (
+        <span style={{
+          position: 'absolute', bottom: -2, right: -2, width: 22, height: 22,
+          borderRadius: 999, background: 'var(--paper)', border: '1px solid var(--line)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          {React.cloneElement(I.mic as React.ReactElement<{size?:number}>, { size: 11 })}
+          <Waveform bars={3} height={10} color="var(--clay)" />
+        </span>
+      ) : (
+        <span style={{
+          position: 'absolute', bottom: -2, right: -2, width: 22, height: 22,
+          borderRadius: 999, background: 'var(--paper)', border: '1px solid var(--line)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink-mute)',
+        }}>
+          {React.cloneElement(I.micOff as React.ReactElement<{ size?: number }>, { size: 11 })}
         </span>
       )}
     </div>
-    <div style={{ textAlign: 'center' }}>
-      <p style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.1, color: 'var(--ink)' }}>{s.n.split(' ')[0]}</p>
-      <p style={{ fontSize: 11, color: 'var(--ink-mute)' }}>{s.r}</p>
+    <div style={{ textAlign: 'center' as const, maxWidth: size + 30 }}>
+      <p style={{ fontSize: 12, fontWeight: 500, lineHeight: 1.2 }}>
+        {s.n.split(' ')[0]} {s.n.split(' ')[1]?.[0]}.
+      </p>
+      <p style={{ fontSize: 10, color: 'var(--ink-mute)', marginTop: 1, lineHeight: 1.2 }}>{s.r}</p>
     </div>
   </div>
 );
 
-const ctrlStyle = (accent: boolean): React.CSSProperties => ({
-  height: 54, minWidth: 54, borderRadius: 18, cursor: 'pointer',
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
-  border: '1px solid var(--line)',
-  background: accent ? 'var(--clay)' : 'var(--paper)',
-  color: accent ? 'var(--paper)' : 'var(--ink)',
-});
+const ControlBtn = ({ icon, label, highlight, danger, onClick }: {
+  icon: React.ReactNode; label: string; highlight?: boolean; danger?: boolean; onClick?: () => void;
+}) => (
+  <div onClick={onClick} style={{
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+    padding: '8px 14px', borderRadius: 999,
+    background: highlight ? 'var(--clay)' : danger ? 'hsl(0 65% 45% / .08)' : 'transparent',
+    color: highlight ? 'var(--paper)' : danger ? 'hsl(0 65% 45%)' : 'var(--ink-soft)',
+    cursor: 'pointer', minWidth: 64, userSelect: 'none' as const,
+  }}>
+    {icon}
+    <span style={{ fontSize: 10, fontWeight: 500 }}>{label}</span>
+  </div>
+);
 
 export default function LiveRoom() {
   const navigate = useNavigate();
-  const [muted, setMuted] = useState(true);
-  const [msg, setMsg] = useState('');
+  const [chatMsg, setChatMsg] = useState('');
+  const [handRaised, setHandRaised] = useState(false);
 
   return (
     <div className="hy" data-palette="dusk" style={{
-      position: 'relative', width: '100%', height: '100%', overflow: 'hidden',
-      display: 'flex', flexDirection: 'column', background: 'var(--bg)', fontFamily: 'var(--body)',
+      width: '100%', height: '100%', overflow: 'hidden',
+      display: 'flex', flexDirection: 'column', background: 'var(--bg)',
     }}>
-      {/* Background glow */}
+      {/* Topbar */}
       <div style={{
-        position: 'absolute', inset: 0, pointerEvents: 'none',
-        background: 'radial-gradient(90% 50% at 50% 22%, color-mix(in oklab, var(--clay) 20%, var(--bg)) 0%, var(--bg) 70%)',
-      }} />
-
-      {/* Top bar */}
-      <div style={{
-        position: 'relative', zIndex: 2, paddingTop: 24, paddingLeft: 20, paddingRight: 20, paddingBottom: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+        padding: '16px 28px', borderBottom: '1px solid var(--line-soft)', background: 'var(--paper)',
+        flex: 'none',
       }}>
-        <button onClick={() => navigate(-1)} style={{
-          width: 42, height: 42, borderRadius: 14, background: 'rgba(255,255,255,.08)', border: '1px solid var(--line)',
-          color: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-        }}>
-          {React.cloneElement(I.chevL as React.ReactElement<{size?:number}>, { size: 18 })}
-        </button>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-            <span className="hy-livedot" />
-            <Meta style={{ color: 'var(--ink-mute)' }}>LIVE · 42 HERE</Meta>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+          <button onClick={() => navigate(-1)} style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            width: 34, height: 34, borderRadius: 10, flex: 'none',
+            background: 'var(--cream)', border: '1px solid var(--line)',
+            color: 'var(--ink-soft)', cursor: 'pointer',
+          }}>
+            {React.cloneElement(I.chevL as React.ReactElement<{ size?: number }>, { size: 16 })}
+          </button>
+          <LiveTag />
+          <span style={{
+            fontSize: 14, fontWeight: 500, color: 'var(--ink)', marginLeft: 4,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const, maxWidth: 380,
+          }}>
+            Breaking into Amazon as a newcomer to Canada
+          </span>
         </div>
-        <button onClick={() => navigate('/app/rooms/r02/live')} style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 13px', borderRadius: 999,
-          background: 'color-mix(in oklab, var(--clay) 18%, transparent)', border: '1px solid color-mix(in oklab, var(--clay) 40%, transparent)',
-          color: 'var(--clay)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
-        }}>
-          {React.cloneElement(I.shuffle as React.ReactElement<{size?:number}>, { size: 14 })}Next
-        </button>
-      </div>
-
-      {/* Room title */}
-      <div style={{ position: 'relative', zIndex: 2, padding: '16px 24px 0', textAlign: 'center' }}>
-        <h2 style={{ fontSize: 22, lineHeight: 1.12 }}>Breaking into Product at Big&nbsp;Tech</h2>
-      </div>
-
-      {/* Stage */}
-      <div style={{
-        position: 'relative', zIndex: 2, flex: 1, minHeight: 0,
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 26, padding: 20,
-      }}>
-        <SpeakerBubble s={speakers[0]} size={92} />
-        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '20px 14px', maxWidth: 320 }}>
-          {speakers.slice(1).map((s, i) => <SpeakerBubble key={i} s={s} size={58} />)}
-        </div>
-        <Meta style={{ color: 'var(--ink-mute)' }}>+ 37 listening</Meta>
-      </div>
-
-      {/* Floating comments */}
-      <FloatingComments />
-
-      {/* Chat input */}
-      <div style={{ position: 'relative', zIndex: 4, flex: 'none', padding: '0 22px 10px' }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 10, height: 44, padding: '0 16px',
-          borderRadius: 999, background: 'color-mix(in oklab, var(--paper) 70%, transparent)',
-          border: '1px solid var(--line)', backdropFilter: 'blur(8px)', color: 'var(--ink-mute)',
-        }}>
-          {React.cloneElement(I.msg as React.ReactElement<{size?:number}>, { size: 16 })}
-          <input
-            value={msg}
-            onChange={e => setMsg(e.target.value)}
-            placeholder="Say something…"
-            style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontSize: 14, color: 'var(--ink)', caretColor: 'var(--clay)' }}
-          />
-          <span style={{ color: 'var(--clay)' }}>
-            {React.cloneElement(I.arrow as React.ReactElement<{size?:number}>, { size: 16 })}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 'none' }}>
+          <span className="mono" style={{ fontSize: 12, color: 'var(--ink-soft)' }}>14:32</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--ink-soft)' }}>
+            {React.cloneElement(I.users as React.ReactElement<{ size?: number }>, { size: 14 })} 28
           </span>
         </div>
       </div>
 
-      {/* Controls */}
-      <div style={{
-        position: 'relative', zIndex: 2, flex: 'none', padding: '4px 22px 34px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-      }}>
-        <button onClick={() => setMuted(!muted)} style={ctrlStyle(false)}>
-          {muted
-            ? React.cloneElement(I.micOff as React.ReactElement<{size?:number}>, { size: 22 })
-            : React.cloneElement(I.mic as React.ReactElement<{size?:number}>, { size: 22 })}
-        </button>
-        <button style={{ ...ctrlStyle(false), flex: 1, gap: 9, width: 'auto' }}>
-          {React.cloneElement(I.hand2 as React.ReactElement<{size?:number}>, { size: 20 })}
-          <span style={{ fontSize: 15, fontWeight: 600 }}>Raise hand</span>
-        </button>
-        <button style={ctrlStyle(true)}>
-          {React.cloneElement(I.heart as React.ReactElement<{size?:number}>, { size: 22 })}
-        </button>
+      {/* Body: main + side rail */}
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 280px', overflow: 'hidden', minHeight: 0 }}>
+        {/* Main stage */}
+        <main style={{ padding: 28, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <div>
+            <p className="mono" style={{ fontSize: 10, color: 'var(--clay)', letterSpacing: '.12em', textTransform: 'uppercase' }}>
+              On stage
+            </p>
+            <h2 style={{ fontSize: 26, marginTop: 4 }}>
+              "How do I turn a referral into a real interview?"
+            </h2>
+          </div>
+
+          {/* Speaker grid 3 × 2 */}
+          <div style={{
+            display: 'grid', gap: 24, gridTemplateColumns: 'repeat(3, 1fr)',
+            justifyItems: 'center', padding: '12px 0',
+          }}>
+            {SPEAKERS.map(s => <SpeakerTile key={s.n} s={s} size={92} />)}
+          </div>
+
+          {/* Caption strip */}
+          <div className="hy-card" style={{
+            padding: 16, display: 'flex', gap: 14, alignItems: 'center',
+            background: 'var(--cream)', borderColor: 'var(--line-soft)',
+          }}>
+            <Avatar name="Maya N." size={36} tone="clay" />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 11, color: 'var(--ink-mute)' }}>Maya N. · speaking</p>
+              <p style={{ fontSize: 14, marginTop: 2 }}>
+                …the trick is making the host want to be your{' '}
+                <span style={{ color: 'var(--clay)', fontWeight: 500 }}>second</span> introduction, not your first.
+              </p>
+            </div>
+            <Waveform bars={14} height={22} color="var(--clay)" />
+          </div>
+
+          {/* Listener row */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
+              <p className="mono" style={{ fontSize: 10, color: 'var(--ink-mute)', letterSpacing: '.12em', textTransform: 'uppercase' }}>
+                22 Listening · 2 raised hands
+              </p>
+              <span style={{ fontSize: 12, color: 'var(--clay)', fontWeight: 500, cursor: 'pointer' }}>Invite to stage</span>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 12 }}>
+              {LISTENERS.map(l => (
+                <div key={l.n} style={{ position: 'relative' }}>
+                  <Avatar name={l.n} size={42} tone={l.tone} />
+                  {l.hand && (
+                    <span style={{
+                      position: 'absolute', bottom: -3, right: -3, width: 22, height: 22,
+                      borderRadius: 999, background: 'var(--spotlight)', border: '2px solid var(--paper)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {React.cloneElement(I.hand as React.ReactElement<{ size?: number }>, { size: 10 })}
+                    </span>
+                  )}
+                </div>
+              ))}
+              <span style={{
+                width: 42, height: 42, borderRadius: 999, background: 'var(--paper)',
+                border: '1px dashed var(--line)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 11, color: 'var(--ink-mute)',
+              }}>+14</span>
+            </div>
+          </div>
+
+          {/* Controls bar */}
+          <div style={{
+            marginTop: 'auto', display: 'flex', justifyContent: 'center',
+            gap: 10, padding: 10, background: 'var(--paper)', borderRadius: 999,
+            border: '1px solid var(--line)', boxShadow: 'var(--shadow-soft)',
+            alignSelf: 'center',
+          }}>
+            <ControlBtn
+              icon={React.cloneElement(I.hand as React.ReactElement<{ size?: number }>, { size: 18 })}
+              label="Raise"
+              highlight={handRaised}
+              onClick={() => setHandRaised(h => !h)}
+            />
+            <ControlBtn
+              icon={React.cloneElement(I.heart as React.ReactElement<{ size?: number }>, { size: 18 })}
+              label="React"
+            />
+            <ControlBtn
+              icon={React.cloneElement(I.shake as React.ReactElement<{ size?: number }>, { size: 18 })}
+              label="Refer me"
+              highlight
+            />
+            <ControlBtn
+              icon={React.cloneElement(I.msg as React.ReactElement<{ size?: number }>, { size: 18 })}
+              label="Chat"
+            />
+            <ControlBtn
+              icon={React.cloneElement(I.closed as React.ReactElement<{ size?: number }>, { size: 18 })}
+              label="Leave"
+              danger
+              onClick={() => navigate(-1)}
+            />
+          </div>
+        </main>
+
+        {/* Side conversation rail */}
+        <aside style={{
+          borderLeft: '1px solid var(--line-soft)', display: 'flex', flexDirection: 'column',
+          overflow: 'hidden', background: 'var(--paper)',
+        }}>
+          <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--line-soft)', flex: 'none' }}>
+            <p className="mono" style={{ fontSize: 10, color: 'var(--clay)', letterSpacing: '.12em', textTransform: 'uppercase' }}>
+              Side conversation
+            </p>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {CHAT.map((m, i) => (
+              <div key={i} style={{ display: 'flex', gap: 8 }}>
+                <Avatar name={m.n} size={26} tone={m.tone} />
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ fontSize: 11, color: 'var(--ink-mute)' }}>{m.n}</p>
+                  <p style={{ fontSize: 13, marginTop: 2 }}>{m.m}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ padding: 12, borderTop: '1px solid var(--line-soft)', flex: 'none' }}>
+            <input
+              value={chatMsg}
+              onChange={e => setChatMsg(e.target.value)}
+              placeholder="Message the room…"
+              style={{
+                width: '100%', background: 'var(--cream)', borderRadius: 999,
+                padding: '8px 14px', fontSize: 12, color: 'var(--ink)',
+                border: 'none', outline: 'none',
+              }}
+            />
+          </div>
+        </aside>
       </div>
     </div>
   );

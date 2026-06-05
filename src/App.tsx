@@ -21,6 +21,7 @@ import ReferralThread from "./pages/app/ReferralThread.tsx";
 import Messages from "./pages/app/Messages.tsx";
 import Notifications from "./pages/app/Notifications.tsx";
 import Profile from "./pages/app/Profile.tsx";
+import ProfileDetail from "./pages/app/ProfileDetail.tsx";
 import HostDashboard from "./pages/app/HostDashboard.tsx";
 import RecruiterDashboard from "./pages/app/RecruiterDashboard.tsx";
 import Settings from "./pages/app/Settings.tsx";
@@ -90,6 +91,7 @@ const App = () => (
             <Route path="messages" element={<Messages />} />
             <Route path="notifications" element={<Notifications />} />
             <Route path="profile" element={<Profile />} />
+            <Route path="profile/:id" element={<ProfileDetail />} />
             <Route path="host" element={<HostDashboard />} />
             <Route path="recruiter" element={<RecruiterDashboard />} />
             <Route path="settings" element={<Settings />} />

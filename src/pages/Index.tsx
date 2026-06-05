@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { I, Avatar, Btn, LiveTag, Waveform, HayyMark, Meta } from '@/shared/primitives';
-import { COMMUNITY_STATS, COMPANY_WALL, PEOPLE } from '@/shared/data';
+import { COMPANY_WALL, PEOPLE } from '@/shared/data';
+import { getCommunityStats, type CommunityStats } from '@/lib/api/profiles';
 
 const HeroNav = () => {
   const navigate = useNavigate();
@@ -68,6 +69,11 @@ const LiveRoomCard = () => (
 
 export default function Index() {
   const navigate = useNavigate();
+  const [stats, setStats] = useState<CommunityStats>({ members: 412, companies: 38, intros: 61 });
+
+  useEffect(() => {
+    getCommunityStats().then(setStats).catch(() => {});
+  }, []);
 
   return (
     <div className="hy" data-palette="dawn" style={{ minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -108,7 +114,7 @@ export default function Index() {
                   ))}
                 </div>
                 <p className="mono" style={{ fontSize: 12, color: 'var(--ink-soft)', lineHeight: 1.5 }}>
-                  {COMMUNITY_STATS.members} members<br />from {COMMUNITY_STATS.companies} companies
+                  {stats.members} members<br />from {stats.companies} companies
                 </p>
               </div>
             </div>
@@ -132,9 +138,9 @@ export default function Index() {
       <section style={{ background: 'var(--cream)', borderTop: '1px solid var(--line)', borderBottom: '1px solid var(--line)', padding: '32px 44px' }}>
         <div style={{ maxWidth: 800, margin: '0 auto', display: 'flex', gap: 48, justifyContent: 'center' }}>
           {[
-            { value: COMMUNITY_STATS.members, label: 'Members' },
-            { value: COMMUNITY_STATS.companies, label: 'Companies' },
-            { value: COMMUNITY_STATS.intros, label: 'Warm intros made' },
+            { value: stats.members, label: 'Members' },
+            { value: stats.companies, label: 'Companies' },
+            { value: stats.intros, label: 'Warm intros made' },
           ].map((s, i) => (
             <div key={i} style={{ textAlign: 'center' }}>
               <p style={{ fontFamily: 'var(--display)', fontSize: 48, lineHeight: 1 }}>{s.value}</p>

@@ -317,3 +317,29 @@ export async function getSuggestedProfiles({
   candidates.sort((a, b) => b.match_score - a.match_score);
   return candidates.slice(0, limit);
 }
+
+// ---------------------------------------------------------------------------
+// Community stats
+// ---------------------------------------------------------------------------
+
+export interface CommunityStats {
+  members: number;
+  companies: number;
+  intros: number;
+}
+
+export async function getCommunityStats(): Promise<CommunityStats> {
+  if (isSupabaseConfigured && supabase) {
+    const [membersRes, companiesRes, introsRes] = await Promise.all([
+      supabase.from("user_profiles").select("id", { count: "exact", head: true }),
+      supabase.from("user_profiles").select("company_name", { count: "exact", head: true }).not("company_name", "is", null),
+      supabase.from("referral_requests").select("id", { count: "exact", head: true }).eq("status", "completed"),
+    ]);
+    return {
+      members: membersRes.count ?? 0,
+      companies: companiesRes.count ?? 0,
+      intros: introsRes.count ?? 0,
+    };
+  }
+  return { members: 412, companies: 38, intros: 61 };
+}

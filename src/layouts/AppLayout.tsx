@@ -39,7 +39,7 @@ const SideRow = ({ it }: { it: { label: string; path: string; icon: React.ReactN
         {it.badge && (
           <span className="mono" style={{
             fontSize: 10, padding: '2px 6px', borderRadius: 999,
-            background: isActive ? 'rgba(255,255,255,.2)' : 'var(--clay)',
+            background: isActive ? 'color-mix(in oklab, var(--paper) 20%, transparent)' : 'var(--clay)',
             color: isActive ? 'white' : 'var(--paper)',
           }}>{it.badge}</span>
         )}
@@ -134,7 +134,7 @@ const MobileTabBar = () => (
     position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 100,
     paddingTop: 12, paddingBottom: 30, paddingLeft: 14, paddingRight: 14,
     background: 'var(--paper)', borderTop: '1px solid var(--line)',
-    boxShadow: '0 -10px 30px -12px rgba(42,38,34,.22)',
+    boxShadow: 'var(--shadow-soft)',
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
   }}>
     {TABS.map(t => {

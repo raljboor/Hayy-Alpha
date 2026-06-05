@@ -1,55 +1,59 @@
-import { Skeleton } from "@/components/ui/skeleton";
+import React from 'react';
+
+const S = ({ style }: { style?: React.CSSProperties }) => (
+  <div className="hy-skeleton" style={style} />
+);
 
 export const RoomCardSkeleton = () => (
-  <div className="rounded-3xl bg-card border border-border overflow-hidden shadow-soft">
-    <Skeleton className="h-24 rounded-none" />
-    <div className="p-5 space-y-3">
-      <Skeleton className="h-5 w-3/4" />
-      <Skeleton className="h-4 w-full" />
-      <Skeleton className="h-4 w-5/6" />
-      <div className="flex gap-3 pt-2">
-        <Skeleton className="h-3 w-20" />
-        <Skeleton className="h-3 w-12" />
-        <Skeleton className="h-3 w-12" />
+  <div className="hy-card" style={{ overflow: 'hidden' }}>
+    <S style={{ height: 96, borderRadius: 0 }} />
+    <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <S style={{ height: 20, width: '75%' }} />
+      <S style={{ height: 16 }} />
+      <S style={{ height: 16, width: '83%' }} />
+      <div style={{ display: 'flex', gap: 12, paddingTop: 8 }}>
+        <S style={{ height: 12, width: 80 }} />
+        <S style={{ height: 12, width: 48 }} />
+        <S style={{ height: 12, width: 48 }} />
       </div>
-      <div className="pt-4 border-t border-border flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Skeleton className="h-8 w-8 rounded-full" />
-          <div className="space-y-1.5">
-            <Skeleton className="h-3 w-20" />
-            <Skeleton className="h-3 w-16" />
+      <div style={{ paddingTop: 16, borderTop: '1px solid var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <S style={{ height: 32, width: 32, borderRadius: '50%' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <S style={{ height: 12, width: 80 }} />
+            <S style={{ height: 12, width: 64 }} />
           </div>
         </div>
-        <Skeleton className="h-9 w-16 rounded-full" />
+        <S style={{ height: 36, width: 64, borderRadius: 999 }} />
       </div>
     </div>
   </div>
 );
 
 export const ReferralCardSkeleton = () => (
-  <div className="rounded-2xl border border-border bg-card p-5 shadow-soft space-y-4">
-    <div className="flex items-start justify-between">
-      <div className="flex items-center gap-3">
-        <Skeleton className="h-10 w-10 rounded-full" />
-        <div className="space-y-1.5">
-          <Skeleton className="h-3.5 w-28" />
-          <Skeleton className="h-3 w-40" />
+  <div className="hy-card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <S style={{ height: 40, width: 40, borderRadius: '50%' }} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <S style={{ height: 14, width: 112 }} />
+          <S style={{ height: 12, width: 160 }} />
         </div>
       </div>
-      <Skeleton className="h-5 w-16 rounded-full" />
+      <S style={{ height: 20, width: 64, borderRadius: 999 }} />
     </div>
-    <Skeleton className="h-4 w-2/3" />
-    <Skeleton className="h-12 w-full" />
-    <div className="flex gap-2 pt-2">
-      <Skeleton className="h-8 w-16 rounded-full" />
-      <Skeleton className="h-8 w-20 rounded-full" />
+    <S style={{ height: 16, width: '66%' }} />
+    <S style={{ height: 48 }} />
+    <div style={{ display: 'flex', gap: 8, paddingTop: 8 }}>
+      <S style={{ height: 32, width: 64, borderRadius: 999 }} />
+      <S style={{ height: 32, width: 80, borderRadius: 999 }} />
     </div>
   </div>
 );
 
 export const StatCardSkeleton = () => (
-  <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
-    <Skeleton className="h-3 w-20" />
-    <Skeleton className="h-8 w-16" />
+  <div className="hy-card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <S style={{ height: 12, width: 80 }} />
+    <S style={{ height: 32, width: 64 }} />
   </div>
 );

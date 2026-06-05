@@ -24,6 +24,7 @@ import type { Session, User } from "@supabase/supabase-js";
 import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
 import { isAuthed, signIn as mockSignIn, signOut as mockSignOut } from "@/lib/auth";
 import { getProfile } from "@/lib/api/profiles";
+import { loginUser, signUpUser } from "@/lib/api/auth";
 import type { UserProfile, RoleType } from "@/types/models";
 import { users } from "@/data/mockData";
 
@@ -50,6 +51,10 @@ export interface AuthContextValue {
   signOut: () => Promise<void>;
   /** Re-fetches the user profile — call after profile updates */
   refreshProfile: () => Promise<void>;
+  /** Signs in with email + password — throws on failure */
+  signIn: (email: string, password: string) => Promise<void>;
+  /** Creates a new account — throws on failure */
+  signUp: (email: string, password: string) => Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -219,6 +224,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   // -------------------------------------------------------------------------
+  // Sign in / sign up
+  // -------------------------------------------------------------------------
+
+  const signIn = useCallback(async (email: string, password: string) => {
+    const result = await loginUser({ email, password });
+    if (result.error) throw new Error(result.error.message);
+    // In mock mode loginUser calls mockSignIn() which fires the storage event;
+    // state sync is handled by the mock-mode useEffect above.
+  }, []);
+
+  const signUp = useCallback(async (email: string, password: string) => {
+    const result = await signUpUser({ email, password });
+    if (result.error) throw new Error(result.error.message);
+  }, []);
+
+  // -------------------------------------------------------------------------
   // Expose nothing until the initial check completes (prevents flash)
   // -------------------------------------------------------------------------
 
@@ -232,6 +253,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     isAuthenticated,
     signOut,
     refreshProfile,
+    signIn,
+    signUp,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -249,5 +272,3 @@ export function useAuthContext(): AuthContextValue {
   return ctx;
 }
 
-// Re-export mockSignIn so Login/Signup can trigger mock mode manually.
-export { mockSignIn };

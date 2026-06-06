@@ -26,6 +26,11 @@ import HostDashboard from "./pages/app/HostDashboard.tsx";
 import RecruiterDashboard from "./pages/app/RecruiterDashboard.tsx";
 import Settings from "./pages/app/Settings.tsx";
 import RolesBoard from "./pages/app/RolesBoard.tsx";
+import Search from "./pages/app/Search.tsx";
+import GreenRoom from "./pages/app/GreenRoom.tsx";
+import Recap from "./pages/app/Recap.tsx";
+import ProfileEdit from "./pages/app/ProfileEdit.tsx";
+import ReferCompose from "./pages/app/ReferCompose.tsx";
 
 import RequireAuth from "./components/RequireAuth.tsx";
 import RequireOnboarded from "./components/RequireOnboarded.tsx";
@@ -96,7 +101,11 @@ const App = () => (
             <Route path="recruiter" element={<RecruiterDashboard />} />
             <Route path="settings" element={<Settings />} />
             <Route path="roles" element={<RolesBoard />} />
-            <Route path="search" element={<RoomsList />} />
+            <Route path="search" element={<Search />} />
+            <Route path="rooms/:id/green" element={<GreenRoom />} />
+            <Route path="rooms/:id/recap" element={<Recap />} />
+            <Route path="profile/edit" element={<ProfileEdit />} />
+            <Route path="refer" element={<ReferCompose />} />
           </Route>
 
           {/* Live room: full-screen (always dusk, no sidebar) */}
